@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Epic 3D Starfield Nebula</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:linear-gradient(#050510,#1a1a3a);
+}
+#starCanvas{
+  position:fixed;
+  width:100vw;
+  height:100vh;
+  top:0;
+  left:0;
+}
+.astral-hud{
+  position:fixed;
+  bottom:48px;
+  left:50%;
+  transform:translateX(-50%);
+  font-family:system-ui, -apple-system, sans-serif;
+  font-weight:300;
+  font-size:16px;
+  color:rgba(255,255,255,0.4);
+  letter-spacing:1.5px;
+  pointer-events:none;
+  z-index:2;
+  white-space:nowrap;
+}
+</style>
+</head>
+<body>
+<canvas id="starCanvas"></canvas>
+<div class="astral-hud" id="hudText"></div>
+
+<script>
+const canvas = document.getElementById("starCanvas");
+const ctx = canvas.getContext("2d");
+let W, H;
+
+// 鼠标视差
+const mouse = {x:0, y:0, targetX:0, targetY:0};
+const parallaxStrength = 0.08;
+
+// 三层星体数据
+const farStars = [];    // 远景：静止暗星
+const midStars = [];    // 中景：缓慢左移+正弦闪烁
+const nearStars = [];   // 近景：亮星，鼠标视差
+const meteors = [];     // 流星列表
+
+// 星云参数
+let nebulaAngle = 0;
+let nebulaScale = 1;
+
+// HUD坐标文本池
+const hudLines = [
+  "DECLINATION: -29.6°",
+  "RIGHT ASCENSION: 06h 45m 09s",
+  "LIGHT-YEARS: 4.22",
+  "GALACTIC LATITUDE: -13.1°",
+  "RADIAL VELOCITY: +18.2 km/s",
+  "PARALLAX: 0.772 arcsec",
+  "SPECTRAL CLASS: M5.5V",
+  "PROPER MOTION: 3.71″/yr"
+];
+let hudIndex = 0;
+const hudEl = document.getElementById("hudText");
+
+// 尺寸适配
+function resize(){
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+// 初始化三层恒星
+function initStars(){
+  // 远景层 420颗 静止微小暗星
+  for(let i=0;i<420;i++){
+    farStars.push({
+      x:Math.random()*W,
+      y:Math.random()*H,
+      size:Math.random()*0.6+0.15,
+      alpha:Math.random()*0.22+0.05
+    });
+  }
+  // 中景层 280颗 缓慢左移+呼吸闪烁
+  for(let i=0;i<280;i++){
+    midStars.push({
+      x:Math.random()*W,
+      y:Math.random()*H,
+      size:Math.random()*0.8+0.25,
+      baseAlpha:Math.random()*0.35+0.12,
+      phase:Math.random()*Math.PI*2,
+      speedX:-0.3
+    });
+  }
+  // 近景层 26颗 亮星带光晕
+  for(let i=0;i<26;i++){
+    const isGold = Math.random()>0.88;
+    nearStars.push({
+      x:Math.random()*W,
+      y:Math.random()*H,
+      originX:0,originY:0,
+      size:Math.random()*2.2+1.0,
+      baseAlpha:Math.random()*0.65+0.35,
+      phase:Math.random()*Math.PI*2,
+      color: isGold ? "#fbbf24" : "#ffffff"
+    });
+    nearStars[nearStars.length-1].originX = nearStars[nearStars.length-1].x;
+    nearStars[nearStars.length-1].originY = nearStars[nearStars.length-1].y;
+  }
+}
+
+// 生成流星
+function spawnMeteor(){
+  const startX = Math.random()*W;
+  const startY = Math.random()*H*0.45;
+  const angle = Math.PI/3 + Math.random()*Math.PI/3;
+  const speed = 2.8 + Math.random()*3.2;
+  meteors.push({
+    x:startX,
+    y:startY,
+    vx:Math.cos(angle)*speed,
+    vy:Math.sin(angle)*speed,
+    trail:[],
+    life:1.0
+  });
+  // 3~5秒随机生成下一颗
+  setTimeout(spawnMeteor, 3000 + Math.random()*2000);
+}
+
+// 绘制动态星云
+function drawNebula(){
+  const cx = W * 0.62;
+  const cy = H * 0.44;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(nebulaAngle);
+  ctx.scale(nebulaScale, nebulaScale);
+
+  const grad = ctx.createRadialGradient(0,0,0,0,0,180);
+  grad.addStop(0, "rgba(139,92,246,0.22)");
+  grad.addStop(0.45, "rgba(139,92,246,0.08)");
+  grad.addStop(1, "rgba(139,92,246,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(0,0,180,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  nebulaAngle += 0.0012;
+  nebulaScale = 1 + Math.sin(nebulaAngle*0.45)*0.06;
+}
+
+// 绘制所有星体
+function drawStars(time){
+  // 远景恒星
+  farStars.forEach(s=>{
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${s.alpha})`;
+    ctx.fill();
+  });
+
+  // 中景恒星 移动+正弦闪烁
+  midStars.forEach(s=>{
+    s.x += s.speedX;
+    if(s.x < -10) s.x = W+10;
+    const blink = Math.sin(time*0.0018 + s.phase)*0.22 + 0.78;
+    const a = s.baseAlpha * blink;
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    ctx.fill();
+  });
+
+  // 近景恒星 视差偏移
+  nearStars.forEach(s=>{
+    const offsetX = (mouse.targetX - mouse.x) * parallaxStrength;
+    const offsetY = (mouse.targetY - mouse.y) * parallaxStrength;
+    s.x = s.originX + offsetX;
+    s.y = s.originY + offsetY;
+    const blink = Math.sin(time*0.0012 + s.phase)*0.25 + 0.75;
+    const alpha = s.baseAlpha * blink;
+
+    // 外层光晕
+    const glowGrad = ctx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size*4.2);
+    glowGrad.addStop(0, s.color);
+    glowGrad.addStop(1, "rgba(255,255,255,0)");
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.size*4.2,0,Math.PI*2);
+    ctx.fillStyle = s.color.replace(")",`,${alpha*0.35})`).replace("#","rgba(").replace(/(.{2})(.{2})(.{2})/,"$1,$2,$3");
+    ctx.fill();
+
+    // 核心星点
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.size,0,Math.PI*2);
+    ctx.fillStyle = s.color.replace(")",`,${alpha})`).replace("#","rgba(").replace(/(.{2})(.{2})(.{2})/,"$1,$2,$3");
+    ctx.fill();
+  });
+}
+
+// 更新并绘制流星
+function updateMeteors(dt){
+  for(let i=meteors.length-1;i>=0;i--){
+    const m = meteors[i];
+    m.trail.push({x:m.x,y:m.y});
+    if(m.trail.length>22) m.trail.shift();
+    m.x += m.vx;
+    m.y += m.vy;
+    m.life -= dt;
+
+    // 绘制流星拖尾
+    ctx.beginPath();
+    ctx.moveTo(m.trail[0].x, m.trail[0].y);
+    for(let p of m.trail) ctx.lineTo(p.x,p.y);
+    const trailAlpha = m.life * 0.75;
+    ctx.strokeStyle = `rgba(255,255,255,${trailAlpha})`;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    // 流星头部光点
+    ctx.beginPath();
+    ctx.arc(m.x,m.y,1.8,0,Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${trailAlpha})`;
+    ctx.fill();
+
+    if(m.life <=0 || m.x>W+50 || m.y>H+50) meteors.splice(i,1);
+  }
+}
+
+// HUD文字轮换
+function rotateHUD(){
+  hudEl.textContent = hudLines[hudIndex];
+  hudIndex = (hudIndex+1) % hudLines.length;
+}
+setInterval(rotateHUD,4200);
+rotateHUD();
+
+// 鼠标事件
+document.addEventListener("mousemove",e=>{
+  mouse.targetX = e.clientX;
+  mouse.targetY = e.clientY;
+});
+
+// 主动画循环
+let lastT = 0;
+function animate(timestamp){
+  const dt = (timestamp - lastT)/1000;
+  lastT = timestamp;
+
+  // 平滑鼠标插值
+  mouse.x += (mouse.targetX - mouse.x) * 0.07;
+  mouse.y += (mouse.targetY - mouse.y) * 0.07;
+
+  // 背景渐变填充
+  ctx.fillStyle = "#050510";
+  ctx.fillRect(0,0,W,H);
+
+  drawNebula();
+  drawStars(timestamp);
+  updateMeteors(dt);
+
+  requestAnimationFrame(animate);
+}
+
+// 启动
+initStars();
+spawnMeteor();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
