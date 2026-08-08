@@ -5,7 +5,7 @@ const admin = useAdminApi();
 const loading = ref(true);
 const data = ref<any>({});
 const openReports = ref(0);
-const { online: presenceOnline, avatars: presenceAvatars, users: presenceUsers } = usePresence();
+const { online: presenceOnline, users: presenceUsers } = usePresence();
 
 const formatDuration = (seconds: number) => {
   if (seconds < 60) return `${seconds} 秒`;
@@ -139,36 +139,22 @@ onMounted(async () => {
         </AdminCard>
 
         <AdminCard>
-          <template #title>在线人数</template>
-          <div class="ik-admin-online">
-            <div class="ik-admin-online__count">
-              <span class="ik-admin-online__dot" aria-hidden="true" />
-              <span class="ik-admin-online__num">{{ presenceOnline }}</span>
-              <span>人在线</span>
-            </div>
-            <div class="ik-admin-online__stack" aria-hidden="true">
-              <img
-                v-for="(url, i) in presenceAvatars.slice(0, 5)"
-                :key="url + i"
-                :src="url"
-                class="ik-admin-online__avatar"
-                alt=""
-                loading="lazy"
-              />
-              <span v-if="presenceOnline > 5" class="ik-admin-online__more">+{{ presenceOnline - 5 }}</span>
-            </div>
-            <div class="ik-admin-online__note">在线用户实时心跳，每 20 秒更新</div>
-
-            <ul v-if="presenceUsers.length" class="ik-admin-online__list">
-              <li v-for="u in presenceUsers" :key="u.username" class="ik-admin-online__row">
-                <img :src="u.avatar" class="ik-admin-online__row-avatar" alt="" loading="lazy" />
-                <span class="ik-admin-online__row-name">{{ u.name }}</span>
-                <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
-                <span class="ik-admin-online__row-duration">{{ formatDuration(u.durationSeconds) }}</span>
-              </li>
-            </ul>
-            <div v-else class="ik-admin-online__empty">暂无登录用户在线</div>
-          </div>
+          <template #title>
+            <span class="ik-admin-online__title">在线人数</span>
+            <span class="ik-admin-online__badge">
+              <span class="ik-admin-online__badge-dot" aria-hidden="true" />
+              {{ presenceOnline }} 人在线
+            </span>
+          </template>
+          <ul v-if="presenceUsers.length" class="ik-admin-online__list">
+            <li v-for="u in presenceUsers" :key="u.username" class="ik-admin-online__row">
+              <img :src="u.avatar" class="ik-admin-online__row-avatar" alt="" loading="lazy" />
+              <span class="ik-admin-online__row-name">{{ u.name }}</span>
+              <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
+              <span class="ik-admin-online__row-duration">{{ formatDuration(u.durationSeconds) }}</span>
+            </li>
+          </ul>
+          <div v-else class="ik-admin-online__empty">暂无登录用户在线</div>
         </AdminCard>
 
         <AdminCard>
