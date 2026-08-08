@@ -1926,6 +1926,7 @@ if (import.meta.client) {
   min-width: 0;
   box-sizing: border-box;
   overflow: hidden;
+  padding: 20px 0;
 }
 
 .ik-create-menu :deep(.z-menu__item) > * {
