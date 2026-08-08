@@ -1105,15 +1105,6 @@ if (import.meta.client) {
               <span class="ik-nav-item__title">{{ draft.title || "无标题" }}</span>
               <span class="ik-nav-item__meta">{{ draftPreviewText(draft) }}</span>
             </div>
-            <button
-              type="button"
-              class="ik-nav-item__delete"
-              title="删除草稿"
-              :disabled="isDeletingDraft"
-              @click.stop="deleteDraftItem(draft.documentId)"
-            >
-              <TrashIcon class="ik-nav-item__delete-icon" aria-hidden="true" />
-            </button>
           </z-menu-item>
         </z-menu>
 
@@ -1950,6 +1941,9 @@ if (import.meta.client) {
   align-items: stretch;
   min-height: 56px;
   padding: 10px 16px;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .ik-create-menu :deep(.z-menu__content) {
@@ -1961,6 +1955,8 @@ if (import.meta.client) {
 
 .ik-create-menu :deep(.z-menu__item) > * {
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .ik-nav-item__content {
@@ -1970,54 +1966,7 @@ if (import.meta.client) {
   gap: 3px;
   min-width: 0;
   width: 100%;
-  padding-right: 28px;
   box-sizing: border-box;
-}
-
-/* 草稿项删除按钮：悬停显示，位于右侧；隐藏时不可见也不拦截点击 */
-.ik-nav-item__delete {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.55);
-  color: rgba(255, 255, 255, 0.55);
-  cursor: pointer;
-  visibility: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease, visibility 0s linear 140ms;
-}
-
-.ik-create-menu :deep(.z-menu__item):hover .ik-nav-item__delete,
-.ik-nav-item__delete:focus-visible {
-  visibility: visible;
-  opacity: 1;
-  pointer-events: auto;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
-}
-
-.ik-nav-item__delete:hover {
-  color: #ff6b6b;
-  background: rgba(255, 77, 79, 0.18);
-}
-
-.ik-nav-item__delete:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.ik-nav-item__delete-icon {
-  width: 14px;
-  height: 14px;
 }
 
 .ik-nav-item__title {
