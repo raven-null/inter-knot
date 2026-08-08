@@ -5,9 +5,10 @@ const admin = useAdminApi();
 const loading = ref(true);
 const data = ref<any>({});
 const openReports = ref(0);
+const { online: presenceOnline, avatars: presenceAvatars } = usePresence();
 
 const KPI_W = 720;
-const KPI_H = 200;
+const KPI_H = 260;
 const KPI_PAD = 28;
 
 const series = computed(() => {
@@ -108,7 +109,7 @@ onMounted(async () => {
         <AdminEmpty v-else />
       </AdminCard>
 
-      <div class="ik-admin-grid" style="grid-template-columns: 1fr 1fr">
+      <div class="ik-admin-grid ik-admin-grid--three">
         <AdminCard>
           <template #title>最新注册用户</template>
           <table class="ik-admin-table">
@@ -128,6 +129,29 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
+        </AdminCard>
+
+        <AdminCard>
+          <template #title>在线人数</template>
+          <div class="ik-admin-online">
+            <div class="ik-admin-online__count">
+              <span class="ik-admin-online__dot" aria-hidden="true" />
+              <span class="ik-admin-online__num">{{ presenceOnline }}</span>
+              <span>人在线</span>
+            </div>
+            <div class="ik-admin-online__stack" aria-hidden="true">
+              <img
+                v-for="(url, i) in presenceAvatars.slice(0, 5)"
+                :key="url + i"
+                :src="url"
+                class="ik-admin-online__avatar"
+                alt=""
+                loading="lazy"
+              />
+              <span v-if="presenceOnline > 5" class="ik-admin-online__more">+{{ presenceOnline - 5 }}</span>
+            </div>
+            <div class="ik-admin-online__note">在线用户实时心跳，每 20 秒更新</div>
+          </div>
         </AdminCard>
 
         <AdminCard>

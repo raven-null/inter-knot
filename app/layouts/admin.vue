@@ -103,6 +103,9 @@ onMounted(async () => {
       <div class="ik-admin__content">
         <slot />
       </div>
+      <footer class="ik-admin__footer">
+        绳网后台 · InterKnot Forum · © {{ new Date().getFullYear() }}
+      </footer>
     </main>
   </div>
 </template>
@@ -243,7 +246,16 @@ onMounted(async () => {
 }
 
 .ik-admin__content {
-  padding: 24px;
+  padding: 28px 32px 20px;
+}
+
+.ik-admin__footer {
+  padding: 20px 24px 30px;
+  text-align: center;
+  color: #666;
+  font-size: 12px;
+  border-top: 1px solid #1e1e1e;
+  margin: 8px 32px 0;
 }
 
 @media (max-width: 768px) {
