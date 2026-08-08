@@ -18,7 +18,6 @@ import { json, ok, badRequest, error, readJson } from "../http";
 import { toAuthor, DEFAULT_AVATAR, type Doc } from "../serialize";
 
 const PASSPORT_BASE = "https://passport-api.mihoyo.com/account/ma-cn-passport/web";
-const PASSPORT_LEGACY = "https://passport-api.mihoyo.com/account/auth/api";
 const TAKUMI_BINDING = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie";
 
 const QR_SESSION = (ticket: string) => `mihoyo/qr-sessions/${ticket}.json`;
@@ -58,28 +57,14 @@ function rpcHeaders(): Record<string, string> {
   };
 }
 
-async function post(path: string, body: unknown, useLegacy = false): Promise<unknown | null> {
-  const base = useLegacy ? PASSPORT_LEGACY : PASSPORT_BASE;
-  const url = `${base}/${path}`;
+async function post(path: string, body: unknown): Promise<unknown | null> {
+  const url = `${PASSPORT_BASE}/${path}`;
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: rpcHeaders(),
       body: JSON.stringify(body ?? {}),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-async function get(path: string, params: Record<string, string>, useLegacy = false): Promise<unknown | null> {
-  const base = useLegacy ? PASSPORT_LEGACY : PASSPORT_BASE;
-  const url = new URL(`${base}/${path}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  try {
-    const res = await fetch(url.toString(), { headers: rpcHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as unknown;
   } catch {
@@ -153,15 +138,21 @@ export async function qrStatus(req: Request): Promise<Response> {
 
   // 状态枚举：Created(等待扫码) / Scanned(已扫码) / Confirmed(已确认) / Expired / Cancelled
   if (rawStatus.toLowerCase().includes("confirm")) {
-    const uid = String(d?.user_info?.uid || "");
-    // token_type：米游社 token 数组，通常 2=stoken；兜底取第一个
-    const stoken = d?.tokens?.find((t) => t?.token_type === 2)?.token || d?.tokens?.[0]?.token || "";
-    if (uid && stoken) {
+    const userInfo = (d?.user_info || {}) as {
+      aid?: string;
+      mid?: string;
+      account_name?: string;
+      realname?: string;
+      mobile?: string;
+    };
+    // 新版接口 confirmed 后 tokens 可能为空，但有 user_info.aid（米游社账号 ID）
+    const aid = String(userInfo.aid || "");
+    if (aid) {
       session.status = "confirmed";
       await setJson(QR_SESSION(ticket), session);
-      return handleConfirmed(req, session, ticket, uid, stoken);
+      return handleConfirmed(req, session, ticket, aid, aid);
     }
-    // 解析不到 uid/stoken：把原始数据带回前端便于排查
+    // 解析不到账号 ID：把原始数据带回前端便于排查
     return json({ status: "confirmed", mode: session.mode || "bind", binding: null, debug: d });
   }
   if (rawStatus.toLowerCase().includes("scan")) {
@@ -181,43 +172,26 @@ export async function qrStatus(req: Request): Promise<Response> {
   return json({ status: "waiting" });
 }
 
-/** 确认后处理：绑定模式写绑定；登录模式建号/登录 */
+/** 确认后处理：绑定模式写绑定；登录模式建号/登录
+ *
+ * 新版 ma-cn-passport 接口 confirmed 后 tokens 为空，改用 user_info.aid
+ * （米游社账号 ID）作为唯一标识完成绑定；角色信息尽力获取，失败不影响绑定。
+ */
 async function handleConfirmed(
   req: Request,
   session: { mode?: string; viewerId?: string | null },
   ticket: string,
-  uid: string,
-  stoken: string,
+  accountId: string,
+  _stoken: string,
 ): Promise<Response> {
-  // ① stoken → cookie（旧接口路径，未变）
-  const cookieData = (await get(
-    "getCookieAccountInfoBySToken",
-    { stoken, uid },
-    true,
-  )) as {
-    retcode?: number;
-    message?: string;
-    data?: { mid?: string; cookie_token?: string; account_id?: string } | null;
-  } | null;
-  const cookie = cookieData?.data;
-  if (!cookie?.mid || !cookie?.cookie_token || !cookie?.account_id) {
-    return error(
-      502,
-      `换取米游社凭证失败（${cookieData?.retcode ?? "无响应"} ${cookieData?.message || ""}）`,
-      "MIHOYO_TOKEN_EXCHANGE_FAILED",
-    );
-  }
-  const accountId = String(cookie.account_id);
-  const cookieHeader = `account_id=${accountId};cookie_token=${cookie.cookie_token}`;
-
-  // ② 拉取绝区零角色
+  // 尝试用 account_id 直接拉取绝区零角色（部分环境可用 cookie 直查）
   let zzzNickname: string | null = null;
   let zzzLevel: number | null = null;
   let zzzRegion = "";
   let zzzRegionName = "";
   try {
     const roleRes = await fetch(`${TAKUMI_BINDING}?game_biz=zzz_cn`, {
-      headers: { Cookie: cookieHeader, "User-Agent": rpcHeaders()["User-Agent"] },
+      headers: { Cookie: `account_id=${accountId}`, "User-Agent": rpcHeaders()["User-Agent"] },
     });
     const roleData = (await roleRes.json()) as {
       retcode?: number;
@@ -236,7 +210,7 @@ async function handleConfirmed(
 
   const binding = {
     aid: accountId,
-    zzzUid: uid,
+    zzzUid: accountId,
     zzzNickname,
     zzzLevel,
     zzzRegion,
