@@ -192,7 +192,8 @@ export async function detail(req: Request): Promise<Response> {
 }
 
 export async function view(req: Request): Promise<Response> {
-  const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean)[2] || "");
+  const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
+  const id = decodeURIComponent(segments[segments.length - 2] || "");
   const doc = await getPostDoc(id);
   if (!doc) return notFound();
   const views = Number(doc.views || 0) + 1;
