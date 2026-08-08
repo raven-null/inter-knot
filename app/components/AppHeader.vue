@@ -241,23 +241,6 @@ watch(
 
 
       <div class="ik-header__right">
-        <!-- 移动端：tabs 隐藏后，把「敲敲」入口放到搜索框右侧 -->
-        <button
-          type="button"
-          class="ik-header__knock"
-          :aria-label="knockUnread > 0 ? `敲敲，${knockUnread} 条未读` : '敲敲'"
-          @click="handleTabChange('notification')"
-        >
-          <BellIcon class="ik-header__knock-icon" aria-hidden="true" />
-          <KnockDragBadge
-            v-if="knockUnreadLabel"
-            class="ik-header__knock-badge"
-            :label="knockUnreadLabel"
-            aria-hidden="true"
-            @clear="handleKnockClear"
-          />
-        </button>
-
         <div class="ik-header-tabs" role="tablist" aria-label="顶部导航">
           <button
             type="button"
@@ -274,33 +257,6 @@ watch(
               />
             </svg>
             <span class="ik-header-tab__content">推荐</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            class="ik-header-tab ik-header-tab--middle"
-            :class="{ 'is-active': activeTab === 'notification' }"
-            :aria-selected="activeTab === 'notification'"
-            :aria-label="knockUnread > 0 ? `敲敲，${knockUnread} 条未读` : '敲敲'"
-            @click="handleTabChange('notification')"
-          >
-            <svg class="ik-tab-highlight ik-tab-highlight--middle" viewBox="0 0 121.4 42" aria-hidden="true">
-              <path
-                d="M 105.08 0 A 10 10 0 0 1 113.99 14.54 L 104.45 33.26 A 16 16 0 0 1 90.2 42 L 16.32 42 A 10 10 0 0 1 7.41 27.46 L 16.95 8.74 A 16 16 0 0 1 31.2 0 Z"
-                fill="currentColor"
-              />
-            </svg>
-            <span class="ik-header-tab__content">
-              敲敲
-              <KnockDragBadge
-                v-if="knockUnreadLabel"
-                class="ik-header-tab__badge"
-                :label="knockUnreadLabel"
-                aria-hidden="true"
-                @clear="handleKnockClear"
-              />
-            </span>
           </button>
 
           <button
@@ -355,6 +311,23 @@ watch(
             <span class="ik-header-tab__content">{{ mineTabText }}</span>
           </button>
         </div>
+
+        <!-- 敲敲入口（图标常驻，置于右侧最右） -->
+        <button
+          type="button"
+          class="ik-header__knock"
+          :aria-label="knockUnread > 0 ? `敲敲，${knockUnread} 条未读` : '敲敲'"
+          @click="handleTabChange('notification')"
+        >
+          <BellIcon class="ik-header__knock-icon" aria-hidden="true" />
+          <KnockDragBadge
+            v-if="knockUnreadLabel"
+            class="ik-header__knock-badge"
+            :label="knockUnreadLabel"
+            aria-hidden="true"
+            @clear="handleKnockClear"
+          />
+        </button>
       </div>
     </div>
     <div class="ik-header__progress" :class="{ 'is-active': showProgress }">
@@ -745,9 +718,9 @@ watch(
   align-items: center;
 }
 
-/* 移动端「敲敲」入口：桌面端用 tabs，不显示此按钮 */
+/* 敲敲入口图标（常驻显示于右侧最右） */
 .ik-header__knock {
-  display: none;
+  display: inline-flex;
   position: relative;
   flex: 0 0 auto;
   width: 42px;
