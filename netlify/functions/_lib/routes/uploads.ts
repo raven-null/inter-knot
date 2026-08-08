@@ -116,7 +116,13 @@ export async function rawUpload(req: Request): Promise<Response> {
     created_at: now,
   };
   await setJson(uploadKey(key), doc);
-  await setJson(UPLOAD_BY_DOC(documentId), { document_id: documentId, url: doc.url, width, height });
+  await setJson(UPLOAD_BY_DOC(documentId), {
+    document_id: documentId,
+    owner_id: viewer.userId,
+    url: doc.url,
+    width,
+    height,
+  });
   return json({ ok: true });
 }
 
@@ -130,7 +136,13 @@ export async function complete(req: Request): Promise<Response> {
   if (width != null && height != null) {
     const updated = { ...doc, width: Number(width), height: Number(height) };
     await setJson(uploadKey(uploadToken), updated);
-    await setJson(UPLOAD_BY_DOC(String(doc.document_id)), { document_id: doc.document_id, url: doc.url, width, height });
+    await setJson(UPLOAD_BY_DOC(String(doc.document_id)), {
+      document_id: doc.document_id,
+      owner_id: viewer.userId,
+      url: doc.url,
+      width,
+      height,
+    });
     return ok(toUploadedFile(updated));
   }
   return ok(toUploadedFile(doc));

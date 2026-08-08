@@ -129,6 +129,23 @@ async function writeBgIndex(userId: string, idx: BgIndex): Promise<void> {
   await setJson(KEYS.customBackgrounds(userId), idx);
 }
 
+/**
+ * 用强一致性索引 `uploads/by-document/{id}.json` 直接定位上传记录，
+ * 避免 listKeys（最终一致）刚上传后查不到导致 400「文件不存在」。
+ * 仅返回属于当前用户的记录。
+ */
+const UPLOAD_BY_DOC = (id: string) => `uploads/by-document/${id}.json`;
+
+async function findOwnedUpload(
+  viewer: { userId: string },
+  documentId: string,
+): Promise<{ url: string; width?: number; height?: number } | null> {
+  const meta = await getJson<{ url?: string; owner_id?: string; width?: number; height?: number }>(UPLOAD_BY_DOC(documentId));
+  if (!meta?.url) return null;
+  if (String(meta.owner_id) !== viewer.userId) return null;
+  return { url: String(meta.url), width: meta.width, height: meta.height };
+}
+
 export async function businessCards(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const idx = await readBgIndex(viewer.userId);
@@ -164,21 +181,13 @@ export async function uploadCustomCard(req: Request): Promise<Response> {
   const { fileId } = await readJson<{ fileId?: string | number }>(req);
   if (!fileId) return badRequest("缺少文件");
   const documentId = String(fileId);
-  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
-  let url = "";
-  for (const key of keys) {
-    const d = await getJson<Doc>(key);
-    if (d && String(d.document_id) === documentId && String(d.owner_id) === viewer.userId) {
-      url = String(d.url || "");
-      break;
-    }
-  }
-  if (!url) return badRequest("文件不存在");
+  const upload = await findOwnedUpload(viewer, documentId);
+  if (!upload) return badRequest("文件不存在");
 
   const idx = await readBgIndex(viewer.userId);
   const newItem = {
     documentId,
-    url,
+    url: upload.url,
     name: "自定义背景",
     createdAt: new Date().toISOString(),
   };
@@ -190,7 +199,7 @@ export async function uploadCustomCard(req: Request): Promise<Response> {
       documentId,
       name: "自定义背景",
       type: "character",
-      image: url,
+      image: upload.url,
       createdAt: newItem.createdAt,
     },
     equippedCardDocumentId: documentId,
@@ -224,19 +233,11 @@ export async function uploadCustomAvatar(req: Request): Promise<Response> {
   const { fileId } = await readJson<{ fileId?: string | number }>(req);
   if (!fileId) return badRequest("缺少文件");
   const documentId = String(fileId);
-  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
-  let url = "";
-  for (const key of keys) {
-    const d = await getJson<Doc>(key);
-    if (d && String(d.document_id) === documentId && String(d.owner_id) === viewer.userId) {
-      url = String(d.url || "");
-      break;
-    }
-  }
-  if (!url) return badRequest("文件不存在");
+  const upload = await findOwnedUpload(viewer, documentId);
+  if (!upload) return badRequest("文件不存在");
   const u = await userDoc(viewer.userId);
-  await setJson(userKey(viewer.userId), { ...u, avatar_url: url });
-  return json({ avatar: { url } });
+  await setJson(userKey(viewer.userId), { ...u, avatar_url: upload.url });
+  return json({ avatar: { url: upload.url } });
 }
 
 // ── 精选帖子（简化：返回空） ─────────────────────────
