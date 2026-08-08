@@ -501,17 +501,7 @@ onBeforeUnmount(() => {
 
             <div class="ik-banner__info">
               <h1 class="ik-banner__name">{{ profile.name || profile.login || "匿名用户" }}</h1>
-              <div v-if="showLevel && profileLevelView" class="ik-banner__level-row">
-                <span class="ik-banner__lv-chip">Lv.{{ profileLevelView.level }}</span>
-                <span class="ik-banner__lv-title">{{ profileLevelView.title }}</span>
-                <span class="ik-banner__lv-bar">
-                  <span
-                    class="ik-banner__lv-fill"
-                    :style="{ width: `${profileLevelView.progressPercent}%` }"
-                  ></span>
-                </span>
-                <span class="ik-banner__lv-exp">{{ profileLevelView.exp }}/{{ profileLevelView.nextThreshold }}</span>
-              </div>
+              <span v-if="showLevel && profileLevelView" class="ik-banner__lv-chip">Lv.{{ profileLevelView.level }}</span>
               <span v-if="profile.zzz?.nickname" class="ik-banner__zzz-badge" :title="`绝区零 UID ${profile.zzz.uid}`">
                 {{ profile.zzz.regionName || "绝区零" }}
               </span>
@@ -931,14 +921,9 @@ onBeforeUnmount(() => {
   text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
 }
-/* 等级行（等级体系开启时）：Lv 徽章 + 称号 + 进度条 + 经验值 */
-.ik-banner__level-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+/* 等级徽章（等级体系开启时） */
 .ik-banner__lv-chip {
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -953,36 +938,6 @@ onBeforeUnmount(() => {
   font-style: italic;
   line-height: 1;
   box-shadow: 0 2px 6px rgba(0,0,0,0.35);
-}
-.ik-banner__lv-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.85);
-  white-space: nowrap;
-}
-.ik-banner__lv-bar {
-  position: relative;
-  width: 120px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.55);
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
-}
-.ik-banner__lv-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #4661fd 0%, #10bff0 100%);
-  transition: width 0.3s ease;
-}
-.ik-banner__lv-exp {
-  font-size: 12px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: rgba(255,255,255,0.6);
 }
 .ik-banner__title-tag {
   display: inline-block;
