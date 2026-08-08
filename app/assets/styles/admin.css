@@ -194,3 +194,122 @@
   text-align: center;
   color: var(--ik-muted, #9a9a9a);
 }
+
+/* ── 概览页：可点击 KPI / 趋势图 ── */
+.ik-admin-stat {
+  text-decoration: none;
+}
+.ik-admin-stat--warn .ik-admin-stat__value {
+  color: #ffb84d;
+}
+.ik-admin-trend {
+  padding: 8px 4px 0;
+}
+.ik-admin-trend__svg {
+  width: 100%;
+  height: 180px;
+}
+.ik-admin-trend__legend {
+  display: flex;
+  gap: 16px;
+  padding: 10px 4px 0;
+  font-size: 12px;
+  color: #9a9a9a;
+}
+.ik-admin-trend__dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.ik-admin-trend__dates {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px 0;
+  font-size: 10px;
+  color: #666;
+}
+
+/* ── 待审核队列 ── */
+.ik-admin-review {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ik-admin-review__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px 10px 0 10px;
+}
+.ik-admin-review__main {
+  min-width: 0;
+}
+.ik-admin-review__title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-admin-review__meta {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: #9a9a9a;
+}
+.ik-admin-review__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.ik-admin-badge--blue {
+  color: #79b8ff;
+  border-color: #1f3a5f;
+  background: rgba(56, 139, 253, 0.15);
+}
+.ik-admin-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: #79b8ff;
+  font-size: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-admin-link:hover {
+  text-decoration: underline;
+}
+.ik-admin-preview-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #d8d8d8;
+}
+.ik-admin-preview-body :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+.ik-admin-preview-body :deep(pre),
+.ik-admin-preview-body :deep(code) {
+  background: #1a1a1a;
+  border-radius: 6px;
+}
+.ik-admin-preview-body :deep(blockquote) {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid #333;
+  color: #9a9a9a;
+}

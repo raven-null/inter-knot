@@ -3,19 +3,48 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 
-const navItems = [
-  { to: "/admin", label: "数据概览", icon: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" },
-  { to: "/admin/users", label: "用户管理", icon: "M16 11a4 4 0 10-4-4 4 4 0 004 4zm-8 2a5 5 0 00-5 5v3h10v-3a5 5 0 00-5-5zm8 0a3 3 0 00-3 3v5h8v-5a3 3 0 00-3-3z" },
-  { to: "/admin/posts", label: "帖子管理", icon: "M4 4h16v4H4zM4 10h16v2H4zM4 14h16v2H4zM4 18h10v2H4z" },
-  { to: "/admin/comments", label: "评论管理", icon: "M4 4h16a2 2 0 012 2v10a2 2 0 01-2 2H8l-5 5V6a2 2 0 012-2z" },
-  { to: "/admin/categories", label: "版块管理", icon: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" },
-  { to: "/admin/settings", label: "站点设置", icon: "M19.4 13a7.9 7.9 0 000-2l2-1.5-2-3.5-2.4 1a8 8 0 00-1.7-1L15 3h-4l-.3 2.4a8 8 0 00-1.7 1l-2.4-1-2 3.5L6.6 11a8 8 0 000 2l-2 1.5 2 3.5 2.4-1a8 8 0 001.7 1L11 21h4l.3-2.4a8 8 0 001.7-1l2.4 1 2-3.5-2-1.1z" },
+const ICONS = {
+  dash: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
+  review: "M12 2l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V5l8-3zm-1 13l-3.5-3.5 1.4-1.4L11 12.2l4.1-4.1 1.4 1.4L11 15z",
+  posts: "M4 4h16v4H4zM4 10h16v2H4zM4 14h16v2H4zM4 18h10v2H4z",
+  comments: "M4 4h16a2 2 0 012 2v10a2 2 0 01-2 2H8l-5 5V6a2 2 0 012-2z",
+  reports: "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
+  users: "M16 11a4 4 0 10-4-4 4 4 0 004 4zm-8 2a5 5 0 00-5 5v3h10v-3a5 5 0 00-5-5zm8 0a3 3 0 00-3 3v5h8v-5a3 3 0 00-3-3z",
+  categories: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  settings: "M19.4 13a7.9 7.9 0 000-2l2-1.5-2-3.5-2.4 1a8 8 0 00-1.7-1L15 3h-4l-.3 2.4a8 8 0 00-1.7 1l-2.4-1-2 3.5L6.6 11a8 8 0 000 2l-2 1.5 2 3.5 2.4-1a8 8 0 001.7 1L11 21h4l.3-2.4a8 8 0 001.7-1l2.4 1 2-3.5-2-1.1z",
+};
+
+const navGroups = [
+  { label: "概览", items: [{ to: "/admin", label: "数据概览", icon: ICONS.dash }] },
+  {
+    label: "内容管理",
+    items: [
+      { to: "/admin/review", label: "待审核", icon: ICONS.review },
+      { to: "/admin/posts", label: "帖子管理", icon: ICONS.posts },
+      { to: "/admin/comments", label: "评论管理", icon: ICONS.comments },
+      { to: "/admin/reports", label: "举报管理", icon: ICONS.reports },
+    ],
+  },
+  { label: "用户", items: [{ to: "/admin/users", label: "用户管理", icon: ICONS.users }] },
+  {
+    label: "系统",
+    items: [
+      { to: "/admin/categories", label: "版块管理", icon: ICONS.categories },
+      { to: "/admin/settings", label: "站点设置", icon: ICONS.settings },
+    ],
+  },
 ];
+
+const allItems = navGroups.flatMap((g) => g.items);
 
 const isActive = (to: string) => {
   if (to === "/admin") return route.path === "/admin";
   return route.path.startsWith(to);
 };
+
+const currentTitle = computed(
+  () => allItems.find((i) => isActive(i.to))?.label || "后台管理",
+);
 
 onMounted(async () => {
   // 兜底校验：等待用户信息加载完成后判断管理员权限
@@ -45,18 +74,21 @@ onMounted(async () => {
         绳网后台
       </div>
       <nav class="ik-admin__nav">
-        <NuxtLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="ik-admin__nav-item"
-          :class="{ 'is-active': isActive(item.to) }"
-        >
-          <svg class="ik-admin__nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path :d="item.icon" fill="currentColor" />
-          </svg>
-          <span>{{ item.label }}</span>
-        </NuxtLink>
+        <div v-for="group in navGroups" :key="group.label" class="ik-admin__group">
+          <div class="ik-admin__group-label">{{ group.label }}</div>
+          <NuxtLink
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            class="ik-admin__nav-item"
+            :class="{ 'is-active': isActive(item.to) }"
+          >
+            <svg class="ik-admin__nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path :d="item.icon" fill="currentColor" />
+            </svg>
+            <span>{{ item.label }}</span>
+          </NuxtLink>
+        </div>
       </nav>
       <div class="ik-admin__side-footer">
         <NuxtLink to="/" class="ik-admin__back">← 返回前台</NuxtLink>
@@ -65,7 +97,7 @@ onMounted(async () => {
 
     <main class="ik-admin__main">
       <header class="ik-admin__topbar">
-        <h1 class="ik-admin__title">{{ navItems.find((i) => isActive(i.to))?.label || "后台管理" }}</h1>
+        <h1 class="ik-admin__title">{{ currentTitle }}</h1>
         <span class="ik-admin__uid">管理员 · {{ auth.user?.name || auth.user?.username }}</span>
       </header>
       <div class="ik-admin__content">
@@ -119,8 +151,23 @@ onMounted(async () => {
   padding: 12px 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
   overflow-y: auto;
+}
+
+.ik-admin__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ik-admin__group-label {
+  padding: 4px 12px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #6a6a6a;
+  text-transform: uppercase;
 }
 
 .ik-admin__nav-item {

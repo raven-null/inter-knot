@@ -8,6 +8,47 @@ import { toCategory, toPost, toComment, DEFAULT_AVATAR, type Doc } from "../seri
 
 const PAGE_SIZE = 20;
 
+/** 近 30 天每日计数：新帖 / 新评论 / 新用户 */
+async function buildTrend(
+  feed: Doc[],
+  commentKeys: string[],
+): Promise<Array<{ date: string; posts: number; comments: number; users: number }>> {
+  const days: string[] = [];
+  const postsByDay = new Map<string, number>();
+  const commentsByDay = new Map<string, number>();
+  const usersByDay = new Map<string, number>();
+  for (let i = 29; i >= 0; i -= 1) {
+    const d = new Date(Date.now() - i * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    days.push(d);
+    postsByDay.set(d, 0);
+    commentsByDay.set(d, 0);
+    usersByDay.set(d, 0);
+  }
+  for (const p of feed) {
+    const d = String(p.created_at || "").slice(0, 10);
+    if (postsByDay.has(d)) postsByDay.set(d, (postsByDay.get(d) || 0) + 1);
+  }
+  for (const key of commentKeys) {
+    const c = await getJson<{ created_at?: string }>(key);
+    const d = String(c?.created_at || "").slice(0, 10);
+    if (commentsByDay.has(d)) commentsByDay.set(d, (commentsByDay.get(d) || 0) + 1);
+  }
+  const userKeys = (await listKeys("users/")).filter(
+    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+  );
+  for (const key of userKeys) {
+    const u = await getJson<{ created_at?: string }>(key);
+    const d = String(u?.created_at || "").slice(0, 10);
+    if (usersByDay.has(d)) usersByDay.set(d, (usersByDay.get(d) || 0) + 1);
+  }
+  return days.map((date) => ({
+    date,
+    posts: postsByDay.get(date) || 0,
+    comments: commentsByDay.get(date) || 0,
+    users: usersByDay.get(date) || 0,
+  }));
+}
+
 async function allPostDocs(): Promise<Doc[]> {
   const keys = (await listKeys("posts/")).filter((k) => !k.includes("/_lookup/"));
   const docs: Doc[] = [];
@@ -51,6 +92,9 @@ export async function stats(req: Request): Promise<Response> {
     if (c && String(c.created_at || "").startsWith(today)) todayComments += 1;
   }
 
+  // 近 30 天趋势（新帖/新评论/新用户，按日）
+  const trend = await buildTrend(feed, commentKeys);
+
   return json({
     userCount: Number(s.userCount || 0),
     postCount: Number(s.postCount || 0),
@@ -60,6 +104,7 @@ export async function stats(req: Request): Promise<Response> {
     todayComments,
     pendingPosts,
     categoryCount: (await listKeys("categories/")).length,
+    trend,
     recentUsers: recentUsers.slice(0, 5).map((u) => ({
       documentId: String(u.document_id),
       username: String(u.username || ""),
@@ -86,7 +131,9 @@ export async function users(req: Request): Promise<Response> {
   const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
   const q = (qp.get("q") || "").toLowerCase();
 
-  const keys = (await listKeys("users/")).filter((k) => !k.includes("/by-email/"));
+  const keys = (await listKeys("users/")).filter(
+    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+  );
   const all: Doc[] = [];
   for (const key of keys) {
     const u = await getJson<Doc>(key);
@@ -96,7 +143,7 @@ export async function users(req: Request): Promise<Response> {
 
   const filtered = q
     ? all.filter((u) => {
-        const hay = `${u.username || ""} ${u.name || ""} ${u.email || ""}`.toLowerCase();
+        const hay = `${u.username || ""} ${u.name || ""} ${u.email || ""} ${u.uid || ""}`.toLowerCase();
         return hay.includes(q);
       })
     : all;
@@ -104,6 +151,7 @@ export async function users(req: Request): Promise<Response> {
   return json({
     data: data.map((u) => ({
       documentId: String(u.document_id),
+      uid: Number(u.uid || 0),
       username: String(u.username || ""),
       name: String(u.name || u.username || ""),
       email: u.email ? String(u.email) : "",
@@ -312,5 +360,127 @@ export async function updateSettings(req: Request): Promise<Response> {
     allowRegister: allowRegister ?? s.allowRegister,
     needAudit: needAudit ?? s.needAudit,
   });
+  return json({ success: true });
+}
+
+// ── 举报管理 ─────────────────────────────────────────
+async function allReports(): Promise<Doc[]> {
+  const keys = (await listKeys("reports/")).filter((k) => !k.includes("/_by-id/"));
+  const docs: Doc[] = [];
+  for (const key of keys) {
+    const r = await getJson<Doc>(key);
+    if (r) docs.push(r);
+  }
+  docs.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  return docs;
+}
+
+export async function reports(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const qp = queryParams(req);
+  const page = Math.max(1, int(qp.get("page"), 1));
+  const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
+  const status = qp.get("status") || "";
+  const all = await allReports();
+  const filtered = status ? all.filter((r) => r.status === status) : all;
+  const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
+
+  // 附带举报人与目标摘要
+  const enriched: Doc[] = [];
+  for (const r of data) {
+    const reporter = await getUser(String(r.reporter_id || ""));
+    let target: Doc | null = null;
+    const targetId = String(r.target_id || "");
+    const targetType = String(r.target_type || "");
+    if (targetType === "post") {
+      const p = await getJson<Doc>(`posts/${targetId}.json`);
+      if (p) target = { type: "post", title: p.title, documentId: p.document_id, status: p.status };
+    } else if (targetType === "comment") {
+      const lookup = await getJson<{ key: string }>(KEYS.commentLookup(targetId));
+      if (lookup) {
+        const c = await getJson<Doc>(lookup.key);
+        if (c) target = { type: "comment", content: String(c.content || "").slice(0, 60), documentId: c.document_id };
+      }
+    } else if (targetType === "user") {
+      const u = await getUser(targetId);
+      if (u) target = { type: "user", name: u.name || u.username, documentId: u.document_id };
+    }
+    enriched.push({
+      documentId: String(r.document_id),
+      targetType,
+      targetId,
+      reason: r.reason,
+      detail: r.detail || undefined,
+      status: r.status,
+      createdAt: String(r.created_at || ""),
+      reporter: reporter ? { documentId: reporter.document_id, name: reporter.name || reporter.username } : null,
+      target,
+    });
+  }
+
+  return json({
+    data: enriched,
+    meta: { pagination: { page, pageSize, total, pageCount } },
+  });
+}
+
+export async function processReport(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
+  const { action } = await readJson<{ action?: string }>(req);
+  if (action !== "delete" && action !== "dismiss") return badRequest("action 仅支持 delete / dismiss");
+
+  const all = await allReports();
+  const report = all.find((r) => r.document_id === id);
+  if (!report) return notFound("举报不存在");
+
+  const targetType = String(report.target_type || "");
+  const targetId = String(report.target_id || "");
+
+  if (action === "delete") {
+    if (targetType === "post") {
+      const p = await getJson<Doc>(`posts/${targetId}.json`);
+      if (p && p.status !== "deleted") {
+        await setJson(`posts/${targetId}.json`, { ...p, status: "deleted", is_hidden: true, updated_at: new Date().toISOString() });
+        await feedRemove(targetId);
+        if (p.status === "published") {
+          await bumpStats({ postCount: -1 });
+          await updateUserStats(String(p.author_document_id), { articleCount: -1 });
+        }
+      }
+    } else if (targetType === "comment") {
+      const lookup = await getJson<{ key: string; post_id: string }>(KEYS.commentLookup(targetId));
+      if (lookup) {
+        const c = await getJson<Doc>(lookup.key);
+        if (c) {
+          await del(lookup.key);
+          await del(KEYS.commentLookup(targetId));
+          await setJson(KEYS.userComments(String(c.author_document_id || "")), []);
+          const post = await getJson<Doc>(`posts/${lookup.post_id}.json`);
+          if (post) {
+            const updated = { ...post, comments_count: Math.max(0, Number(post.comments_count || 0) - 1) };
+            await setJson(`posts/${lookup.post_id}.json`, updated);
+            await feedUpdate(lookup.post_id, { comments_count: updated.comments_count });
+          }
+          await updateUserStats(String(c.author_document_id), { commentCount: -1 });
+          await bumpStats({ commentCount: -1 });
+        }
+      }
+    } else if (targetType === "user") {
+      const u = await getUser(targetId);
+      if (u) await setJson(`users/${targetId}.json`, { ...u, status: "banned" });
+    }
+  }
+
+  // 就地更新举报状态
+  const newStatus = action === "delete" ? "resolved" : "dismissed";
+  const keys = (await listKeys("reports/")).filter((k) => !k.includes("/_by-id/"));
+  for (const key of keys) {
+    const r = await getJson<Doc>(key);
+    if (r && r.document_id === id) {
+      await setJson(key, { ...r, status: newStatus, processed_at: new Date().toISOString() });
+      break;
+    }
+  }
   return json({ success: true });
 }

@@ -107,6 +107,28 @@ export function useAdminApi() {
     return $api("/api/admin/settings", { method: "PUT", body: payload });
   };
 
+  interface AdminReport {
+    documentId: string;
+    targetType: string;
+    targetId: string;
+    reason: string;
+    detail?: string;
+    status: string;
+    createdAt: string;
+    reporter?: { documentId: string; name: string } | null;
+    target?: Record<string, unknown> | null;
+  }
+
+  const reports = async (page = 1, pageSize = 20, status = "") => {
+    return $api<Paginated<AdminReport>>("/api/admin/reports", {
+      query: { page: String(page), pageSize: String(pageSize), status },
+    });
+  };
+
+  const processReport = async (documentId: string, action: "delete" | "dismiss") => {
+    return $api(`/api/admin/reports/${documentId}`, { method: "POST", body: { action } });
+  };
+
   return {
     stats,
     users,
@@ -121,6 +143,8 @@ export function useAdminApi() {
     deleteCategory,
     settings,
     updateSettings,
+    reports,
+    processReport,
   };
 }
 

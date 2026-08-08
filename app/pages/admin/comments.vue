@@ -28,7 +28,7 @@ const doSearch = () => {
 const remove = async (c: any) => {
   if (!window.confirm("确认删除这条评论？")) return;
   await admin.deleteComment(c.documentId);
-  load();
+  await load();
 };
 
 onMounted(load);
@@ -41,7 +41,7 @@ onMounted(load);
       <button class="ik-admin-btn ik-admin-btn--primary" @click="doSearch">搜索</button>
     </div>
 
-    <div class="ik-admin-card">
+    <AdminCard>
       <div v-if="loading" class="ik-admin-loading">加载中…</div>
       <table v-else class="ik-admin-table">
         <thead>
@@ -62,12 +62,10 @@ onMounted(load);
               </div>
             </td>
             <td style="max-width: 420px">
-              <div style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">
-                {{ c.content }}
-              </div>
+              <div style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden">{{ c.content }}</div>
             </td>
             <td>{{ c.likesCount }}</td>
-            <td>{{ new Date(c.createdAt).toLocaleString() }}</td>
+            <td><RelativeTime :time="c.createdAt" /></td>
             <td>
               <button class="ik-admin-btn ik-admin-btn--danger" @click="remove(c)">删除</button>
             </td>
@@ -81,6 +79,6 @@ onMounted(load);
         <span>第 {{ page }} 页 / 共 {{ Math.ceil(total / pageSize) }} 页（{{ total }} 条）</span>
         <button class="ik-admin-btn" :disabled="page >= Math.ceil(total / pageSize)" @click="page++; load()">下一页</button>
       </div>
-    </div>
+    </AdminCard>
   </div>
 </template>
