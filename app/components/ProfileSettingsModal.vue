@@ -297,12 +297,12 @@ onBeforeUnmount(() => {
           <div class="ik-dialog__body">
             <IkZzzMarquee />
             <div class="ik-settings__list">
-              <!-- Mobile-only: appearance actions normally living in the
-                   bottom action bar on desktop. -->
-              <z-button class="ik-settings__action--mobile" @click="openAvatarModal">修改头像</z-button>
-              <z-button class="ik-settings__action--mobile" disabled>修改称号</z-button>
-              <z-button class="ik-settings__action--mobile" disabled>修改勋章</z-button>
-              <z-button class="ik-settings__action--mobile" @click="openCardModal">修改名片</z-button>
+              <!-- Appearance actions previously lived in the bottom action
+                   bar on desktop; that bar is removed, so these always show. -->
+              <z-button @click="openAvatarModal">修改头像</z-button>
+              <z-button disabled>修改称号</z-button>
+              <z-button disabled>修改勋章</z-button>
+              <z-button @click="openCardModal">修改名片</z-button>
               <z-button @click="openEditName">修改用户名</z-button>
               <z-button @click="openEditBio">修改签名</z-button>
               <z-button @click="openPinned">修改帖子展示</z-button>
@@ -654,12 +654,6 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
-/* Appearance actions live in the bottom action bar on desktop, so
-   suppress them in the menu by default. */
-.ik-settings__action--mobile {
-  display: none;
-}
-
 /* ── Logout sub-dialog ── */
 .ik-logout__wrapper {
   display: flex;
@@ -853,13 +847,6 @@ onBeforeUnmount(() => {
 .ik-dialog--settings .ik-dialog__body {
   overflow-y: auto;
   align-items: flex-start;
-}
-
-/* ── Mobile / Portrait — show appearance actions in the menu ─── */
-@media (max-width: 1023px), (orientation: portrait) {
-  .ik-settings__action--mobile {
-    display: inline-flex;
-  }
 }
 
 /* ── Mobile ───────────────────────────────────── */

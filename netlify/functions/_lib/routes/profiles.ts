@@ -71,6 +71,62 @@ export async function detail(req: Request): Promise<Response> {
   });
 }
 
+/** 收藏夹：仅本人可看，按收藏时间倒序 */
+export async function favorites(req: Request): Promise<Response> {
+  const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
+  const id = decodeURIComponent(segments[segments.length - 2] || "");
+  const qp = queryParams(req);
+  const start = Math.max(0, int(qp.get("start")));
+  const limit = Math.min(50, Math.max(1, int(qp.get("limit"), 20)));
+  const viewer = await resolveUser(req);
+  if (!viewer || viewer.userId !== id) return notFound("资源不存在");
+
+  const keys = await listKeys(`favorites/${id}/`);
+  const byId = new Map(keys.map((k) => [k.split("/")[2], k]));
+  const feed = await getFeed();
+  const withTime: Array<{ doc: Doc; at: string }> = [];
+  for (const p of feed) {
+    const key = byId.get(String(p.document_id));
+    if (!key) continue;
+    const fav = await getJson<Doc>(key);
+    withTime.push({ doc: p, at: String(fav?.created_at || "") });
+  }
+  withTime.sort((a, b) => b.at.localeCompare(a.at));
+
+  const total = withTime.length;
+  const page = withTime.slice(start, start + limit).map((w) => w.doc);
+  const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
+  return paginated(page.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
+}
+
+/** 历史阅读：仅本人可看，按阅读时间倒序 */
+export async function history(req: Request): Promise<Response> {
+  const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
+  const id = decodeURIComponent(segments[segments.length - 2] || "");
+  const qp = queryParams(req);
+  const start = Math.max(0, int(qp.get("start")));
+  const limit = Math.min(50, Math.max(1, int(qp.get("limit"), 20)));
+  const viewer = await resolveUser(req);
+  if (!viewer || viewer.userId !== id) return notFound("资源不存在");
+
+  const keys = await listKeys(`read_records/${id}/`);
+  const byId = new Map(keys.map((k) => [k.split("/")[2], k]));
+  const feed = await getFeed();
+  const withTime: Array<{ doc: Doc; at: string }> = [];
+  for (const p of feed) {
+    const key = byId.get(String(p.document_id));
+    if (!key) continue;
+    const rec = await getJson<Doc>(key);
+    withTime.push({ doc: p, at: String(rec?.read_at || "") });
+  }
+  withTime.sort((a, b) => b.at.localeCompare(a.at));
+
+  const total = withTime.length;
+  const page = withTime.slice(start, start + limit).map((w) => w.doc);
+  const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
+  return paginated(page.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
+}
+
 export async function articles(req: Request): Promise<Response> {
   const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
   const id = decodeURIComponent(segments[segments.length - 2] || "");

@@ -180,6 +180,8 @@ async function dispatch(req: Request): Promise<Response> {
     case "profiles": {
       if (sub2 === "articles" && isGet(req)) return profileRoutes.articles(req);
       if (sub2 === "comments" && isGet(req)) return profileRoutes.comments(req);
+      if (sub2 === "favorites" && isGet(req)) return profileRoutes.favorites(req);
+      if (sub2 === "history" && isGet(req)) return profileRoutes.history(req);
       if (s.length === 3 && isGet(req)) return profileRoutes.detail(req);
       return error(404, "接口不存在");
     }

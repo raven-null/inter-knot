@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useMessage } from "zenless-ui";
-import type { Avatar, BusinessCard, DailyExpStatus, Post, Profile } from "~/types/entities";
+import type { Avatar, BusinessCard, Post, Profile } from "~/types/entities";
 import { isNotFoundError, resolveErrorMessage } from "~/utils/api-error";
 import { getCoverAspectRatio } from "~/utils/cover";
 
@@ -54,6 +54,46 @@ const loadProfileArticles = async () => {
   }
 };
 
+const favorites = ref<Post[]>([]);
+const favoritesCursor = ref("");
+const favoritesHasNext = ref(true);
+const favoritesLoading = ref(false);
+
+const loadProfileFavorites = async () => {
+  if (favoritesLoading.value || !favoritesHasNext.value) return;
+  favoritesLoading.value = true;
+  try {
+    const page = await api.getProfileFavorites(profileId.value, favoritesCursor.value, PROFILE_ARTICLES_MAX);
+    favorites.value.push(...page.nodes);
+    favoritesCursor.value = page.endCursor;
+    favoritesHasNext.value = page.hasNextPage;
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "获取收藏失败"));
+  } finally {
+    favoritesLoading.value = false;
+  }
+};
+
+const history = ref<Post[]>([]);
+const historyCursor = ref("");
+const historyHasNext = ref(true);
+const historyLoading = ref(false);
+
+const loadProfileHistory = async () => {
+  if (historyLoading.value || !historyHasNext.value) return;
+  historyLoading.value = true;
+  try {
+    const page = await api.getProfileHistory(profileId.value, historyCursor.value, PROFILE_ARTICLES_MAX);
+    history.value.push(...page.nodes);
+    historyCursor.value = page.endCursor;
+    historyHasNext.value = page.hasNextPage;
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "获取阅读历史失败"));
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
 const formatNumber = (n: number) => {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
@@ -77,90 +117,6 @@ const authStore = useAuthStore();
 const loginDialog = useLoginDialog();
 const knockKnockModal = useKnockKnockModal();
 const dm = useDmConversations();
-
-// ── 签到功能 ──────────────────────────────
-const checkInStatus = ref({
-  canCheckIn: false,
-  totalDays: 0,
-  consecutiveDays: 0,
-  rank: 0,
-  nextEligibleAt: null as string | null,
-});
-const dailyExpStatus = ref<DailyExpStatus | null>(null);
-const checkInLoading = ref(false);
-const showCheckInHelpModal = ref(false);
-
-const openCheckInHelpModal = () => {
-  showCheckInHelpModal.value = true;
-  void loadCheckInStatus();
-};
-
-const loadCheckInStatus = async () => {
-  if (!profile.value?.isSelf) return;
-  try {
-    const status = await api.getCheckInStatus();
-    checkInStatus.value = {
-      canCheckIn: status.canCheckIn || false,
-      totalDays: status.totalDays || 0,
-      consecutiveDays: status.consecutiveDays || 0,
-      rank: status.rank ?? 0,
-      nextEligibleAt: status.nextEligibleAt || null,
-    };
-
-    try {
-      dailyExpStatus.value = await api.getDailyExpStatus();
-    } catch {
-      // 每日经验状态接口失败不应影响签到状态展示
-    }
-  } catch (err) {
-    // 静默处理
-  }
-};
-
-const doCheckIn = async () => {
-  if (!checkInStatus.value.canCheckIn || checkInLoading.value) return;
-
-  checkInLoading.value = true;
-  try {
-    const result = await api.checkIn();
-    checkInStatus.value.canCheckIn = false;
-    checkInStatus.value.totalDays = result.totalDays || checkInStatus.value.totalDays;
-    checkInStatus.value.consecutiveDays = result.consecutiveDays || checkInStatus.value.consecutiveDays;
-    checkInStatus.value.rank = result.rank > 0 ? result.rank : checkInStatus.value.rank;
-
-    // 乐观更新用户数据（绳网信用、等级）
-    if (result.currentExp !== undefined || result.currentLevel !== undefined) {
-      auth.updateUserPartial({
-        exp: result.currentExp,
-        level: result.currentLevel,
-      });
-    }
-
-    const rewardParts: string[] = [];
-    if (result.reward > 0) rewardParts.push(`绳网信用+${result.reward}`);
-    const rankText = result.rank > 0 ? `，今日第${result.rank}名` : "";
-    const daysText =
-      checkInStatus.value.totalDays > 0
-        ? `，累计${checkInStatus.value.totalDays}天`
-        : "";
-    message.success(`签到成功！${rewardParts.join("，")}${daysText}${rankText}`);
-
-    if (dailyExpStatus.value) {
-      dailyExpStatus.value.sources.checkIn = { done: true, exp: result.reward };
-      dailyExpStatus.value.todaySelfGained += result.reward;
-    }
-  } catch (err: any) {
-    if (err?.data?.error?.code === 'CHECK_IN_ALREADY_TODAY') {
-      message.warning("今日已签到");
-      checkInStatus.value.canCheckIn = false;
-      void loadCheckInStatus();
-    } else {
-      message.error(err?.data?.error?.message || "签到失败");
-    }
-  } finally {
-    checkInLoading.value = false;
-  }
-};
 
 /** 当前 profile 与访客之间是否存在任一方向的拉黑关系 */
 const isBlockedRelationship = computed<boolean>(() => {
@@ -395,8 +351,10 @@ onMounted(async () => {
   if (profile.value && !profile.value.isHidden) {
     void loadProfileArticles();
   }
-  // 加载签到状态
-  void loadCheckInStatus();
+  if (profile.value?.isSelf) {
+    void loadProfileFavorites();
+    void loadProfileHistory();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -467,7 +425,6 @@ onBeforeUnmount(() => {
 
     <!-- ══════════ Error ══════════ -->
     <div v-else-if="loadError && !profile" class="ik-empty">加载失败，请刷新重试</div>
-
     <!-- ══════════ Main Content ══════════ -->
     <template v-else-if="profile">
 
@@ -616,35 +573,77 @@ onBeforeUnmount(() => {
         </template>
       </div>
 
+      <!-- ── 收藏夹 ────────────────────────── -->
+      <section v-if="profile.isSelf" class="ik-profile-section">
+        <h2 class="ik-profile-section__title">收藏夹</h2>
+        <div class="ik-article-grid">
+          <template v-if="favoritesLoading && !favorites.length">
+            <div v-for="n in 6" :key="n" class="ik-article-grid__item">
+              <div class="ik-skel" style="width:100%;aspect-ratio:3/4;border-radius:12px"></div>
+            </div>
+          </template>
+          <div v-else-if="!favorites.length" class="ik-article-grid__empty">
+            还没有收藏任何帖子
+          </div>
+          <template v-else>
+            <div
+              v-for="(item, index) in favorites"
+              :key="item.id"
+              class="ik-article-grid__item"
+            >
+              <PostCard
+                :post="item"
+                :eager="index < 6"
+                @open="goArticle"
+              />
+            </div>
+          </template>
+        </div>
+        <div v-if="favoritesHasNext" class="ik-load-more-wrap">
+          <button class="ik-load-more" :disabled="favoritesLoading" @click="loadProfileFavorites">
+            {{ favoritesLoading ? "加载中..." : "加载更多" }}
+          </button>
+        </div>
+      </section>
+
+      <!-- ── 历史阅读 ────────────────────────── -->
+      <section v-if="profile.isSelf" class="ik-profile-section">
+        <h2 class="ik-profile-section__title">历史阅读</h2>
+        <div class="ik-article-grid">
+          <template v-if="historyLoading && !history.length">
+            <div v-for="n in 6" :key="n" class="ik-article-grid__item">
+              <div class="ik-skel" style="width:100%;aspect-ratio:3/4;border-radius:12px"></div>
+            </div>
+          </template>
+          <div v-else-if="!history.length" class="ik-article-grid__empty">
+            还没有阅读记录
+          </div>
+          <template v-else>
+            <div
+              v-for="(item, index) in history"
+              :key="item.id"
+              class="ik-article-grid__item"
+            >
+              <PostCard
+                :post="item"
+                :eager="index < 6"
+                @open="goArticle"
+              />
+            </div>
+          </template>
+        </div>
+        <div v-if="historyHasNext" class="ik-load-more-wrap">
+          <button class="ik-load-more" :disabled="historyLoading" @click="loadProfileHistory">
+            {{ historyLoading ? "加载中..." : "加载更多" }}
+          </button>
+        </div>
+      </section>
+
       </div><!-- /.ik-aframe__content -->
       </div><!-- /.ik-aframe -->
 
           </div>
         </div>
-      </div>
-
-      <!-- ── Bottom Actions ──────────────────────── -->
-      <div v-if="profile.isSelf" class="ik-bottom-actions">
-        <div class="ik-checkin-group">
-          <button
-            type="button"
-            class="ik-checkin-help"
-            aria-label="签到说明"
-            @click="openCheckInHelpModal"
-          >?</button>
-          <z-button
-            highlight
-            :disabled="!checkInStatus.canCheckIn || checkInLoading"
-            @click="doCheckIn"
-          >
-            {{ checkInStatus.canCheckIn && !checkInLoading ? '今日签到' : '已签到' }}
-            <span v-if="checkInStatus.totalDays > 0 && !checkInLoading" class="ik-checkin-days">({{ checkInStatus.totalDays }}天)</span>
-          </z-button>
-        </div>
-        <z-button @click="openModal('avatar')">修改头像</z-button>
-        <z-button disabled>修改称号</z-button>
-        <z-button disabled>修改勋章</z-button>
-        <z-button @click="openModal('banner')">修改名片</z-button>
       </div>
 
       <!-- 更多操作弹窗 -->
@@ -692,23 +691,6 @@ onBeforeUnmount(() => {
               :profile="profile"
               @close="closeModal"
               @equipped="onCardEquipped"
-            />
-          </Transition>
-        </Teleport>
-      </ClientOnly>
-
-      <!-- 签到说明弹窗 -->
-      <ClientOnly>
-        <Teleport to="body">
-          <Transition name="ik-overlay" appear>
-            <CheckInHelpModal
-              v-if="showCheckInHelpModal"
-              :total-days="checkInStatus.totalDays"
-              :consecutive-days="checkInStatus.consecutiveDays"
-              :rank="checkInStatus.rank"
-              :can-check-in="checkInStatus.canCheckIn"
-              :daily-exp-status="dailyExpStatus"
-              @close="showCheckInHelpModal = false"
             />
           </Transition>
         </Teleport>
@@ -1084,46 +1066,22 @@ onBeforeUnmount(() => {
   animation: ik-spin 0.8s linear infinite;
 }
 
-/* ── Bottom Actions ───────────────────────────── */
-.ik-bottom-actions :deep(.z-button__content),
+/* ── Profile Sections (收藏夹 / 历史阅读) ─────── */
 .ik-tab-bar :deep(.z-button__content) {
   font-weight: 700;
 }
-.ik-bottom-actions {
+.ik-profile-section {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 4px;
+  flex-direction: column;
+  gap: 12px;
 }
-.ik-checkin-group {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-/* 与 z-button + z-button 的 margin-left 对齐，避免签到组与后续按钮间距偏小 */
-.ik-checkin-group + :deep(.z-button) {
-  margin-left: 10px;
-}
-.ik-checkin-help {
-  padding: 0;
-  border: none;
-  background: transparent;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.75);
-  cursor: pointer;
-  transition: color 140ms ease;
-}
-.ik-checkin-help:hover {
+.ik-profile-section__title {
+  margin: 0;
+  padding: 0 4px;
+  font-size: 17px;
+  font-weight: 900;
   color: #fff;
-}
-.ik-checkin-days {
-  margin-left: 4px;
-  font-size: 12px;
-  opacity: 0.9;
+  letter-spacing: 0.5px;
 }
 
 /* ── Responsive ─────────────────────────────── */
@@ -1163,9 +1121,6 @@ onBeforeUnmount(() => {
   }
   .ik-article-grid__item :deep(.ik-card__cover-frame) {
     max-height: none;
-  }
-  .ik-bottom-actions {
-    display: none;
   }
 }
 

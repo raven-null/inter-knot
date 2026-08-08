@@ -83,6 +83,12 @@ const qk = {
     comments: (documentId: string, start: number, limit: number) =>
       ["profile", documentId, "comments", start, limit] as QueryKey,
     commentsOf: (documentId: string) => ["profile", documentId, "comments"] as QueryKey,
+    favorites: (documentId: string, start: number, limit: number) =>
+      ["profile", documentId, "favorites", start, limit] as QueryKey,
+    favoritesOf: (documentId: string) => ["profile", documentId, "favorites"] as QueryKey,
+    history: (documentId: string, start: number, limit: number) =>
+      ["profile", documentId, "history", start, limit] as QueryKey,
+    historyOf: (documentId: string) => ["profile", documentId, "history"] as QueryKey,
   },
 };
 
@@ -1431,6 +1437,56 @@ export function useApi() {
     );
   };
 
+  const getProfileFavorites = async (
+    documentId: string,
+    endCur = "",
+    limit = DEFAULT_PAGE_SIZE,
+  ): Promise<Pagination<Post>> => {
+    const start = parseStart(endCur);
+    return cachedRead(
+      qk.profile.favorites(documentId, start, limit),
+      async () => {
+        const response = await $api(`/api/profiles/${documentId}/favorites`, {
+          query: {
+            start: String(start),
+            limit: String(limit),
+          },
+        });
+        const meta = extractPaginationMeta(response);
+        const data = unwrapData<unknown[]>(response) || [];
+        const page = buildPagination(data.map((item) => toPost(item, apiBaseUrl)), start, meta);
+        seedReadStatus(page.nodes);
+        return page;
+      },
+      STALE_LIST,
+    );
+  };
+
+  const getProfileHistory = async (
+    documentId: string,
+    endCur = "",
+    limit = DEFAULT_PAGE_SIZE,
+  ): Promise<Pagination<Post>> => {
+    const start = parseStart(endCur);
+    return cachedRead(
+      qk.profile.history(documentId, start, limit),
+      async () => {
+        const response = await $api(`/api/profiles/${documentId}/history`, {
+          query: {
+            start: String(start),
+            limit: String(limit),
+          },
+        });
+        const meta = extractPaginationMeta(response);
+        const data = unwrapData<unknown[]>(response) || [];
+        const page = buildPagination(data.map((item) => toPost(item, apiBaseUrl)), start, meta);
+        seedReadStatus(page.nodes);
+        return page;
+      },
+      STALE_LIST,
+    );
+  };
+
   const getBilibiliInfo = async (
     bvid?: string,
     aid?: number,
@@ -2251,6 +2307,8 @@ export function useApi() {
     getProfile,
     getProfileArticles,
     getProfileComments,
+    getProfileFavorites,
+    getProfileHistory,
     getBilibiliInfo,
     createArticleDraft,
     updateArticleDraft,
