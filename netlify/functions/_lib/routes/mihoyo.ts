@@ -25,10 +25,10 @@ const QR_SESSION = (ticket: string) => `mihoyo/qr-sessions/${ticket}.json`;
 const BINDING = (userId: string) => `mihoyo/bindings/${userId}.json`;
 const BY_MIHOYO = (mid: string) => `users/by-mihoyo/${mid}.json`;
 
-// 环境变量配置（未配置则扫码接口返回 501）
-const APP_ID = process.env.MIHOYO_APP_ID || "";
-const DEVICE_ID = process.env.MIHOYO_DEVICE_ID || "";
-const DEVICE_FP = process.env.MIHOYO_DEVICE_FP || "";
+// 米游社扫码参数（默认值来自 user.mihoyo.com 抓包实测；可用环境变量覆盖）
+const APP_ID = process.env.MIHOYO_APP_ID || "dw9y09jqjpxc";
+const DEVICE_ID = process.env.MIHOYO_DEVICE_ID || "1760c6b8-228b-4f92-8918-eb498724d380";
+const DEVICE_FP = process.env.MIHOYO_DEVICE_FP || "38d81ab24d683";
 const SDK_VERSION = process.env.MIHOYO_SDK_VERSION || "2.54.0";
 const CLIENT_TYPE = process.env.MIHOYO_CLIENT_TYPE || "4";
 const GAME_BIZ = process.env.MIHOYO_GAME_BIZ || "plat_cn";
@@ -43,7 +43,7 @@ function rpcHeaders(): Record<string, string> {
     "x-rpc-app_id": APP_ID,
     "x-rpc-client_type": CLIENT_TYPE,
     "x-rpc-device_id": deviceId,
-    "x-rpc-device_fp": DEVICE_FP || "38d81ab24d683",
+    "x-rpc-device_fp": DEVICE_FP,
     "x-rpc-device_model": "Microsoft%20Edge%20151.0.0.0",
     "x-rpc-device_name": "Microsoft%20Edge",
     "x-rpc-device_os": "Windows%2010%2064-bit",
