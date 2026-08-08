@@ -15,11 +15,10 @@ import { DEFAULT_AVATAR } from "../serialize";
 
 const AI_PREFIX = "dm/ai/";
 
-/** 智谱 GLM 配置：优先读环境变量，缺失时用内置默认密钥（与米游社参数同理）。
- *  内置密钥便于直接部署即可用；如需更换可在 Netlify 后台配 GLM_API_KEY 覆盖。 */
-const GLM_API_KEY =
-  process.env.GLM_API_KEY || "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
-const GLM_MODEL = process.env.GLM_MODEL || "glm-4-flash";
+/** 智谱 GLM 配置：硬编码内置密钥（与米游社参数同理），部署即可用。
+ *  注意：不读环境变量——若 Netlify 后台存在错误的 GLM_API_KEY 会覆盖内置值导致 401。 */
+const GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
+const GLM_MODEL = "glm-4-flash";
 const GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
 /** fairy 系统提示词：身份是偷偷潜伏在暗处的超级人工智能 */
