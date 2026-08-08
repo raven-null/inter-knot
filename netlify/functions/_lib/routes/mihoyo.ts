@@ -288,6 +288,19 @@ async function handleConfirmed(
     await setJson(BINDING(session.viewerId), { userId: session.viewerId, ...binding });
     // 建立 aid → userId 反查索引：之后用同一米游社账号扫码登录时能找到同一个用户
     await setJson(BY_MIHOYO(accountId), { document_id: session.viewerId });
+    // 同步把本站用户 UID 更新为米游社账号 ID（非随机），保证个人主页 UID 一致
+    if (/^\d+$/.test(accountId)) {
+      const targetUser = await getJson<Doc>(userKey(session.viewerId));
+      if (targetUser) {
+        const newUid = Number(accountId);
+        if (Number(targetUser.uid || 0) !== newUid) {
+          const oldUid = Number(targetUser.uid);
+          await setJson(userKey(session.viewerId), { ...targetUser, uid: newUid, mihoyo_id: accountId });
+          if (oldUid) await del(`users/by-uid/${oldUid}.json`);
+          await setJson(`users/by-uid/${newUid}.json`, { document_id: session.viewerId });
+        }
+      }
+    }
     await del(QR_SESSION(ticket));
     return json({
       status: "confirmed",
@@ -379,6 +392,20 @@ export async function binding(req: Request): Promise<Response> {
   const viewer = await resolveUser(req);
   if (!viewer) return json({ binding: null });
   const doc = await getJson<Record<string, unknown>>(BINDING(viewer.userId));
+  if (doc && doc.zzzUid) {
+    // 若用户 UID 仍是邮箱注册时的随机值，迁移为米游社账号 ID，保证个人主页 UID 一致
+    const aid = String(doc.aid ?? doc.zzzUid);
+    if (/^\d+$/.test(aid)) {
+      const targetUser = await getJson<Doc>(userKey(viewer.userId));
+      const newUid = Number(aid);
+      if (targetUser && Number(targetUser.uid || 0) !== newUid) {
+        const oldUid = Number(targetUser.uid);
+        await setJson(userKey(viewer.userId), { ...targetUser, uid: newUid, mihoyo_id: aid });
+        if (oldUid) await del(`users/by-uid/${oldUid}.json`);
+        await setJson(`users/by-uid/${newUid}.json`, { document_id: viewer.userId });
+      }
+    }
+  }
   return json({ binding: doc && doc.zzzUid ? doc : null });
 }
 
