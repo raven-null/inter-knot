@@ -781,23 +781,6 @@ export function useApi() {
     return (data.binding as MihoyoBinding | null) ?? null;
   };
 
-  const bindMihoyo = async (payload: {
-    uid: string;
-    region?: string;
-    nickname?: string;
-    level?: number;
-  }): Promise<{ success: boolean; binding: MihoyoBinding | null }> => {
-    const response = await $api("/api/auth/mihoyo/bind", {
-      method: "POST",
-      body: payload,
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      success: data.success === true,
-      binding: (data.binding as MihoyoBinding | null) ?? null,
-    };
-  };
-
   const unbindMihoyo = async (): Promise<{ success: boolean }> => {
     const response = await $api("/api/auth/mihoyo/binding", {
       method: "DELETE",
@@ -2401,7 +2384,6 @@ export function useApi() {
     createMihoyoQr,
     pollMihoyoQr,
     getMihoyoBinding,
-    bindMihoyo,
     unbindMihoyo,
   };
 }

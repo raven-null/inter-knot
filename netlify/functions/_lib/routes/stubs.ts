@@ -3,56 +3,21 @@
 
 import { ok, json, error, readJson } from "../http";
 
-// ── 米游社扫码（未接入真实接口，保留桩避免前端报错；绑定改用手动 UID） ──
+// ── 米游社扫码（未实现：返回明确提示，前端展示为暂未开放） ──
 export function mihoyoQrCreate(): Response {
-  return error(501, "米游社扫码暂未开放，请使用手动绑定 UID", "MIHOYO_NOT_SUPPORTED");
+  return error(
+    501,
+    "米游社登录暂未开放，请使用邮箱注册或登录",
+    "MIHOYO_NOT_SUPPORTED",
+  );
 }
 export function mihoyoQrStatus(): Response {
   return json({ status: "expired" });
 }
-
-// ── 米游社账号绑定（手动绑定 UID/区服） ──────────────
-const MIHOYO_BINDING = (userId: string) => `mihoyo/bindings/${userId}.json`;
-
-/** 绑定米游社账号（手动填写 UID / 区服），body: { uid, region, nickname?, level? } */
-export async function mihoyoBind(req: Request): Promise<Response> {
-  const { getJson, setJson } = await import("../storage");
-  const { requireAuth } = await import("../auth");
-  const viewer = await requireAuth(req);
-  const body = await readJson<{ uid?: string; region?: string; nickname?: string; level?: number }>(req);
-  const uid = String(body.uid || "").trim();
-  if (!uid) return error(400, "请输入绝区零 UID", "BAD_REQUEST");
-  if (!/^\d{1,20}$/.test(uid)) return error(400, "UID 只能为数字", "BAD_REQUEST");
-  const region = String(body.region || "官服").trim();
-  const now = new Date().toISOString();
-  const binding = {
-    aid: `zzz-${uid}`,
-    zzzUid: uid,
-    zzzNickname: body.nickname ? String(body.nickname).slice(0, 50) : null,
-    zzzLevel: body.level != null && Number.isFinite(Number(body.level)) ? Number(body.level) : null,
-    zzzRegion: region,
-    zzzRegionName: region,
-    lastSyncedAt: now,
-  };
-  await setJson(MIHOYO_BINDING(viewer.userId), { userId: viewer.userId, ...binding });
-  return json({ success: true, binding });
+export function mihoyoBinding(): Response {
+  return json({ binding: null });
 }
-
-export async function mihoyoBinding(req: Request): Promise<Response> {
-  const { getJson } = await import("../storage");
-  const { resolveUser } = await import("../auth");
-  const viewer = await resolveUser(req);
-  if (!viewer) return json({ binding: null });
-  const doc = await getJson<{ zzzUid?: string }>(MIHOYO_BINDING(viewer.userId));
-  if (!doc?.zzzUid) return json({ binding: null });
-  return json({ binding: doc });
-}
-
-export async function mihoyoUnbind(req: Request): Promise<Response> {
-  const { del } = await import("../storage");
-  const { requireAuth } = await import("../auth");
-  const viewer = await requireAuth(req);
-  await del(MIHOYO_BINDING(viewer.userId));
+export function mihoyoUnbind(): Response {
   return json({ success: true });
 }
 

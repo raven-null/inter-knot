@@ -174,23 +174,6 @@ function createAccountData() {
     }
   };
 
-  const bindMihoyo = async (payload: {
-    uid: string;
-    region?: string;
-    nickname?: string;
-    level?: number;
-  }) => {
-    try {
-      const result = await api.bindMihoyo(payload);
-      state.value.mihoyoBinding = result.binding;
-      mihoyoFetchedAt.value = Date.now();
-      return result;
-    } catch (err) {
-      message.error(resolveErrorMessage(err, "绑定失败"));
-      throw err;
-    }
-  };
-
   const setSecurity = (value: AccountSecurity) => {
     state.value.security = value;
     securityFetchedAt.value = Date.now();
@@ -258,7 +241,6 @@ function createAccountData() {
     ensureBlocked,
     loadBlocked,
     unbindMihoyo,
-    bindMihoyo,
     setSecurity,
     setPasswordDone,
     unblockUser,

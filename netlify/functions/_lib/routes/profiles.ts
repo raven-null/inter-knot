@@ -47,14 +47,6 @@ export async function detail(req: Request): Promise<Response> {
   }>(KEYS.customBackgrounds(id));
   const equippedBg = bgIdx?.items?.find((it) => it.documentId === bgIdx.equippedDocumentId);
 
-  // 解析米游社绑定（手动绑定 UID/区服），供主页绝区零徽章展示
-  const mihoyoDoc = await getJson<{
-    zzzUid?: string;
-    zzzNickname?: string;
-    zzzLevel?: number;
-    zzzRegionName?: string;
-  }>(`mihoyo/bindings/${id}.json`);
-
   return ok({
     documentId: id,
     userId: Number(user.uid || 0),
@@ -90,14 +82,6 @@ export async function detail(req: Request): Promise<Response> {
         }
       : null,
     equippedAvatar: null,
-    zzz: mihoyoDoc?.zzzUid
-      ? {
-          uid: String(mihoyoDoc.zzzUid),
-          nickname: mihoyoDoc.zzzNickname ? String(mihoyoDoc.zzzNickname) : undefined,
-          level: mihoyoDoc.zzzLevel != null ? Number(mihoyoDoc.zzzLevel) : undefined,
-          regionName: mihoyoDoc.zzzRegionName ? String(mihoyoDoc.zzzRegionName) : undefined,
-        }
-      : null,
   });
 }
 
