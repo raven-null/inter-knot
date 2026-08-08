@@ -1921,6 +1921,13 @@ if (import.meta.client) {
   min-width: 0;
 }
 
+/* 撤销 wrap 的负 margin 撑宽，使内容严格落在菜单范围内 */
+.ik-create-menu :deep(.z-scrollbar__wrap) {
+  width: 100%;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+}
+
 .ik-create-menu :deep(.z-menu__content) {
   width: 100%;
   min-width: 0;
