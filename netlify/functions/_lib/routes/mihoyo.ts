@@ -266,12 +266,13 @@ async function handleConfirmed(
     zzzRegion,
     zzzRegionName,
     lastSyncedAt: new Date().toISOString(),
+    _debug: { cookie: cookieDebug, role: roleDebug },
   };
 
   if (session.mode === "bind" && session.viewerId) {
     await setJson(BINDING(session.viewerId), { userId: session.viewerId, ...binding });
     await del(QR_SESSION(ticket));
-    return json({ status: "confirmed", mode: "bind", binding, debug: { cookie: cookieDebug, role: roleDebug } });
+    return json({ status: "confirmed", mode: "bind", binding, debug: binding._debug });
   }
 
   // 登录模式：查/建用户

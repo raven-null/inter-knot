@@ -138,6 +138,16 @@ const mihoyoMetaText = computed(() => {
   return mihoyoBinding.value ? (mihoyoBinding.value.zzzNickname || "已绑定") : "未绑定";
 });
 
+// 绑定成功或加载后，若有诊断信息则展示
+watch(
+  () => mihoyoBinding.value,
+  (b) => {
+    const dbg = (b as Record<string, unknown> | null)?. _debug as Record<string, unknown> | undefined;
+    mihoyoDebugText.value = dbg ? JSON.stringify(dbg) : "";
+  },
+  { immediate: true },
+);
+
 const unbindMihoyo = async () => {
   await unbindMihoyoAction();
   void startMihoyoQr();
@@ -657,6 +667,7 @@ useHead({ title: "账号中心" });
                 >
                   {{ mihoyoUnbinding ? "解绑中…" : "解除绑定" }}
                 </z-button>
+                <pre v-if="mihoyoDebugText" class="ik-ac-mihoyo-debug">{{ mihoyoDebugText }}</pre>
               </template>
 
               <template v-else>
