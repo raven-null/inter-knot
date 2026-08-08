@@ -9,7 +9,7 @@ const pageSize = 20;
 const statusFilter = ref("");
 const loading = ref(false);
 
-const STATUS_TONE: Record<string, string> = {
+const STATUS_TONE: Record<string, "yellow" | "green" | "gray"> = {
   open: "yellow",
   resolved: "green",
   dismissed: "gray",

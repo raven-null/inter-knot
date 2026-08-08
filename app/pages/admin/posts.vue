@@ -20,7 +20,7 @@ const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
   deleted: "已删除",
 };
-const STATUS_TONE: Record<string, string> = {
+const STATUS_TONE: Record<string, "green" | "yellow" | "red" | "gray"> = {
   published: "green",
   pending: "yellow",
   draft: "gray",
