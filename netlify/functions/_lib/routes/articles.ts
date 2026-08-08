@@ -4,7 +4,7 @@ import { genId, getJson, setJson, del, exists, listKeys, postKey, categoryKey, u
 import { getFeed, feedAdd, feedRemove, feedUpdate, bumpStats, getUser, updateUserStats, deletedPostIdsSince } from "../feed";
 import { resolveUser, requireAuth } from "../auth";
 import { ok, paginated, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
-import { toPost, toDraft, DEFAULT_AVATAR, type Doc, type ViewerState } from "../serialize";
+import { toPost, toDraft, DEFAULT_AVATAR, hydrateAuthorLevels, type Doc, type ViewerState } from "../serialize";
 import { awardExp } from "../exp";
 
 const PAGE_SIZE = 20;
@@ -136,7 +136,8 @@ async function listPosts(req: Request, opts: ListOptions): Promise<Response> {
   const total = posts.length;
   const page = posts.slice(opts.start, opts.start + opts.limit);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
-  const nodes = page.map((p) => toPost(p, state)).filter(Boolean);
+  const hydrated = await hydrateAuthorLevels(page);
+  const nodes = hydrated.map((p) => toPost(p, state)).filter(Boolean);
   return paginated(nodes, opts.start, opts.limit, total);
 }
 
@@ -189,7 +190,8 @@ export async function detail(req: Request): Promise<Response> {
   const state = await viewerState(viewer, [id]);
   // 浏览量只由显式的 POST /view（用户真正点进帖子）累加，
   // 详情 GET 会被 hover 预取 / 弹窗预热触发，不在此处计数。
-  const post = toPost(doc, state);
+  const [hydrated] = await hydrateAuthorLevels([doc]);
+  const post = toPost(hydrated, state);
   return ok(post);
 }
 

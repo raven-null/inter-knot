@@ -4,7 +4,7 @@ import { genId, getJson, setJson, del, listKeys, commentKey, postKey, KEYS } fro
 import { feedUpdate, getUser, updateUserStats } from "../feed";
 import { resolveUser, requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
-import { toComment, type Doc } from "../serialize";
+import { toComment, hydrateAuthorLevels, type Doc } from "../serialize";
 import { awardExp } from "../exp";
 
 async function getPostDoc(id: string): Promise<Doc | null> {
@@ -45,9 +45,12 @@ async function buildCommentTree(postId: string, viewerId: string | null): Promis
     }
   }
 
+  // 用实时作者等级覆盖快照，保证评论区等级与用户当前等级一致
+  const hydrated = await hydrateAuthorLevels(docs);
+
   const byId = new Map<string, Doc>();
   const result: Doc[] = [];
-  for (const d of docs) {
+  for (const d of hydrated) {
     const id = String(d.document_id);
     if (!d.parent_id) {
       const node = toComment(d, likedIds);
@@ -58,7 +61,7 @@ async function buildCommentTree(postId: string, viewerId: string | null): Promis
       }
     }
   }
-  for (const d of docs) {
+  for (const d of hydrated) {
     const id = String(d.document_id);
     if (d.parent_id) {
       const parent = byId.get(String(d.parent_id));

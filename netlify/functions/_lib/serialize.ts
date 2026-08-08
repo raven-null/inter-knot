@@ -1,10 +1,28 @@
 /** Blob 文档 → 前端 useApi 期望的响应结构（兼容模板数据层） */
 
 import type { AuthUser } from "./auth";
+import { getJson, userKey } from "./storage";
 
 export const DEFAULT_AVATAR = "/images/default-avatar.webp";
 
 export type Doc = Record<string, unknown>;
+
+/**
+ * 把帖子/评论文档里的 author_level / author_exp 用用户文档的**实时**等级覆盖，
+ * 保证任何页面显示的作者等级与用户当前等级一致（后台改级 / 经验累计后旧帖子也随之更新）。
+ */
+export async function hydrateAuthorLevels(docs: Doc[]): Promise<Doc[]> {
+  const ids = [...new Set(docs.map((d) => String(d.author_document_id || "")).filter(Boolean))];
+  const users = await Promise.all(
+    ids.map(async (id) => [id, await getJson<Doc>(userKey(id))] as const),
+  );
+  const map = new Map(users);
+  return docs.map((d) => {
+    const u = map.get(String(d.author_document_id || ""));
+    if (!u) return d;
+    return { ...d, author_level: u.level ?? 1, author_exp: u.exp ?? 0 };
+  });
+}
 
 export function toAuthor(doc: Doc | null | undefined): Doc | null {
   if (!doc) return null;

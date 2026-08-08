@@ -4,7 +4,7 @@ import { genId, getJson, setJson, del, listKeys, KEYS, categoryKey, userKey } fr
 import { getFeed, feedUpsert, feedRemove, feedUpdate, getStats, bumpStats, getUser, updateUserStats } from "../feed";
 import { requireAdmin } from "../auth";
 import { json, badRequest, notFound, int, readJson, queryParams } from "../http";
-import { toCategory, toPost, toComment, DEFAULT_AVATAR, type Doc } from "../serialize";
+import { toCategory, toPost, toComment, DEFAULT_AVATAR, hydrateAuthorLevels, type Doc } from "../serialize";
 import { LEVEL_THRESHOLDS, MAX_LEVEL, levelFromExp } from "../level";
 
 const PAGE_SIZE = 20;
@@ -275,8 +275,9 @@ export async function posts(req: Request): Promise<Response> {
     return true;
   });
   const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
+  const hydrated = await hydrateAuthorLevels(data);
   return json({
-    data: data.map((p) => toPost(p)).filter(Boolean),
+    data: hydrated.map((p) => toPost(p)).filter(Boolean),
     meta: { pagination: { page, pageSize, total, pageCount } },
   });
 }
@@ -331,8 +332,9 @@ export async function comments(req: Request): Promise<Response> {
   all.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
   const filtered = q ? all.filter((c) => String(c.content || "").toLowerCase().includes(q)) : all;
   const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
+  const hydrated = await hydrateAuthorLevels(data);
   return json({
-    data: data.map((c) => toComment(c)).filter(Boolean),
+    data: hydrated.map((c) => toComment(c)).filter(Boolean),
     meta: { pagination: { page, pageSize, total, pageCount } },
   });
 }

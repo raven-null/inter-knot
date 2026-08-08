@@ -4,7 +4,7 @@ import { getJson, listKeys, exists, postKey, commentKey, likeKey, favoriteKey, r
 import { getFeed } from "../feed";
 import { resolveUser } from "../auth";
 import { ok, paginated, notFound, int, queryParams } from "../http";
-import { toPost, toComment, DEFAULT_AVATAR, type Doc, type ViewerState } from "../serialize";
+import { toPost, toComment, DEFAULT_AVATAR, hydrateAuthorLevels, type Doc, type ViewerState } from "../serialize";
 
 async function viewerState(viewer: { userId: string } | null, ids: string[]): Promise<ViewerState> {
   const state: ViewerState = { viewer: viewer as never, likedIds: new Set(), favoritedIds: new Set(), readIds: new Set() };
@@ -110,7 +110,8 @@ export async function favorites(req: Request): Promise<Response> {
   const total = withTime.length;
   const page = withTime.slice(start, start + limit).map((w) => w.doc);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
-  return paginated(page.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
+  const hydrated = await hydrateAuthorLevels(page);
+  return paginated(hydrated.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
 }
 
 /** 历史阅读：仅本人可看，按阅读时间倒序 */
@@ -138,7 +139,8 @@ export async function history(req: Request): Promise<Response> {
   const total = withTime.length;
   const page = withTime.slice(start, start + limit).map((w) => w.doc);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
-  return paginated(page.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
+  const hydrated = await hydrateAuthorLevels(page);
+  return paginated(hydrated.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
 }
 
 export async function articles(req: Request): Promise<Response> {
@@ -175,7 +177,8 @@ export async function articles(req: Request): Promise<Response> {
   const total = mine.length;
   const page = mine.slice(start, start + limit);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
-  return paginated(page.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
+  const hydrated = await hydrateAuthorLevels(page);
+  return paginated(hydrated.map((p) => toPost(p, state)).filter(Boolean), start, limit, total);
 }
 
 export async function comments(req: Request): Promise<Response> {
@@ -207,5 +210,6 @@ export async function comments(req: Request): Promise<Response> {
       if (pageIds.has(cid)) likedIds.add(cid);
     }
   }
-  return paginated(page.map((d) => toComment(d, likedIds)).filter(Boolean), start, limit, docs.length);
+  const hydrated = await hydrateAuthorLevels(page);
+  return paginated(hydrated.map((d) => toComment(d, likedIds)).filter(Boolean), start, limit, docs.length);
 }
