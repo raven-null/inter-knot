@@ -128,17 +128,20 @@ watch(
 <style scoped>
 .ik-home-searchbox {
   position: relative;
+  align-self: center;
 }
 
 .ik-home-searchbox__box {
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 280px;
-  padding: 6px 6px 6px 12px;
+  gap: 4px;
+  width: 200px;
+  height: 30px;
+  padding: 0 4px 0 12px;
   background: #181818;
   border: 1px solid #2d2d2d;
   border-radius: 999px;
+  box-sizing: border-box;
   transition: border-color 160ms;
 }
 
@@ -147,8 +150,8 @@ watch(
 }
 
 .ik-home-searchbox__icon {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
   color: rgba(255, 255, 255, 0.5);
 }
@@ -162,6 +165,7 @@ watch(
   color: #e8e8e8;
   font-size: 13px;
   font-family: inherit;
+  line-height: 1;
 }
 
 .ik-home-searchbox__input::placeholder {
@@ -172,8 +176,8 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   padding: 0;
   border: none;
   background: transparent;
@@ -187,19 +191,21 @@ watch(
 }
 
 .ik-home-searchbox__clear-icon {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .ik-home-searchbox__submit {
   flex-shrink: 0;
-  padding: 6px 14px;
+  height: 22px;
+  padding: 0 12px;
   border: none;
   border-radius: 999px;
   background: var(--ik-primary, #bfff09);
   color: #000;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
+  line-height: 22px;
   cursor: pointer;
   transition: background 150ms;
 }
@@ -216,7 +222,7 @@ watch(
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: 280px;
+  width: 200px;
   max-height: 320px;
   overflow-y: auto;
   background: #161616;
@@ -272,10 +278,10 @@ watch(
 
 @media (max-width: 768px) {
   .ik-home-searchbox__box {
-    width: 200px;
+    width: 150px;
   }
   .ik-home-searchbox__suggest {
-    width: 200px;
+    width: 150px;
   }
 }
 </style>
