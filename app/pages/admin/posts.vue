@@ -111,7 +111,11 @@ onMounted(load);
               <div style="display: flex; gap: 6px; flex-wrap: wrap">
                 <button class="ik-admin-btn" @click="togglePinned(p)">{{ p.isPinned ? "取消置顶" : "置顶" }}</button>
                 <button class="ik-admin-btn" @click="toggleHidden(p)">{{ p.isHidden ? "显示" : "下架" }}</button>
-                <button v-if="p.status !== 'published'" class="ik-admin-btn ik-admin-btn--primary" @click="setStatus(p, 'published')">发布</button>
+                <template v-if="p.status === 'pending'">
+                  <button class="ik-admin-btn ik-admin-btn--primary" @click="setStatus(p, 'published')">通过</button>
+                  <button class="ik-admin-btn ik-admin-btn--danger" @click="setStatus(p, 'draft')">驳回</button>
+                </template>
+                <button v-else-if="p.status !== 'published'" class="ik-admin-btn ik-admin-btn--primary" @click="setStatus(p, 'published')">发布</button>
                 <button v-if="p.status === 'published'" class="ik-admin-btn ik-admin-btn--danger" @click="setStatus(p, 'deleted')">删除</button>
               </div>
             </td>

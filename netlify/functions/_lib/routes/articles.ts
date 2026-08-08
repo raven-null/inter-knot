@@ -291,14 +291,26 @@ export async function publishDraft(req: Request): Promise<Response> {
   if (!doc || doc.status !== "draft" || String(doc.author_document_id) !== viewer.userId) {
     return notFound("草稿不存在");
   }
+  // 站点设置「新帖需审核」：开启时发布进入待审队列（pending），不进入信息流
+  const settings = (await getJson<Doc>(KEYS.settings)) || {};
+  const needAudit = settings.needAudit === true;
   const now = new Date().toISOString();
-  const published: Doc = { ...doc, status: "published", published_at: now, updated_at: now, is_hidden: false };
+  const newStatus = needAudit ? "pending" : "published";
+  const published: Doc = {
+    ...doc,
+    status: newStatus,
+    published_at: needAudit ? null : now,
+    updated_at: now,
+    is_hidden: false,
+  };
   await setJson(postKey(id), published);
   await removeDraft(viewer.userId, id);
-  await feedAdd(published);
-  await bumpStats({ postCount: 1 });
-  await updateUserStats(String(doc.author_document_id), { articleCount: 1 });
-  return json({ success: true });
+  if (!needAudit) {
+    await feedAdd(published);
+    await bumpStats({ postCount: 1 });
+    await updateUserStats(String(doc.author_document_id), { articleCount: 1 });
+  }
+  return json({ success: true, status: newStatus });
 }
 
 export async function discardDraft(req: Request): Promise<Response> {

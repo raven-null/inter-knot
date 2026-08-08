@@ -1540,8 +1540,8 @@ export function useApi() {
     return toDraftArticle(raw);
   };
 
-  const publishArticleDraft = async (id: string): Promise<void> => {
-    await $api(`/api/articles/${id}/publish`, {
+  const publishArticleDraft = async (id: string): Promise<{ status?: string }> => {
+    const response = await $api(`/api/articles/${id}/publish`, {
       method: "POST",
       body: {},
     });
@@ -1549,6 +1549,7 @@ export function useApi() {
     invalidate(qk.articles.detail(id));
     invalidate(qk.articles.searchAll);
     invalidate(["profile"]);
+    return (response as Record<string, unknown>) as { status?: string };
   };
 
   const discardArticleDraft = async (id: string): Promise<void> => {

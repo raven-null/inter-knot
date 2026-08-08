@@ -564,7 +564,15 @@ async function publish() {
       throw new Error("草稿保存后仍缺少 documentId");
     }
 
-    await api.publishArticleDraft(documentId.value);
+    const res = await api.publishArticleDraft(documentId.value);
+    const publishedStatus = (res as { status?: string } | undefined)?.status;
+
+    // 站点开启「新帖需审核」：发布进入待审队列，不进信息流
+    if (publishedStatus === "pending") {
+      message.success("已提交审核，请等待管理员审核");
+      router.replace("/");
+      return;
+    }
 
     if (isEditingPublished.value) {
       // 编辑重发：回到委托详情页查看更新后的内容。

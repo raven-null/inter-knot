@@ -172,11 +172,19 @@ export async function updatePost(req: Request): Promise<Response> {
   };
   await setJson(`posts/${id}.json`, next);
 
-  // 同步信息流索引
-  if (next.status === "published" && !next.is_hidden) {
+  // 状态切换时的计数与信息流同步
+  const wasPublished = doc.status === "published" && doc.is_hidden !== true;
+  const isPublished = next.status === "published" && next.is_hidden !== true;
+  if (isPublished && !wasPublished) {
     await feedUpsert(next);
-  } else {
+    await bumpStats({ postCount: 1 });
+    await updateUserStats(String(doc.author_document_id), { articleCount: 1 });
+  } else if (wasPublished && !isPublished) {
     await feedRemove(id);
+    await bumpStats({ postCount: -1 });
+    await updateUserStats(String(doc.author_document_id), { articleCount: -1 });
+  } else if (isPublished) {
+    await feedUpsert(next);
   }
   return json({ success: true });
 }
