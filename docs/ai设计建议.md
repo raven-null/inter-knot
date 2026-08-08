@@ -772,6 +772,111 @@ Apple HIG 建议最小触摸目标 44px。当前部分元素不足：
 
 ---
 
+## 十七、米哈游（米游社）账号绑定实现方案
+
+> 现状：前端「账号中心 → 米哈游账号」已有完整的扫码绑定 UI 与轮询逻辑（`useMihoyoQr` / `useAccountData` / `account.vue`），`useApi` 也定义了完整的接口契约；但后端 4 个端点（`/api/auth/mihoyo/qr`、`/qr/status`、`/binding` GET/DELETE）目前都是**桩**（返回 501 / 空值），绑定并未真正实现。
+
+### 1. 现状梳理（前端契约即后端要实现的目标）
+
+| 前端调用 | 方法 | 期望返回 |
+|----------|------|----------|
+| `createMihoyoQr()` → `POST /api/auth/mihoyo/qr` | 创建扫码会话 | `{ qrUrl, ticket, expiresIn, mode: "login"\|"bind" }` |
+| `pollMihoyoQr(ticket)` → `POST /api/auth/mihoyo/qr/status` | 轮询扫码状态 | `{ status: "waiting"\|"scanned"\|"confirmed"\|"expired"\|"cancelled" }`；confirmed 时 `{ mode, binding }`；login 模式还要 `{ jwt, user, isNewUser }` |
+| `getMihoyoBinding()` → `GET /api/auth/mihoyo/binding` | 查绑定（带 token） | `{ binding: MihoyoBinding \| null }` |
+| `unbindMihoyo()` → `DELETE /api/auth/mihoyo/binding` | 解绑 | `{ success: true }` |
+
+`MihoyoBinding`（见 `types/entities.ts`）字段：`aid`、`zzzUid`、`zzzNickname`、`zzzLevel`、`zzzRegion`、`zzzRegionName`、`lastSyncedAt`。
+
+### 2. 米游社扫码登录的官方流程（需对接 passport-api）
+
+社区逆向出的流程（以 `passport-api.mihoyo.com` 为例，`zzz_cn` 为《绝区零》游戏标识）：
+
+```
+① 创建二维码
+   GET https://passport-api.mihoyo.com/account/auth/api/createQRLogin
+      ?app_id=...&app_key=...&auth_app_id=...&app_name=...&auth_key_ver=...
+   headers（私有请求头，必需）:
+     x-rpc-client_type, x-rpc-app_id, x-rpc-app_key, x-rpc-device_id,
+     x-rpc-device_name, x-rpc-device_model, x-rpc-sdk_version, x-rpc-aigis,
+     x-rpc-verify_key, Origin, User-Agent, Referer ...
+   返回 → { url（二维码内容）, ticket, expire }
+
+② 轮询扫码状态
+   GET https://passport-api.mihoyo.com/account/auth/api/queryQRLogin
+      ?app_id=...&ticket=...
+   status: WAIT_SCAN / WAIT_CONFIRM / CONFIRMED / EXPIRED / CANCELLED
+   CONFIRMED 时返回 { uid, token }（token 为 stoken，需立即兑换为 cookie）
+
+③ 用 stoken 换 cookie
+   GET https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken
+      ?stoken=...&uid=...
+   返回 { mid, cookie_token, account_id }
+
+④ 拉取绝区零角色（绑定信息）
+   GET https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie
+      ?game_biz=zzz_cn    headers: Cookie
+   返回 { list: [{ game_biz, uid, region, nickname, level, region_name }] }
+```
+
+**关键点**：第①、②步的 `x-rpc-*` 私有请求头是官方 Web/App 客户端下发的，社区逆向维护，**属于非公开接口**；米游社服务条款明确禁止未经授权的自动化调用。是否接入需要自行评估合规与封号风险（`docs/更新日志.md` 已注明“违反其服务条款”）。
+
+### 3. 后端落地建议（Blobs 存储设计）
+
+建议新建 `netlify/functions/_lib/routes/mihoyo.ts`，替换 `stubs.ts` 中的 4 个桩，并保留 `isApiThrow` 错误兜底。
+
+**存储（data store）**：
+
+```ts
+// 扫码会话：key = mihoyo/qr-sessions/{ticket}.json
+{ ticket, qrUrl, mode: "login" | "bind",
+  createdAt, expiresAt, status: "waiting"|"scanned"|"confirmed"|"expired"|"cancelled",
+  uid?, token?, aid?, lastPolledAt }
+
+// 用户绑定：key = mihoyo/bindings/{userId}.json（或挂在用户文档上）
+{ userId, aid, zzzUid, zzzNickname, zzzLevel, zzzRegion, zzzRegionName, boundAt, lastSyncedAt }
+
+// 反查索引（登录模式用）：key = mihoyo/by-aid/{aid}.json → { userId }
+```
+
+**接口实现要点**：
+
+| 端点 | 逻辑 |
+|------|------|
+| `POST /api/auth/mihoyo/qr` | 若带有效 token → `mode:"bind"`；否则 `mode:"login"`。调用 passport `createQRLogin`，把 `{ qrUrl, ticket, expiresIn, mode }` 落库并返回。 |
+| `POST /api/auth/mihoyo/qr/status` | 读 ticket 会话，调 passport `queryQRLogin` 更新状态。`CONFIRMED` 时：① stoken 换 cookie → ② 拉取 zzz 角色 → ③ `bind` 模式写入 `bindings/{userId}`；`login` 模式查 `by-aid` 反查用户并签发本站 JWT（无则建号，见下文）。 |
+| `GET /api/auth/mihoyo/binding` | 读 `bindings/{userId}`，按需刷新角色数据（含 `lastSyncedAt`）。 |
+| `DELETE /api/auth/mihoyo/binding` | 删除 `bindings/{userId}` 与 `by-aid/{aid}` 索引。 |
+
+**login 模式建号**：以 `mid/account_id` 作为外部唯一标识存 `users/by-mihoyo/{aid}.json → { userId }`；首次登录自动建用户（`uid` 用现有 `userUidKey` 分配），与 GitHub OAuth（`users/by-github/<id>`）完全对称。
+
+**配置**：app_id / app_key 等私有参数放环境变量（`.env` 已忽略，不写代码），服务端可缓存 cookie 减少 ③④ 调用。
+
+### 4. 前端配合（基本已完成）
+
+- 账号中心扫码绑定 UI、二维码渲染（`qrcode` 库）、`useMihoyoQr` 轮询与过期刷新：**已实现**。
+- 登录弹窗的米游社按钮（`LoginDialog`）：目前未调用 `createMihoyoQr`，需接 login 模式；绑定入口在账号中心。
+- 绑定成功后 `account.vue` 通过 `setMihoyoBinding` 更新状态、profile 页 `zzz` 徽章展示：**已实现**。
+
+### 5. 风险与合规
+
+| 项 | 说明 |
+|----|------|
+| 违反 ToS | 私有请求头逆向调用可能违反米游社服务条款，存在账号风控/封禁风险 |
+| 接口变动 | `x-rpc-*` 参数、app_id、签名算法（`x-rpc-verify_key`/aigis）会随版本变化，需持续维护 |
+| 反爬 | 高频轮询会被风控；建议限流（单 ticket 轮询 ≤1 次/1.5s，超时 3 分钟作废） |
+| 替代方案 | 若仅需展示《绝区零》角色，可改为**手动填写 UID/区服**（零合规风险）；或对接 B 站/其他合规第三方 OAuth |
+
+### 6. 分期实施
+
+| 阶段 | 内容 |
+|------|------|
+| **P1 绑定** | 实现 `qr` / `qr/status`（bind 模式）+ `binding` GET/DELETE，打通账号中心扫码绑定 |
+| **P2 登录** | `qr` 支持 login 模式 + `by-aid` 反查/建号 + 签发 JWT，接登录弹窗 |
+| **P3 加固** | 会话过期/限流/错误退避、cookie 缓存、被动刷新角色数据、风控日志 |
+| **P4 兜底** | 若 passport 接口失效，保留现有「手动绑定 UID」作为降级入口 |
+
+---
+
 ## 十六、设计规范速查表
 
 ```
