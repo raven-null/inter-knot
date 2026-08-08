@@ -2129,24 +2129,28 @@ if (import.meta.client) {
 }
 
 .ik-create-delete {
+  width: 100%;
   font-size: var(--ik-text-sm);
   font-weight: 900;
 }
 
 .ik-create-delete :deep(.z-button__inner),
 .ik-create-delete :deep(button) {
+  width: 100%;
   padding: 10px var(--ik-space-lg);
   font-size: var(--ik-text-sm);
   letter-spacing: 0.5px;
 }
 
 .ik-create-publish {
+  width: 100%;
   font-size: var(--ik-text-sm);
   font-weight: 900;
 }
 
 .ik-create-publish :deep(.z-button__inner),
 .ik-create-publish :deep(button) {
+  width: 100%;
   padding: 10px var(--ik-space-lg);
   font-size: var(--ik-text-sm);
   letter-spacing: 0.5px;
