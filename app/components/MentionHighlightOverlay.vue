@@ -20,7 +20,6 @@
 import { onBeforeUnmount, onMounted, ref, watch, nextTick, computed } from "vue";
 import type { MentionRange } from "~/composables/useMentionInput";
 import type { EmoteRange } from "~/composables/useEmoteInsert";
-import { useEmotes } from "~/composables/useEmotes";
 
 const props = defineProps<{
   /** 目标 textarea 元素；为空时不渲染 */
@@ -32,8 +31,6 @@ const props = defineProps<{
   /** 当前已插入的表情占位区间（可选） */
   emotes?: EmoteRange[];
 }>();
-
-const { emoteMap } = useEmotes();
 
 // 用 string-keyed Record 而非具名 interface：tabSize / wordWrap 等在 Vue 的 StyleValue
 // 类型里有时不识别，会让 :style 绑定的类型推断失败。
@@ -112,8 +109,6 @@ const segments = computed(() => {
   return out;
 });
 
-const emoteUrl = (code?: string) => (code ? emoteMap.value.get(code)?.url : undefined);
-
 const teleportTarget = computed(() => props.target?.parentElement ?? null);
 
 onMounted(() => {
@@ -189,15 +184,8 @@ watch(
       >
         <template v-for="(seg, i) in segments" :key="i">
           <span v-if="seg.type === 'mention'" class="ik-mention-overlay__hit">{{ seg.value }}</span>
-          <!-- 表情占位区间：textarea 里是两个 EM SPACE（不可见），
-               这里在同一区间上绝对定位画出表情图片 -->
-          <span v-else-if="seg.type === 'emote'" class="ik-mention-overlay__emote">{{ seg.value }}<img
-            v-if="emoteUrl(seg.code)"
-            :src="emoteUrl(seg.code)"
-            alt=""
-            class="ik-mention-overlay__emote-img"
-            draggable="false"
-          /></span>
+          <!-- 表情占位区间：textarea 里是两个 EM SPACE（不可见） -->
+          <span v-else-if="seg.type === 'emote'">{{ seg.value }}</span>
           <template v-else>{{ seg.value }}</template>
         </template>
       </div>
@@ -233,25 +221,7 @@ watch(
   will-change: transform;
 }
 
-.ik-mention-overlay__emote {
-  position: relative;
-  display: inline;
-}
-
-.ik-mention-overlay__emote-img {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 1.9em;
-  height: 1.9em;
-  object-fit: contain;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
 .ik-mention-overlay__hit {
-  /* 半透明黄绿，与项目主题色 #BFFF09 一致 */
   background-color: rgba(215, 255, 0, 0.22);
   border-radius: 3px;
   /* 让背景在内联文字段两端微微外扩，更像芯片 */
