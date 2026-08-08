@@ -1,0 +1,23 @@
+[build]
+  command = "npm run generate"
+  publish = ".output/public"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# 全部 API 由单个 v2 函数入口路由（netlify/functions/api.ts）
+[[functions."api"]]
+  path = "/api/*"
+
+# 后台管理前端路由（SPA 回退到 index.html，由前端路由守卫控制权限）
+[[redirects]]
+  from = "/admin/*"
+  to = "/admin/index.html"
+  status = 200
+
+# SPA 前端路由回退到 index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

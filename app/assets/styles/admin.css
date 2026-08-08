@@ -1,0 +1,196 @@
+/* 后台管理通用样式（全局） */
+.ik-admin-page {
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ik-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.ik-admin-stat {
+  background: linear-gradient(180deg, #1d1d1d, #161616);
+  border: 1px solid #2d2d2d;
+  border-radius: 14px 14px 0 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ik-admin-stat__label {
+  font-size: 13px;
+  color: var(--ik-muted, #9a9a9a);
+}
+
+.ik-admin-stat__value {
+  font-size: 26px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--ik-primary, #bfff09);
+}
+
+.ik-admin-card {
+  background: linear-gradient(180deg, #1d1d1d, #161616);
+  border: 1px solid #2d2d2d;
+  border-radius: 14px 14px 0 14px;
+  padding: 18px;
+}
+
+.ik-admin-card__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.ik-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.ik-admin-table th {
+  text-align: left;
+  color: var(--ik-muted, #9a9a9a);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid #2a2a2a;
+  white-space: nowrap;
+}
+
+.ik-admin-table td {
+  padding: 10px;
+  border-bottom: 1px solid #202020;
+  vertical-align: middle;
+}
+
+.ik-admin-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ik-admin-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ik-admin-input {
+  background: #141414;
+  border: 1px solid #2d2d2d;
+  border-radius: 8px;
+  color: #e8e8e8;
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  min-width: 200px;
+}
+
+.ik-admin-input:focus {
+  border-color: var(--ik-primary, #bfff09);
+}
+
+.ik-admin-btn {
+  background: #242424;
+  border: 1px solid #333;
+  color: #e8e8e8;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+}
+
+.ik-admin-btn:hover {
+  background: #2f2f2f;
+  border-color: var(--ik-primary, #bfff09);
+}
+
+.ik-admin-btn--primary {
+  background: var(--ik-primary, #bfff09);
+  border-color: var(--ik-primary, #bfff09);
+  color: #000;
+  font-weight: 700;
+}
+
+.ik-admin-btn--primary:hover {
+  background: #d0ff3f;
+}
+
+.ik-admin-btn--danger {
+  border-color: #5a1f1f;
+  color: #ff6b6b;
+}
+
+.ik-admin-btn--danger:hover {
+  background: rgba(255, 77, 79, 0.12);
+  border-color: #ff4d4f;
+}
+
+.ik-admin-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid #333;
+  background: #1a1a1a;
+}
+
+.ik-admin-badge--green {
+  color: #7ee787;
+  border-color: #2e5a33;
+  background: rgba(46, 160, 67, 0.15);
+}
+
+.ik-admin-badge--red {
+  color: #ff7b72;
+  border-color: #6e2927;
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.ik-admin-badge--yellow {
+  color: #e3b341;
+  border-color: #6e5529;
+  background: rgba(227, 179, 65, 0.15);
+}
+
+.ik-admin-badge--gray {
+  color: var(--ik-muted, #9a9a9a);
+}
+
+.ik-admin-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #222;
+}
+
+.ik-admin-empty {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--ik-muted, #9a9a9a);
+  font-size: 14px;
+}
+
+.ik-admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 0;
+  font-size: 13px;
+  color: var(--ik-muted, #9a9a9a);
+}
+
+.ik-admin-loading {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--ik-muted, #9a9a9a);
+}
