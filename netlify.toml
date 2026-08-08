@@ -12,13 +12,15 @@
   MIHOYO_CLIENT_TYPE = "4"
   MIHOYO_GAME_BIZ = "plat_cn"
 
-  # 智谱 GLM（Fairy AI 对话）密钥
-  GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff"
-  GLM_MODEL = "glm-4-flash"
-
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+
+# Functions 运行时环境变量（Netlify Functions 读不到 [context.deploy.environment]，
+# 必须用 [functions.environment] 或站点 Settings → Environment variables 注入）
+[functions.environment]
+  GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff"
+  GLM_MODEL = "glm-4-flash"
 
 # API 路由由函数源码内的 config.path（/api/*）声明，无需在此配置。
 
