@@ -3,6 +3,8 @@
   max-width: 1600px;
   width: 100%;
   margin: 0 auto;
+  padding: 0 10px;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -327,7 +329,14 @@
 
 /* ── 概览三列（最新用户 / 在线人数 / 最新委托） ── */
 .ik-admin-grid--three {
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .ik-admin-grid--three {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ik-admin-online {
