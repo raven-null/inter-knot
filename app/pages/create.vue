@@ -687,6 +687,17 @@ async function deleteDraft() {
 }
 
 /* ── Draft List Helpers ───────────────────────────── */
+/** 删除草稿列表中的指定草稿（不切换当前选中项） */
+async function deleteDraftItem(draftId: string) {
+  const ok = await confirmDialog.open({ title: "删除草稿", message: "确定要删除这个草稿吗？此操作不可恢复。", confirmText: "删除", danger: true });
+  if (!ok) return;
+  await api.deleteArticle(draftId);
+  if (documentId.value === draftId) {
+    resetEditor();
+  }
+  await refreshDrafts();
+}
+
 function isDraftActive(draft: DraftArticle): boolean {
   return !!documentId.value && draft.documentId === documentId.value;
 }
@@ -1094,6 +1105,15 @@ if (import.meta.client) {
               <span class="ik-nav-item__title">{{ draft.title || "无标题" }}</span>
               <span class="ik-nav-item__meta">{{ draftPreviewText(draft) }}</span>
             </div>
+            <button
+              type="button"
+              class="ik-nav-item__delete"
+              title="删除草稿"
+              :disabled="isDeletingDraft"
+              @click.stop="deleteDraftItem(draft.documentId)"
+            >
+              <TrashIcon class="ik-nav-item__delete-icon" aria-hidden="true" />
+            </button>
           </z-menu-item>
         </z-menu>
 
@@ -1942,6 +1962,47 @@ if (import.meta.client) {
   gap: 3px;
   min-width: 0;
   width: 100%;
+}
+
+/* 草稿项删除按钮：悬停显示，位于右侧 */
+.ik-nav-item__delete {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
+}
+
+.ik-create-menu :deep(.z-menu__item):hover .ik-nav-item__delete,
+.ik-nav-item__delete:focus-visible {
+  opacity: 1;
+}
+
+.ik-nav-item__delete:hover {
+  color: #ff6b6b;
+  background: rgba(255, 77, 79, 0.18);
+}
+
+.ik-nav-item__delete:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.ik-nav-item__delete-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .ik-nav-item__title {
