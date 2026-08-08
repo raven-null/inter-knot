@@ -6,17 +6,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# 全部 API 由单个 v2 函数入口路由（netlify/functions/api.ts）
-[[functions."api"]]
-  path = "/api/*"
+# API 路由由函数源码内的 config.path（/api/*）声明，无需在此配置。
 
-# 后台管理前端路由（SPA 回退到 index.html，由前端路由守卫控制权限）
-[[redirects]]
-  from = "/admin/*"
-  to = "/admin/index.html"
-  status = 200
-
-# SPA 前端路由回退到 index.html
+# SPA 前端路由回退到 index.html（函数 /api/* 优先于重定向，见请求处理顺序）
 [[redirects]]
   from = "/*"
   to = "/index.html"
