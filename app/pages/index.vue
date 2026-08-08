@@ -35,7 +35,7 @@ const masonryColumnWidth = computed(() => {
   const w = windowWidth.value || 1024;
   if (w < 480) return 156;
   if (w < 768) return 200;
-  if (w < 1200) return 220;
+  if (w < 1024) return 220;
   return 240;
 });
 
@@ -1239,7 +1239,7 @@ onBeforeUnmount(() => {
   object-fit: contain;
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1280px) {
   .ik-home-container {
     width: calc(100% - 32px);
   }
@@ -1315,7 +1315,7 @@ onBeforeUnmount(() => {
   border: 1px solid #2d2d2d;
   color: rgba(255, 255, 255, 0.85);
   cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--ik-shadow-md);
   transition: border-color 160ms, background 160ms, transform 120ms;
 }
 
@@ -1369,8 +1369,8 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
-/* Avoid overlap with the fixed MobileBottomNav (58px) — shown on screens ≤1100px */
-@media (max-width: 1100px) {
+/* Avoid overlap with the fixed MobileBottomNav (58px) — shown on screens ≤1024px */
+@media (max-width: 1024px) {
   .ik-refresh-fab {
     right: 16px;
     bottom: calc(58px + 16px + env(safe-area-inset-bottom, 0px));

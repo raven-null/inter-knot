@@ -794,7 +794,7 @@ onBeforeUnmount(() => {
 /* ── Mobile ──
    Avatars are only 64px circles, so we keep the column count denser than
    the BusinessCardModal (which uses larger card thumbnails). */
-@media (max-width: 1100px) {
+@media (max-width: 1024px) {
   .ik-av-grid { grid-template-columns: repeat(6, 1fr); }
 }
 @media (max-width: 800px) {

@@ -129,6 +129,7 @@ const overlayOpen = computed(
 
 <template>
   <div>
+    <a href="#main-content" class="ik-skip-link">跳到主要内容</a>
     <IkZzzMarquee class="ik-global-marquee" :paused="overlayOpen" />
     <!-- backdrop-filter 合成层预热：1×1 不可见元素，让 GPU 在首屏就把
          模糊着色器编译好、合成层分配好。否则用户第一次打开弹窗再关闭时，
@@ -139,7 +140,7 @@ const overlayOpen = computed(
     </ClientOnly>
 
     <AppHeader />
-    <main class="ik-page">
+    <main id="main-content" class="ik-page">
       <NuxtPage />
     </main>
     <MobileBottomNav v-if="showMobileBottomNav" />
@@ -194,6 +195,24 @@ const overlayOpen = computed(
 </template>
 
 <style scoped>
+/* 跳过导航链接（可访问性） */
+.ik-skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 99999;
+  padding: 8px 16px;
+  background: var(--ik-primary);
+  color: #000;
+  font-weight: 700;
+  text-decoration: none;
+  border-radius: 0 0 8px 0;
+}
+
+.ik-skip-link:focus {
+  left: 0;
+}
+
 /* backdrop-filter 合成层预热元素：
    - 必须真的有非零尺寸，否则浏览器会跳过合成层分配
    - 必须真的应用 backdrop-filter，触发着色器编译

@@ -344,7 +344,7 @@ watch(
 .ik-header {
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: var(--ik-z-header);
   background: #000;
   transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
@@ -452,7 +452,7 @@ watch(
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: var(--ik-z-dropdown);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -460,7 +460,7 @@ watch(
   background: var(--ik-bg-elevated, #1a1a1a);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--ik-shadow-lg);
   max-height: min(60vh, 480px);
   overflow-y: auto;
   /* 自定义细滚动条：与 .ik-mention-picker__inner 等列表统一 */
@@ -1028,7 +1028,7 @@ watch(
   border-color: rgba(191, 255, 9, 0.4);
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .ik-brand__title {
     font-size: 20px;
   }
@@ -1040,7 +1040,7 @@ watch(
 
 /* 中屏拥挤区间：tabs 与搜索框抢空间会重叠，参考 Flutter isCompact 策略
    直接隐藏 tabs，让搜索框占据中部，导航交由 MobileBottomNav。 */
-@media (max-width: 1100px) {
+@media (max-width: 1024px) {
   .ik-header__middle {
     flex: 1 1 0;
     min-width: 0;
@@ -1248,9 +1248,24 @@ watch(
 }
 
 /* 响应式断点隐藏 */
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .ik-level-display {
     display: none;
+  }
+}
+
+/* 中屏：等级条折叠为仅头像+等级 */
+@media (min-width: 1025px) and (max-width: 1280px) {
+  .ik-level-display {
+    display: flex;
+    padding: 3px 8px;
+    gap: 6px;
+  }
+  .ik-level-middle {
+    display: none;
+  }
+  .ik-level-right {
+    margin-left: 0;
   }
 }
 

@@ -132,6 +132,7 @@ onMounted(async () => {
   min-height: calc(100vh - 60px);
   background: var(--ik-bg, #0a0a0a);
   color: var(--ik-text, #e8e8e8);
+  font-family: var(--ik-font-sans);
 }
 
 .ik-admin__side {
@@ -242,7 +243,7 @@ onMounted(async () => {
   flex-shrink: 0;
   position: sticky;
   top: 60px;
-  z-index: 5;
+  z-index: var(--ik-z-header);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -353,6 +354,56 @@ onMounted(async () => {
   }
   .ik-admin__content {
     padding: 16px;
+  }
+}
+
+/* 中屏侧边栏折叠为图标模式 */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .ik-admin__side {
+    width: 64px;
+    min-width: 64px;
+    overflow: visible;
+  }
+  .ik-admin__brand {
+    padding: 18px 0;
+    justify-content: center;
+    font-size: 0;
+    gap: 0;
+  }
+  .ik-admin__brand-dot {
+    width: 12px;
+    height: 12px;
+  }
+  .ik-admin__nav {
+    padding: 12px 6px;
+    align-items: center;
+  }
+  .ik-admin__group-label {
+    display: none;
+  }
+  .ik-admin__nav-item {
+    justify-content: center;
+    padding: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--ik-radius-sm);
+  }
+  .ik-admin__nav-item span {
+    display: none;
+  }
+  .ik-admin__nav-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .ik-admin__side-footer {
+    padding: 14px 0;
+    text-align: center;
+  }
+  .ik-admin__back {
+    font-size: 0;
+  }
+  .ik-admin__content {
+    padding: 24px;
   }
 }
 </style>

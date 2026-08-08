@@ -1110,7 +1110,7 @@ useHead({ title: "账号中心" });
   border-radius: 14px;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--ik-shadow-md);
 }
 
 .ik-ac-qr {

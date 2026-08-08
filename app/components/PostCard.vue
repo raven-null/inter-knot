@@ -226,6 +226,7 @@ const handleOpen = (e: MouseEvent) => {
   overflow: hidden;
   transition: background-color 180ms ease;
   contain: layout style paint;
+  -webkit-touch-callout: none;
 }
 
 .ik-card:hover {
