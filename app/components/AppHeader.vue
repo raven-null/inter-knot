@@ -90,6 +90,7 @@ const mineTabText = computed(() => {
 });
 
 // 用户信息
+const userName = computed(() => auth.user?.name || "用户");
 const userAvatar = computed(() => auth.user?.avatar || "/images/default-avatar.webp");
 
 const resolveActiveTab = (path: string): HeaderTabName => {
@@ -169,6 +170,18 @@ watch(
           <img src="/images/zzzicon.png" alt="Inter Knot" class="ik-brand__icon" draggable="false" />
           <strong class="ik-brand__title">INTER-KNOT</strong>
         </NuxtLink>
+
+        <!-- 桌面端登录后显示头像 + 用户名 -->
+        <button
+          v-if="auth.isLogin"
+          type="button"
+          class="ik-header-user"
+          aria-label="个人资料"
+          @click="navigateTo(auth.profilePath || '/profile')"
+        >
+          <img :src="userAvatar" alt="avatar" class="ik-header-user__avatar" />
+          <span class="ik-header-user__name">{{ userName }}</span>
+        </button>
 
         <!-- 移动端登录后显示头像（替代 logo） -->
         <button
@@ -942,6 +955,44 @@ watch(
   }
 }
 
+/* 桌面端登录后用户信息（头像 + 用户名） */
+.ik-header-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 10px 3px 4px;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ik-header-user:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ik-header-user__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.ik-header-user__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
 /* 移动端登录后头像（替代 logo） */
 .ik-mobile-avatar {
   display: none;
@@ -1008,6 +1059,10 @@ watch(
 
   /* 登录后显示头像替代 logo（与 tabs 同步隐藏断点） */
   .ik-header.is-login .ik-brand {
+    display: none;
+  }
+
+  .ik-header-user {
     display: none;
   }
 
