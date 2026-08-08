@@ -2,6 +2,16 @@
   command = "npm run generate"
   publish = ".output/public"
 
+# 米游社扫码登录所需的私有参数（来自 user.mihoyo.com 抓包）。
+# 注意：随米游社版本可能失效，需定期更新。
+[context.deploy.environment]
+  MIHOYO_APP_ID = "dw9y09jqjpxc"
+  MIHOYO_DEVICE_ID = "1760c6b8-228b-4f92-8918-eb498724d380"
+  MIHOYO_DEVICE_FP = "38d81ab24d683"
+  MIHOYO_SDK_VERSION = "2.54.0"
+  MIHOYO_CLIENT_TYPE = "4"
+  MIHOYO_GAME_BIZ = "plat_cn"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
