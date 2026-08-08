@@ -18,6 +18,8 @@ export default defineNuxtConfig({
       // 本地 dev 或 Pages 預覽構建可通過 .env 的 NUXT_PUBLIC_API_BASE_URL 指定後端地址。
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || "",
       appName: "绳网",
+      // GitHub OAuth 登录（配合后端 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET）
+      githubClientId: process.env.NUXT_PUBLIC_GITHUB_CLIENT_ID || "",
     },
   },
   app: {

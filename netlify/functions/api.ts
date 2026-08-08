@@ -18,6 +18,7 @@ import * as uploadRoutes from "./_lib/routes/uploads";
 import * as profileRoutes from "./_lib/routes/profiles";
 import * as meRoutes from "./_lib/routes/me";
 import * as adminRoutes from "./_lib/routes/admin";
+import * as githubRoutes from "./_lib/routes/github";
 import * as stubRoutes from "./_lib/routes/stubs";
 
 export default async function handler(req: Request): Promise<Response> {
@@ -164,6 +165,12 @@ async function dispatch(req: Request): Promise<Response> {
     }
     case "article-reads": {
       if (sub === "batch" && isPost(req)) return articleRoutes.markReadBatch(req);
+      return error(404, "接口不存在");
+    }
+
+    // ── GitHub OAuth 登录 ────────────────────────────
+    case "github": {
+      if (sub === "callback" && isPost(req)) return githubRoutes.callback(req);
       return error(404, "接口不存在");
     }
 

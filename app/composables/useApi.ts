@@ -783,6 +783,23 @@ export function useApi() {
     return { success: data.success === true };
   };
 
+  /** GitHub OAuth 登录：前端在 /login 收到 code 后调用，交换出本站 JWT */
+  const githubCallback = async (
+    code: string,
+    redirectUri: string,
+  ): Promise<AuthResult> => {
+    const response = await $api("/api/auth/github/callback", {
+      method: "POST",
+      body: { code, redirectUri },
+    });
+    const data = response as Record<string, unknown>;
+    clearAllCache();
+    return {
+      token: (data.jwt as string | undefined) || null,
+      user: (data.user as Author) || null,
+    };
+  };
+
   const getSelfUser = async (): Promise<Author> => {
     return cachedRead(
       qk.me.self,
@@ -2243,6 +2260,7 @@ export function useApi() {
     clearAllCache,
     invalidateQueries,
     login,
+    githubCallback,
     sendRegisterCode,
     registerWithCode,
     sendResetCode,
