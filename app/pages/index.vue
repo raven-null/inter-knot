@@ -400,11 +400,10 @@ const handleRefresh = async () => {
   refreshing.value = false;
 };
 
-// 工具栏搜索按钮：唤起顶部导航的搜索框聚焦
-const focusHeaderSearch = () => {
-  if (import.meta.client) {
-    window.dispatchEvent(new CustomEvent("ik:focus-search"));
-  }
+// 工具栏搜索按钮：展开/收起首页内联搜索框
+const homeSearchOpen = ref(false);
+const toggleHomeSearch = () => {
+  homeSearchOpen.value = !homeSearchOpen.value;
 };
 
 // ── 后台静默轮询：比对最新一页与本地 list 的差集，检测有无新委托 ────
@@ -873,17 +872,21 @@ onBeforeUnmount(() => {
         </button>
       </nav>
 
-      <!-- 搜索入口：唤起顶部搜索框；原在线人数已并入右下角刷新按钮 -->
+      <!-- 搜索入口：展开首页内联搜索框；原在线人数已并入右下角刷新按钮 -->
       <button
         type="button"
         class="ik-toolbar-search"
-        aria-label="搜索委托"
-        @click="focusHeaderSearch"
+        :class="{ 'is-active': homeSearchOpen }"
+        :aria-label="homeSearchOpen ? '收起搜索' : '搜索委托'"
+        @click="toggleHomeSearch"
       >
         <MagnifyingGlassIcon class="ik-toolbar-search__icon" aria-hidden="true" />
-        <span class="ik-toolbar-search__label">搜索</span>
+        <span class="ik-toolbar-search__label">{{ homeSearchOpen ? "收起" : "搜索" }}</span>
       </button>
     </div>
+
+    <!-- 内联搜索框（工具栏搜索按钮展开） -->
+    <HomeSearchBar v-model:open="homeSearchOpen" />
 
     <!-- 移动端下拉刷新指示器 -->
     <div
@@ -1131,6 +1134,12 @@ onBeforeUnmount(() => {
   border-color: var(--ik-primary, #bfff09);
   color: var(--ik-primary, #bfff09);
   background: rgba(191, 255, 9, 0.08);
+}
+
+.ik-toolbar-search.is-active {
+  border-color: var(--ik-primary, #bfff09);
+  color: var(--ik-primary, #bfff09);
+  background: rgba(191, 255, 9, 0.12);
 }
 
 .ik-toolbar-search:active {
