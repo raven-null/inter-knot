@@ -1,4 +1,4 @@
-﻿/** 评论相关路由（基于 Netlify Blobs） */
+/** 评论相关路由（基于 Netlify Blobs） */
 
 import { genId, getJson, setJson, del, listKeys, commentKey, postKey, KEYS } from "../storage";
 import { feedUpdate, getUser, updateUserStats } from "../feed";
@@ -206,30 +206,4 @@ export async function unpin(req: Request): Promise<Response> {
   if (viewer.role !== "admin" && viewer.role !== "moderator") return badRequest("无权取消置顶");
   await setJson(found.key, { ...found.doc, is_pinned: false });
   return json({ success: true });
-}
-// 临时：修复评论图片（裸 documentId -> URL），验证后移除
-export async function repairCommentImages(req: Request): Promise<Response> {
-  const { requireAdmin } = await import("../auth");
-  await requireAdmin(req);
-  const { listKeys, setJson } = await import("../storage");
-  const keys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
-  let fixed = 0;
-  for (const key of keys) {
-    const c = await getJson<Doc>(key);
-    if (!c || !Array.isArray(c.images)) continue;
-    const next: string[] = [];
-    let changed = false;
-    for (const u of c.images as unknown[]) {
-      const s = String(u);
-      if (s.startsWith("/") || s.startsWith("http")) { next.push(s); continue; }
-      const meta = await getJson<{ url?: string }>(`uploads/by-document/${s}.json`);
-      if (meta?.url) { next.push(String(meta.url)); changed = true; }
-      else next.push(s);
-    }
-    if (changed) {
-      await setJson(key, { ...c, images: next });
-      fixed += 1;
-    }
-  }
-  return json({ success: true, fixed });
 }
