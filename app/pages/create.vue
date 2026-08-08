@@ -64,6 +64,10 @@ const isPublishing = ref(false);
 const isDeletingDraft = ref(false);
 const isDiscardingChanges = ref(false);
 const hasUnsavedChanges = ref(false);
+const lastSavedAt = ref<Date | null>(null);
+// 编辑器：正文编辑/预览模式与 Markdown 插入
+const bodyMode = ref<"edit" | "preview">("edit");
+const bodyTextareaRef = ref<InstanceType<any>>();
 // 编辑已发布帖子模式：自动保存仍写 draft 版本，点「更新帖子」后重新发布。
 const isEditingPublished = ref(false);
 const isAnonymous = ref(false);
@@ -304,6 +308,7 @@ function buildSnapshot(): string {
 function syncSnapshot() {
   lastSavedSnapshot.value = buildSnapshot();
   hasUnsavedChanges.value = false;
+  lastSavedAt.value = new Date();
 }
 
 
@@ -373,6 +378,43 @@ function markDirty() {
   if (suppressTracking.value) return;
   hasUnsavedChanges.value = true;
   debouncedSave();
+}
+
+// ── 编辑器增强：保存状态 / Markdown 插入 / 实时预览 ──
+const saveStatusText = computed(() => {
+  if (isSavingDraft.value) return "保存中…";
+  if (hasUnsavedChanges.value) return "有未保存修改";
+  if (documentId.value) {
+    return lastSavedAt.value
+      ? `已保存 ${lastSavedAt.value.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
+      : "已保存";
+  }
+  return "";
+});
+
+const bodyPreviewHtml = computed(() => {
+  try {
+    return formatBodyText(body.value);
+  } catch {
+    return "";
+  }
+});
+
+function insertMarkdown(prefix: string, suffix = prefix) {
+  const ta = bodyTextareaRef.value?.$el?.querySelector("textarea") as HTMLTextAreaElement | null;
+  const start = ta ? ta.selectionStart : body.value.length;
+  const end = ta ? ta.selectionEnd : body.value.length;
+  const selected = body.value.slice(start, end);
+  const replacement = prefix + selected + suffix;
+  body.value = body.value.slice(0, start) + replacement + body.value.slice(end);
+  nextTick(() => {
+    if (ta) {
+      ta.focus();
+      const pos = start + prefix.length + selected.length;
+      ta.setSelectionRange(pos, pos);
+    }
+  });
+  markDirty();
 }
 
 /* ── Image Upload ─────────────────────────────────── */
@@ -1124,11 +1166,28 @@ if (import.meta.client) {
               <span class="ik-create-section__hint">若仅上传图片，正文可留空</span>
             </div>
             <div class="ik-create-editor-frame">
+              <div class="ik-create-editor-toolbar">
+                <div class="ik-create-editor-mode">
+                  <button type="button" :class="{ 'is-active': bodyMode === 'edit' }" @click="bodyMode = 'edit'">编辑</button>
+                  <button type="button" :class="{ 'is-active': bodyMode === 'preview' }" @click="bodyMode = 'preview'">预览</button>
+                </div>
+                <div v-if="bodyMode === 'edit'" class="ik-create-editor-md">
+                  <button type="button" title="加粗" @click="insertMarkdown('**', '**')"><b>B</b></button>
+                  <button type="button" title="斜体" @click="insertMarkdown('*', '*')"><i>I</i></button>
+                  <button type="button" title="链接" @click="insertMarkdown('[', '](https://)')">链接</button>
+                  <button type="button" title="引用" @click="insertMarkdown('> ')">引用</button>
+                  <button type="button" title="行内代码" @click="insertMarkdown('`', '`')">&lt;/&gt;</button>
+                  <button type="button" title="列表项" @click="insertMarkdown('- ')">列表</button>
+                </div>
+              </div>
               <ZTextarea
+                v-if="bodyMode === 'edit'"
+                ref="bodyTextareaRef"
                 v-model="body"
                 class="ik-create-editor__body"
                 placeholder="请尽情发挥吧..."
               />
+              <div v-else class="ik-create-preview" v-html="bodyPreviewHtml"></div>
             </div>
           </div>
 
@@ -1167,6 +1226,7 @@ if (import.meta.client) {
                   draggable="false"
                   @error="($event.target as HTMLImageElement).src = task.previewUrl"
                 />
+                <span v-if="idx === 0 && task.status === 'done'" class="ik-cover-thumb__cover-badge">封面</span>
                 <div v-if="task.status === 'uploading'" class="ik-cover-thumb__overlay">
                   <span class="ik-cover-thumb__pct">{{ task.progress }}%</span>
                   <div class="ik-cover-thumb__bar">
@@ -1253,7 +1313,9 @@ if (import.meta.client) {
     <!-- ── Bottom Footer (desktop) ─────────────── -->
     <footer class="ik-create-footer">
       <div class="ik-create-footer__inner">
-        <div class="ik-create-footer__left"></div>
+        <div class="ik-create-footer__left">
+          <span v-if="saveStatusText" class="ik-create-save-status">{{ saveStatusText }}</span>
+        </div>
         <div class="ik-create-footer__right">
           <label class="ik-create-anon-toggle" :title="isAnonymous ? '取消匿名发布' : '匿名发布'">
             <span>匿名</span>
@@ -3383,5 +3445,111 @@ if (import.meta.client) {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── 编辑器工具栏 / 编辑预览 / 保存状态 / 封面角标 ── */
+.ik-create-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: #141414;
+  border: 1px solid #262626;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+
+.ik-create-editor-mode {
+  display: inline-flex;
+  gap: 4px;
+  background: #1c1c1c;
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.ik-create-editor-mode button {
+  border: none;
+  background: transparent;
+  color: #9a9a9a;
+  font-size: 12px;
+  padding: 4px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.ik-create-editor-mode button.is-active {
+  background: var(--ik-primary, #bfff09);
+  color: #111;
+  font-weight: 700;
+}
+
+.ik-create-editor-md {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.ik-create-editor-md button {
+  border: none;
+  background: transparent;
+  color: #c8c8c8;
+  font-size: 13px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.ik-create-editor-md button:hover {
+  background: #262626;
+  color: var(--ik-primary, #bfff09);
+}
+
+.ik-create-preview {
+  min-height: 180px;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.75;
+  color: #d8d8d8;
+  background: #0e0e0e;
+}
+
+.ik-create-preview :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.ik-create-preview :deep(pre),
+.ik-create-preview :deep(code) {
+  background: #1a1a1a;
+  border-radius: 6px;
+}
+
+.ik-create-preview :deep(blockquote) {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 3px solid #333;
+  color: #9a9a9a;
+}
+
+.ik-create-save-status {
+  font-size: 12px;
+  color: #8a8a8a;
+  font-variant-numeric: tabular-nums;
+}
+
+.ik-cover-thumb__cover-badge {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 2;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--ik-primary, #bfff09);
+  color: #111;
+  font-size: 11px;
+  font-weight: 700;
 }
 </style>
