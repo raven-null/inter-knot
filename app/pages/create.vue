@@ -1908,7 +1908,7 @@ if (import.meta.client) {
   position: relative;
   align-items: stretch;
   min-height: 56px;
-  padding: 10px 16px;
+  padding: 10px 0;
   max-width: 100%;
   min-width: 0;
   overflow: hidden;
