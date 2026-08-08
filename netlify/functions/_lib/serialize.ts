@@ -130,6 +130,11 @@ export function toCategory(doc: Doc): Doc {
     slug: String(doc.slug || ""),
     order: doc.sort_order != null ? Number(doc.sort_order) : undefined,
     adminOnly: doc.is_admin_only === true,
+    description: String(doc.description || ""),
+    icon: String(doc.icon || ""),
+    isHidden: doc.is_hidden === true,
+    sortOrder: doc.sort_order != null ? Number(doc.sort_order) : undefined,
+    createdAt: String(doc.created_at || ""),
   };
 }
 
