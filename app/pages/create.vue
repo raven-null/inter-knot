@@ -2129,6 +2129,12 @@ if (import.meta.client) {
   border-radius: 0 0 22px 22px;
 }
 
+/* 覆盖 zzzui 全局 .z-button + .z-button { margin-left: 10px }：
+   上下排列的按钮不需要水平左间距 */
+.ik-create-settings__actions :deep(.z-button + .z-button) {
+  margin-left: 0;
+}
+
 .ik-create-delete {
   font-size: var(--ik-text-sm);
   font-weight: 900;
