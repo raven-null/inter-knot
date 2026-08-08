@@ -61,6 +61,11 @@ export function useAdminApi() {
     return $api(`/api/admin/users/${documentId}`, { method: "PATCH", body: patch });
   };
 
+  /** 彻底删除用户及其帖子 / 评论 / 绑定 */
+  const deleteUser = async (documentId: string) => {
+    return $api(`/api/admin/users/${documentId}`, { method: "DELETE" });
+  };
+
   const posts = async (page = 1, pageSize = 20, q = "", status = "") => {
     return $api<Paginated<AdminPost>>("/api/admin/posts", {
       query: { page: String(page), pageSize: String(pageSize), q, status },
@@ -160,6 +165,7 @@ export function useAdminApi() {
     stats,
     users,
     updateUser,
+    deleteUser,
     posts,
     updatePost,
     deleteArticle,

@@ -234,6 +234,7 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "stats" && isGet(req)) return adminRoutes.stats(req);
       if (sub === "users" && s.length === 3 && isGet(req)) return adminRoutes.users(req);
       if (sub === "users" && s.length === 4 && isPatch(req)) return adminRoutes.updateUser(req);
+      if (sub === "users" && s.length === 4 && isDelete(req)) return adminRoutes.deleteUser(req);
       if (sub === "posts" && s.length === 3 && isGet(req)) return adminRoutes.posts(req);
       if (sub === "posts" && s.length === 4 && isPatch(req)) return adminRoutes.updatePost(req);
       if (sub === "comments" && s.length === 3 && isGet(req)) return adminRoutes.comments(req);

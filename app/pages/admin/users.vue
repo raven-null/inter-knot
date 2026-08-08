@@ -1,8 +1,12 @@
 <script setup lang="ts">
+import { useMessage } from "zenless-ui";
+import { resolveErrorMessage } from "~/utils/api-error";
+
 definePageMeta({ layout: "admin", middleware: "admin" });
 
 const admin = useAdminApi();
 const api = useApi();
+const message = useMessage();
 const list = ref<any[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -41,6 +45,31 @@ const toggleBan = async (u: any) => {
   await admin.updateUser(u.documentId, { status: next });
   u.status = next;
   if (current.value?.documentId === u.documentId) current.value.status = next;
+};
+
+const confirmDialog = useConfirmDialog();
+const deletingId = ref<string | null>(null);
+
+const deleteUser = async (u: any) => {
+  if (deletingId.value) return;
+  const ok = await confirmDialog.open({
+    title: "删除用户",
+    message: `确定要彻底删除用户「${u.name}」吗？其帖子、评论、绑定与账号将一并删除，此操作不可恢复。`,
+    confirmText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
+  deletingId.value = u.documentId;
+  try {
+    await admin.deleteUser(u.documentId);
+    list.value = list.value.filter((x) => x.documentId !== u.documentId);
+    if (current.value?.documentId === u.documentId) drawerOpen.value = false;
+    message.success("用户已删除");
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "删除用户失败"));
+  } finally {
+    deletingId.value = null;
+  }
 };
 
 const openDetail = async (u: any) => {
@@ -120,6 +149,9 @@ onMounted(load);
                 <button class="ik-admin-btn" @click="openDetail(u)">详情</button>
                 <button class="ik-admin-btn ik-admin-btn--danger" @click="toggleBan(u)">
                   {{ u.status === "active" ? "禁用" : "解禁" }}
+                </button>
+                <button class="ik-admin-btn ik-admin-btn--danger" :disabled="deletingId === u.documentId" @click="deleteUser(u)">
+                  {{ deletingId === u.documentId ? "删除中…" : "删除" }}
                 </button>
               </div>
             </td>

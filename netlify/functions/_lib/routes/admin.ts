@@ -184,6 +184,64 @@ export async function updateUser(req: Request): Promise<Response> {
   return json({ success: true });
 }
 
+/** 彻底删除用户及其关联数据（DELETE /api/admin/users/:id） */
+export async function deleteUser(req: Request): Promise<Response> {
+  const admin = await requireAdmin(req);
+  const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
+  if (id === admin.userId) return badRequest("不能删除自己");
+  const u = await getUser(id);
+  if (!u) return notFound("用户不存在");
+
+  // 删除用户文档与索引
+  await del(userKey(id));
+  if (u.email) await del(`users/by-email/${String(u.email).toLowerCase()}.json`);
+  if (u.uid != null) await del(`users/by-uid/${Number(u.uid)}.json`);
+  if (u.mihoyo_id) await del(`users/by-mihoyo/${String(u.mihoyo_id)}.json`);
+  await del(`mihoyo/bindings/${id}.json`);
+  await del(`_indexes/drafts/${id}.json`);
+  await del(`_indexes/user-comments/${id}.json`);
+
+  // 移除该用户的帖子（含已发布 / 草稿 / 待审），草稿清档
+  const feed = await getFeed();
+  const feedIds = new Set<string>();
+  for (const p of feed) {
+    if (String(p.author_document_id) === id) feedIds.add(String(p.document_id));
+  }
+  for (const pid of feedIds) {
+    await feedRemove(pid);
+    await del(`posts/${pid}.json`);
+  }
+  const postKeys = (await listKeys("posts/")).filter((k) => !k.includes("/_lookup/"));
+  let removedPosts = 0;
+  for (const key of postKeys) {
+    const d = await getJson<Doc>(key);
+    if (d && String(d.author_document_id) === id) {
+      await del(key);
+      await del(`uploads/by-document/${String(d.document_id)}.json`);
+      removedPosts += 1;
+    }
+  }
+
+  // 移除该用户的评论
+  const commentKeys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
+  let removedComments = 0;
+  for (const key of commentKeys) {
+    const c = await getJson<Doc>(key);
+    if (c && String(c.author_document_id) === id) {
+      await del(key);
+      removedComments += 1;
+    }
+  }
+
+  // 统计：用户 -1，帖子与评论按实际删除量扣减
+  const patch: Record<string, number> = { userCount: -1 };
+  if (removedPosts > 0) patch.postCount = -removedPosts;
+  if (removedComments > 0) patch.commentCount = -removedComments;
+  await bumpStats(patch);
+
+  return json({ success: true });
+}
+
 export async function posts(req: Request): Promise<Response> {
   await requireAdmin(req);
   const qp = queryParams(req);

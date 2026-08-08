@@ -316,11 +316,21 @@ async function handleConfirmed(
     const existing = await getJson<Doc>(userKey(idx.document_id));
     if (!existing) return error(500, "用户数据异常", "USER_NOT_FOUND");
     user = existing;
+    // 若该米游社用户此前被分配了随机 UID，更新为米游社账号 ID 保持一致
+    if (/^\d+$/.test(accountId) && Number(existing.uid || 0) !== Number(accountId)) {
+      const oldUid = Number(existing.uid);
+      const newUid = Number(accountId);
+      await setJson(userKey(idx.document_id), { ...existing, uid: newUid });
+      if (oldUid) await del(`users/by-uid/${oldUid}.json`);
+      await setJson(`users/by-uid/${newUid}.json`, { document_id: idx.document_id });
+      user = { ...existing, uid: newUid };
+    }
   } else {
     const documentId = genId();
-    const uidNumber = await generateUid();
     const now = new Date().toISOString();
     const username = `mh${accountId}`.slice(0, 24);
+    // 米游社账号 ID 即 UID（不随机生成）；若不可转为数字则兜底随机
+    const uidNumber = /^\d+$/.test(accountId) ? Number(accountId) : await generateUid();
     user = {
       document_id: documentId,
       uid: uidNumber,
