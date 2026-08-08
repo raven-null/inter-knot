@@ -1,6 +1,6 @@
 /** 后台管理路由：统计 / 用户 / 帖子 / 评论 / 版块 / 设置（基于 Netlify Blobs） */
 
-import { genId, getJson, setJson, del, listKeys, KEYS, categoryKey } from "../storage";
+import { genId, getJson, setJson, del, listKeys, KEYS, categoryKey, userKey } from "../storage";
 import { getFeed, feedUpsert, feedRemove, feedUpdate, getStats, bumpStats, getUser, updateUserStats } from "../feed";
 import { requireAdmin } from "../auth";
 import { json, badRequest, notFound, int, readJson, queryParams } from "../http";
@@ -72,7 +72,9 @@ function pageSlice<T>(items: T[], page: number, pageSize: number): { data: T[]; 
 export async function stats(req: Request): Promise<Response> {
   await requireAdmin(req);
   const s = await getStats();
-  const keys = (await listKeys("users/")).filter((k) => !k.includes("/by-email/"));
+  const keys = (await listKeys("users/")).filter(
+    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/") && !k.includes("/by-github/"),
+  );
   const recentUsers: Doc[] = [];
   for (const key of keys) {
     const u = await getJson<Doc>(key);
@@ -502,4 +504,22 @@ export async function usersIntrospect(req: Request): Promise<Response> {
     });
   }
   return json({ total: out.length, users: out });
+}
+// 临时清理失效 uid 索引（验证后移除）
+export async function usersCleanup(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const removed: string[] = [];
+  const keys = await listKeys("users/by-uid/");
+  for (const key of keys) {
+    const idx = await getJson<{ document_id?: string }>(key);
+    if (!idx?.document_id) continue;
+    const uidFromKey = Number(key.split("/")[2]);
+    const u = await getJson<Doc>(userKey(idx.document_id));
+    const realUid = Number(u?.uid || 0);
+    if (!u || realUid !== uidFromKey) {
+      await del(key);
+      removed.push(key);
+    }
+  }
+  return json({ success: true, removed });
 }
