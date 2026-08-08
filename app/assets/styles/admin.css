@@ -334,11 +334,30 @@
   display: flex;
   gap: 14px;
   align-items: stretch;
+  margin-bottom: 28px; /* 与底边/页脚保持明显间隙 */
 }
 
 .ik-admin-grid--three > * {
   flex: 1 1 0;
   min-width: 0;
+}
+
+/* 三列卡片固定高度：内容超出时卡片内部滚动 */
+.ik-admin-grid--three > .ik-admin-card {
+  height: 340px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ik-admin-grid--three > .ik-admin-card .ik-admin-card__title {
+  flex-shrink: 0;
+}
+
+.ik-admin-grid--three > .ik-admin-card > :not(.ik-admin-card__title) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 @media (max-width: 900px) {
