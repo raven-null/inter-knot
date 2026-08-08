@@ -1053,7 +1053,7 @@ if (import.meta.client) {
 
 <template>
   <section class="ik-create-page" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
-    <!-- 未通过入站考试：禁止发布帖子，引导去考试页 -->
+    <!-- 未通过入站考试 -->
     <div v-if="auth.needExam" class="ik-create-exam-gate">
       <div class="ik-create-exam-gate__panel">
         <div class="ik-create-exam-gate__card">
@@ -1074,16 +1074,24 @@ if (import.meta.client) {
       </div>
     </Transition>
 
-    <!-- ── Two-Column Body ─────────────────────── -->
+    <!-- Hidden file input -->
+    <input
+      type="file"
+      accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+      multiple
+      hidden
+      @change="onCoverFileInput"
+    />
+
+    <!-- ── Three-Column Body ─────────────────── -->
     <div class="ik-create-columns">
-      <!-- ── Left: Editing Slot + Drafts (ZMenu) ── -->
-      <aside class="ik-create-nav-wrap">
+      <!-- ── Left: Sidebar (Drafts) — desktop only ── -->
+      <aside class="ik-create-sidebar">
         <z-menu
           class="ik-create-menu"
           :model-value="activeMenuKey"
           @change="onMenuChange"
         >
-          <!-- Slot #1: Editing -->
           <z-menu-item :name="EDITING_KEY">
             <div class="ik-nav-item__content">
               <span class="ik-nav-item__title">
@@ -1094,8 +1102,6 @@ if (import.meta.client) {
               <span v-else-if="documentId" class="ik-nav-item__meta">点击开始编辑新帖子</span>
             </div>
           </z-menu-item>
-
-          <!-- Drafts -->
           <z-menu-item
             v-for="draft in drafts"
             :key="draft.documentId"
@@ -1107,8 +1113,6 @@ if (import.meta.client) {
             </div>
           </z-menu-item>
         </z-menu>
-
-        <!-- Loading / Empty / Load more -->
         <div v-if="!auth.isLogin" class="ik-nav-empty">请先登录</div>
         <div v-else-if="draftsLoading && !drafts.length" class="ik-nav-empty">
           <span class="ik-status ik-status--saving">
@@ -1125,10 +1129,10 @@ if (import.meta.client) {
         </button>
       </aside>
 
-      <!-- ── Right: Form Panel ───────────────── -->
-      <main class="ik-create-panel">
-        <div class="ik-create-panel__body">
-          <!-- Title field — flat TextField with bottom divider (Flutter desktop style) -->
+      <!-- ── Center: Editor ───────────────────── -->
+      <main class="ik-create-editor">
+        <div class="ik-create-editor__inner">
+          <!-- Title -->
           <div class="ik-create-section ik-create-section--title">
             <ZTextarea
               v-model="title"
@@ -1140,18 +1144,8 @@ if (import.meta.client) {
             <span class="ik-create-section__count">{{ editorTitleCount }}/200</span>
           </div>
 
-          <!-- Body section -->
-          <div class="ik-create-section">
-            <div class="ik-create-section__head">
-              <span class="ik-create-section__label">
-                正文
-                <span
-                  class="ik-create-section__count-pill"
-                  :class="{ 'ik-create-section__count-pill--over': isBodyOverLimit }"
-                >{{ bodyCharCount }}/{{ maxBodyChars }}</span>
-              </span>
-              <span class="ik-create-section__hint">若仅上传图片，正文可留空</span>
-            </div>
+          <!-- Body -->
+          <div class="ik-create-section ik-create-section--body">
             <div class="ik-create-editor-frame">
               <div class="ik-create-editor-toolbar">
                 <div class="ik-create-editor-mode">
@@ -1165,6 +1159,10 @@ if (import.meta.client) {
                   <button type="button" title="引用" @click="insertMarkdown('> ')">引用</button>
                   <button type="button" title="行内代码" @click="insertMarkdown('`', '`')">&lt;/&gt;</button>
                   <button type="button" title="列表项" @click="insertMarkdown('- ')">列表</button>
+                  <span class="ik-create-editor-md__sep"></span>
+                  <button type="button" title="标题" @click="insertMarkdown('## ')">H2</button>
+                  <button type="button" title="分割线" @click="insertMarkdown('\n---\n')">—</button>
+                  <button type="button" title="插入图片" @click="openImagePicker()">图片</button>
                 </div>
               </div>
               <ZTextarea
@@ -1174,15 +1172,32 @@ if (import.meta.client) {
                 class="ik-create-editor__body"
                 placeholder="请尽情发挥吧..."
               />
-              <div v-else class="ik-create-preview" v-html="bodyPreviewHtml"></div>
+              <div v-else class="ik-create-preview ik-scrollable" v-html="bodyPreviewHtml"></div>
             </div>
           </div>
+        </div>
 
-          <!-- 标签（原分类）置于媒体上方：标签行 + 过多时「全部」下拉 -->
+        <!-- Floating indicators -->
+        <div class="ik-create-editor__foot">
+          <span v-if="saveStatusText" class="ik-create-save-status">
+            <span v-if="isSavingDraft" class="ik-save-spinner" aria-hidden="true"></span>
+            {{ saveStatusText }}
+          </span>
+          <span v-else></span>
+          <span
+            class="ik-create-word-count"
+            :class="{ 'ik-create-word-count--over': isBodyOverLimit }"
+          >{{ bodyCharCount }}/{{ maxBodyChars }}</span>
+        </div>
+      </main>
+
+      <!-- ── Right: Settings Panel ────────────── -->
+      <aside class="ik-create-settings">
+        <div class="ik-create-settings__scroll ik-scrollable">
+          <!-- Tags -->
           <div v-if="categoriesLoading || visibleCategories.length" class="ik-create-section">
             <div class="ik-create-section__head">
               <span class="ik-create-section__label">标签</span>
-              <span class="ik-create-section__hint">选择帖子所属标签</span>
             </div>
             <div class="ik-create-category-chips">
               <template v-if="visibleCategories.length">
@@ -1231,16 +1246,16 @@ if (import.meta.client) {
             </div>
           </div>
 
-          <!-- Media section (images + videos) -->
+          <!-- Media -->
           <div class="ik-create-section">
             <div class="ik-create-section__head">
               <span class="ik-create-section__label">
                 <PhotoIcon style="width:14px;height:14px" />
-                媒体
+                封面
               </span>
-              <span class="ik-create-section__hint">第一张图片为封面</span>
+              <span class="ik-create-section__hint">第一张为封面</span>
             </div>
-            <div class="ik-cover-grid">
+            <div class="ik-cover-grid ik-cover-grid--settings">
               <div
                 v-for="(task, idx) in uploadTasks"
                 :key="task.localId"
@@ -1273,10 +1288,7 @@ if (import.meta.client) {
                     <div class="ik-cover-thumb__progress" :style="{ width: task.progress + '%' }"></div>
                   </div>
                 </div>
-                <div
-                  v-else-if="task.status === 'pending'"
-                  class="ik-cover-thumb__overlay"
-                >
+                <div v-else-if="task.status === 'pending'" class="ik-cover-thumb__overlay">
                   <span class="ik-cover-thumb__spinner" aria-hidden="true"></span>
                 </div>
                 <div
@@ -1346,21 +1358,16 @@ if (import.meta.client) {
             />
           </div>
 
-        </div>
-      </main>
-    </div>
-
-    <!-- ── Bottom Footer (desktop) ─────────────── -->
-    <footer class="ik-create-footer">
-      <div class="ik-create-footer__inner">
-        <div class="ik-create-footer__left">
-          <span v-if="saveStatusText" class="ik-create-save-status">{{ saveStatusText }}</span>
-        </div>
-        <div class="ik-create-footer__right">
+          <!-- Anonymous toggle -->
           <label class="ik-create-anon-toggle" :title="isAnonymous ? '取消匿名发布' : '匿名发布'">
-            <span>匿名</span>
+            <EyeSlashIcon style="width:16px;height:16px;color:#9a9a9a" />
+            <span>匿名发布</span>
             <z-switch v-model="isAnonymous" @change="markDirty()" />
           </label>
+        </div>
+
+        <!-- Sticky action buttons -->
+        <div class="ik-create-settings__actions">
           <z-button
             v-if="documentId && isEditingPublished"
             class="ik-create-delete"
@@ -1389,30 +1396,42 @@ if (import.meta.client) {
             {{ isPublishing ? (isEditingPublished ? "更新中..." : "发布中...") : isEditingPublished ? "更新帖子" : "发布帖子" }}
           </z-button>
         </div>
-      </div>
-    </footer>
+      </aside>
+    </div>
 
-    <!-- ═══════════════════════════════════════════
-         Mobile (≤768px) — Flutter-style Editor
-         本区块默认隐藏，由 CSS @media 切换显示
-         ═══════════════════════════════════════════ -->
-    <div class="ik-create-mobile" aria-hidden="true">
-      <!-- Hidden file input for "封面" setting row -->
-      <input
-        type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
-        multiple
-        hidden
-        @change="onCoverFileInput"
-      />
+    <!-- ── Mobile Bottom Bar — tablet + mobile ── -->
+    <div class="ik-create-mobile-bar">
+      <button
+        v-if="auth.isLogin"
+        type="button"
+        class="ik-create-mobile-bar__drafts"
+        aria-label="打开草稿箱"
+        @click="isMobileDraftsOpen = true"
+      >
+        <RectangleStackIcon class="ik-create-mobile-bar__drafts-icon" />
+        <span v-if="drafts.length" class="ik-create-mobile-bar__drafts-count">
+          {{ drafts.length }}
+        </span>
+      </button>
+      <button
+        type="button"
+        class="ik-create-mobile-bar__publish"
+        :class="{ 'is-disabled': !canPublish }"
+        :disabled="!canPublish"
+        @click="publish"
+      >
+        <span v-if="isPublishing" class="ik-create-mobile-bar__spinner" aria-hidden="true"></span>
+        {{ isPublishing ? (isEditingPublished ? "更新中..." : "发布中...") : isSavingDraft ? "正在保存" : isEditingPublished ? "更新" : "发布" }}
+      </button>
+    </div>
 
-      <!-- Cover strip (horizontal scroll) -->
+    <!-- ═══ Mobile-only: Cover strip + Settings rows ═══ -->
+    <div class="ik-create-mobile-sections">
       <div class="ik-mobile-cover-strip">
         <button
           v-if="uploadTasks.length < maxCoverImages"
           type="button"
           class="ik-mobile-cover-add"
-          :title="'添加图片'"
           aria-label="添加图片"
           :disabled="activeMediaType === 'video' || externalVideos.length > 0"
           @mouseenter="onMediaEnter('image')"
@@ -1451,37 +1470,17 @@ if (import.meta.client) {
             draggable="false"
             @error="($event.target as HTMLImageElement).src = task.previewUrl"
           />
-          <div
-            v-if="task.status === 'uploading'"
-            class="ik-mobile-cover-tile__overlay"
-          >
+          <div v-if="task.status === 'uploading'" class="ik-mobile-cover-tile__overlay">
             <span class="ik-mobile-cover-tile__pct">{{ task.progress }}%</span>
           </div>
-          <div
-            v-else-if="task.status === 'pending'"
-            class="ik-mobile-cover-tile__overlay"
-          >
+          <div v-else-if="task.status === 'pending'" class="ik-mobile-cover-tile__overlay">
             <span class="ik-mobile-cover-tile__spinner" aria-hidden="true"></span>
           </div>
-          <div
-            v-else-if="task.status === 'error'"
-            class="ik-mobile-cover-tile__overlay"
-          >
-            <button
-              type="button"
-              class="ik-mobile-cover-tile__retry"
-              @click.stop="retryUpload(task)"
-            >
-              重试
-            </button>
+          <div v-else-if="task.status === 'error'" class="ik-mobile-cover-tile__overlay">
+            <button type="button" class="ik-mobile-cover-tile__retry" @click.stop="retryUpload(task)">重试</button>
           </div>
           <span v-if="idx === 0" class="ik-mobile-cover-tile__primary">封面</span>
-          <button
-            type="button"
-            class="ik-mobile-cover-tile__remove"
-            aria-label="移除"
-            @click.stop.prevent="removeUpload(idx)"
-          >
+          <button type="button" class="ik-mobile-cover-tile__remove" aria-label="移除" @click.stop.prevent="removeUpload(idx)">
             <XMarkIcon style="width:12px;height:12px" />
           </button>
         </div>
@@ -1507,269 +1506,191 @@ if (import.meta.client) {
           <div class="ik-mobile-cover-tile__play">
             <PlayIcon class="ik-mobile-cover-tile__play-icon" />
           </div>
-          <button
-            type="button"
-            class="ik-mobile-cover-tile__remove"
-            aria-label="移除"
-            @click.stop.prevent="removeExternalVideo(idx)"
-          >
+          <button type="button" class="ik-mobile-cover-tile__remove" aria-label="移除" @click.stop.prevent="removeExternalVideo(idx)">
             <XMarkIcon style="width:12px;height:12px" />
           </button>
         </div>
       </div>
 
-      <!-- Title (flat) -->
-      <input
-        v-model="title"
-        class="ik-mobile-title-input"
-        type="text"
-        placeholder="请输入标题"
-        maxlength="200"
-      />
-
-      <div class="ik-mobile-divider"></div>
-
-      <!-- Body (flat textarea) -->
-      <textarea
-        v-model="body"
-        class="ik-mobile-body-input"
-        placeholder="请尽情发挥吧"
-        rows="6"
-      ></textarea>
-
-      <div class="ik-mobile-divider"></div>
-
-      <!-- Setting rows -->
       <button type="button" class="ik-mobile-row" @click="isMobileCategoryOpen = true">
         <HashtagIcon class="ik-mobile-row__icon" />
-        <span class="ik-mobile-row__title">分类</span>
+        <span class="ik-mobile-row__title">标签</span>
         <span class="ik-mobile-row__value">{{ selectedCategoryName }}</span>
         <ChevronRightIcon class="ik-mobile-row__chevron" />
       </button>
-
       <div class="ik-mobile-divider"></div>
-
       <button type="button" class="ik-mobile-row" @click="openMobileCoverPicker">
         <PhotoIcon class="ik-mobile-row__icon" />
         <span class="ik-mobile-row__title">封面</span>
         <span class="ik-mobile-row__value">{{ uploadTasks.length }}/{{ maxCoverImages }}</span>
         <ChevronRightIcon class="ik-mobile-row__chevron" />
       </button>
-
       <div class="ik-mobile-divider"></div>
-
-      <button
-        type="button"
-        class="ik-mobile-row"
-        @click="isMobileSettingsOpen = true"
-      >
+      <button type="button" class="ik-mobile-row" @click="isMobileSettingsOpen = true">
         <Cog6ToothIcon class="ik-mobile-row__icon" />
         <span class="ik-mobile-row__title">帖子设置</span>
         <ChevronRightIcon class="ik-mobile-row__chevron" />
       </button>
     </div>
 
-    <!-- ── Mobile bottom nav (drafts + publish) ── -->
-    <div class="ik-mobile-footer" aria-hidden="true">
-      <button
-        v-if="auth.isLogin"
-        type="button"
-        class="ik-mobile-footer__drafts"
-        aria-label="打开草稿箱"
-        @click="isMobileDraftsOpen = true"
-      >
-        <RectangleStackIcon class="ik-mobile-footer__drafts-icon" />
-        <span v-if="drafts.length" class="ik-mobile-footer__drafts-count">
-          {{ drafts.length }}
-        </span>
-      </button>
-      <button
-        type="button"
-        class="ik-mobile-footer__publish"
-        :class="{ 'is-disabled': !canPublish }"
-        :disabled="!canPublish"
-        @click="publish"
-      >
-        <span v-if="isPublishing" class="ik-mobile-footer__spinner" aria-hidden="true"></span>
-        {{ isPublishing ? (isEditingPublished ? "更新中..." : "发布中...") : isSavingDraft ? "正在保存" : isEditingPublished ? "更新" : "发布" }}
-      </button>
-    </div>
-
-    <!-- ── Mobile Drafts Sheet (slide up from bottom, near full height) ── -->
-    <Teleport to="body">
-      <Transition name="ik-mobile-sheet">
-        <div
-          v-if="isMobileDraftsOpen"
-          class="ik-mobile-sheet"
-          role="dialog"
-          aria-modal="true"
-          @click.self="isMobileDraftsOpen = false"
-        >
-          <div class="ik-mobile-sheet__panel ik-mobile-sheet__panel--drafts">
-            <div class="ik-mobile-sheet__handle"></div>
-            <header class="ik-mobile-sheet__header">
-              <span class="ik-mobile-sheet__title">草稿箱</span>
-              <button
-                type="button"
-                class="ik-mobile-sheet__close"
-                aria-label="关闭"
-                @click="isMobileDraftsOpen = false"
-              >
-                <XMarkIcon style="width:20px;height:20px" />
-              </button>
-            </header>
-            <div class="ik-mobile-sheet__body ik-mobile-sheet__body--no-scrollbar">
-              <button
-                type="button"
-                class="ik-mobile-draft-row ik-mobile-draft-row--new"
-                :class="{ 'is-active': !documentId }"
-                @click="onMobileNewDraft"
-              >
-                <PlusCircleIcon class="ik-mobile-draft-row__icon" />
-                <div class="ik-mobile-draft-row__content">
-                  <span class="ik-mobile-draft-row__title">编辑新帖子</span>
-                  <span class="ik-mobile-draft-row__meta">
-                    {{ documentId ? "点击开始编辑新帖子" : "当前正在编辑" }}
-                  </span>
-                </div>
-              </button>
-              <TransitionGroup name="ik-draft-list">
-                <button
-                  v-for="(draft, idx) in drafts"
-                  :key="draft.documentId"
-                  type="button"
-                  class="ik-mobile-draft-row"
-                  :class="{ 'is-active': draft.documentId === documentId }"
-                  :style="{ transitionDelay: `${idx * 30}ms` }"
-                  @click="onMobileSelectDraft(draft)"
-                >
-                  <RectangleStackIcon class="ik-mobile-draft-row__icon" />
+    <!-- ═══ Mobile Sheets (Teleported) ═══ -->
+    <ClientOnly>
+      <!-- Drafts Sheet -->
+      <Teleport to="body">
+        <Transition name="ik-mobile-sheet">
+          <div
+            v-if="isMobileDraftsOpen"
+            class="ik-mobile-sheet"
+            role="dialog"
+            aria-modal="true"
+            @click.self="isMobileDraftsOpen = false"
+          >
+            <div class="ik-mobile-sheet__panel ik-mobile-sheet__panel--drafts">
+              <div class="ik-mobile-sheet__handle"></div>
+              <header class="ik-mobile-sheet__header">
+                <span class="ik-mobile-sheet__title">草稿箱</span>
+                <button type="button" class="ik-mobile-sheet__close" aria-label="关闭" @click="isMobileDraftsOpen = false">
+                  <XMarkIcon style="width:20px;height:20px" />
+                </button>
+              </header>
+              <div class="ik-mobile-sheet__body ik-mobile-sheet__body--no-scrollbar">
+                <button type="button" class="ik-mobile-draft-row ik-mobile-draft-row--new" :class="{ 'is-active': !documentId }" @click="onMobileNewDraft">
+                  <PlusCircleIcon class="ik-mobile-draft-row__icon" />
                   <div class="ik-mobile-draft-row__content">
-                    <span class="ik-mobile-draft-row__title">
-                      {{ draft.title || "无标题" }}
-                    </span>
-                    <span class="ik-mobile-draft-row__meta">
-                      {{ draftPreviewText(draft) }}
-                    </span>
+                    <span class="ik-mobile-draft-row__title">编辑新帖子</span>
+                    <span class="ik-mobile-draft-row__meta">{{ documentId ? "点击开始编辑新帖子" : "当前正在编辑" }}</span>
                   </div>
                 </button>
-              </TransitionGroup>
-              <div v-if="!auth.isLogin" class="ik-mobile-draft-empty">
-                <InboxIcon class="ik-mobile-draft-empty__icon" />
-                <span>请先登录</span>
-              </div>
-              <div v-else-if="draftsLoading && !drafts.length" class="ik-mobile-draft-empty">
-                <span class="ik-mobile-draft-spinner" aria-hidden="true"></span>
-                <span>加载中...</span>
-              </div>
-              <div v-else-if="auth.isLogin && !drafts.length && !draftsLoading" class="ik-mobile-draft-empty">
-                <InboxIcon class="ik-mobile-draft-empty__icon" />
-                <span>暂无草稿</span>
-              </div>
-              <button
-                v-if="auth.isLogin && draftsHasNext && drafts.length"
-                type="button"
-                class="ik-mobile-draft-loadmore"
-                :disabled="draftsLoading"
-                @click="loadMoreDrafts"
-              >
-                <span v-if="draftsLoading" class="ik-mobile-draft-spinner ik-mobile-draft-spinner--small" aria-hidden="true"></span>
-                {{ draftsLoading ? "加载中..." : "加载更多" }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ── Mobile Post Settings Sheet (bottom, short) ── -->
-    <Teleport to="body">
-      <Transition name="ik-mobile-sheet">
-        <div
-          v-if="isMobileSettingsOpen"
-          class="ik-mobile-sheet"
-          role="dialog"
-          aria-modal="true"
-          @click.self="isMobileSettingsOpen = false"
-        >
-          <div class="ik-mobile-sheet__panel">
-            <div class="ik-mobile-sheet__handle"></div>
-            <span class="ik-mobile-sheet__title">帖子设置</span>
-            <div class="ik-mobile-sheet__body ik-mobile-sheet__body--compact">
-              <label class="ik-mobile-settings-row ik-mobile-settings-row--toggle">
-                <EyeSlashIcon class="ik-mobile-settings-row__icon" />
-                <span class="ik-mobile-settings-row__text">
-                  <span class="ik-mobile-settings-row__title">匿名发布</span>
-                  <span class="ik-mobile-settings-row__desc">开启后将隐藏你的身份</span>
-                </span>
-                <z-switch v-model="isAnonymous" @change="markDirty()" />
-              </label>
-              <button
-                v-if="documentId && isEditingPublished"
-                type="button"
-                class="ik-mobile-settings-row ik-mobile-settings-row--danger"
-                :disabled="isDiscardingChanges"
-                @click="onMobileDiscardChanges"
-              >
-                <TrashIcon class="ik-mobile-settings-row__icon" />
-                <span class="ik-mobile-settings-row__title">放弃修改</span>
-                <ChevronRightIcon class="ik-mobile-settings-row__chevron" />
-              </button>
-              <button
-                v-else-if="documentId"
-                type="button"
-                class="ik-mobile-settings-row ik-mobile-settings-row--danger"
-                :disabled="isDeletingDraft"
-                @click="onMobileDeleteDraft"
-              >
-                <TrashIcon class="ik-mobile-settings-row__icon" />
-                <span class="ik-mobile-settings-row__title">删除草稿</span>
-                <ChevronRightIcon class="ik-mobile-settings-row__chevron" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ── Mobile Category Picker Sheet (bottom) ── -->
-    <Teleport to="body">
-      <Transition name="ik-mobile-sheet">
-        <div
-          v-if="isMobileCategoryOpen"
-          class="ik-mobile-sheet"
-          role="dialog"
-          aria-modal="true"
-          @click.self="isMobileCategoryOpen = false"
-        >
-          <div class="ik-mobile-sheet__panel">
-            <div class="ik-mobile-sheet__handle"></div>
-            <span class="ik-mobile-sheet__title">选择分类</span>
-            <div class="ik-mobile-sheet__body ik-mobile-sheet__body--compact ik-mobile-cat-grid">
-              <button
-                v-for="cat in visibleCategories"
-                :key="cat.slug"
-                type="button"
-                class="ik-mobile-settings-row"
-                :class="{ 'ik-mobile-settings-row--active': selectedCategory === cat.slug }"
-                @click="onMobileSelectCategory(cat.slug)"
-              >
-                <span class="ik-mobile-settings-row__title">{{ cat.name }}</span>
-                <CheckIcon
-                  v-if="selectedCategory === cat.slug"
-                  class="ik-mobile-settings-row__check"
-                />
-              </button>
-              <div v-if="!visibleCategories.length" class="ik-mobile-draft-empty">
-                {{ categoriesLoading ? "加载中..." : "暂无可选分类" }}
+                <TransitionGroup name="ik-draft-list">
+                  <button
+                    v-for="(draft, idx) in drafts"
+                    :key="draft.documentId"
+                    type="button"
+                    class="ik-mobile-draft-row"
+                    :class="{ 'is-active': draft.documentId === documentId }"
+                    :style="{ transitionDelay: `${idx * 30}ms` }"
+                    @click="onMobileSelectDraft(draft)"
+                  >
+                    <RectangleStackIcon class="ik-mobile-draft-row__icon" />
+                    <div class="ik-mobile-draft-row__content">
+                      <span class="ik-mobile-draft-row__title">{{ draft.title || "无标题" }}</span>
+                      <span class="ik-mobile-draft-row__meta">{{ draftPreviewText(draft) }}</span>
+                    </div>
+                  </button>
+                </TransitionGroup>
+                <div v-if="!auth.isLogin" class="ik-mobile-draft-empty">
+                  <InboxIcon class="ik-mobile-draft-empty__icon" />
+                  <span>请先登录</span>
+                </div>
+                <div v-else-if="draftsLoading && !drafts.length" class="ik-mobile-draft-empty">
+                  <span class="ik-mobile-draft-spinner" aria-hidden="true"></span>
+                  <span>加载中...</span>
+                </div>
+                <div v-else-if="auth.isLogin && !drafts.length && !draftsLoading" class="ik-mobile-draft-empty">
+                  <InboxIcon class="ik-mobile-draft-empty__icon" />
+                  <span>暂无草稿</span>
+                </div>
+                <button
+                  v-if="auth.isLogin && draftsHasNext && drafts.length"
+                  type="button"
+                  class="ik-mobile-draft-loadmore"
+                  :disabled="draftsLoading"
+                  @click="loadMoreDrafts"
+                >
+                  <span v-if="draftsLoading" class="ik-mobile-draft-spinner ik-mobile-draft-spinner--small" aria-hidden="true"></span>
+                  {{ draftsLoading ? "加载中..." : "加载更多" }}
+                </button>
               </div>
             </div>
           </div>
-        </div>
-      </Transition>
-    </Teleport>
+        </Transition>
+      </Teleport>
 
-    <ClientOnly>
+      <!-- Settings Sheet -->
+      <Teleport to="body">
+        <Transition name="ik-mobile-sheet">
+          <div
+            v-if="isMobileSettingsOpen"
+            class="ik-mobile-sheet"
+            role="dialog"
+            aria-modal="true"
+            @click.self="isMobileSettingsOpen = false"
+          >
+            <div class="ik-mobile-sheet__panel">
+              <div class="ik-mobile-sheet__handle"></div>
+              <span class="ik-mobile-sheet__title">帖子设置</span>
+              <div class="ik-mobile-sheet__body ik-mobile-sheet__body--compact">
+                <label class="ik-mobile-settings-row ik-mobile-settings-row--toggle">
+                  <EyeSlashIcon class="ik-mobile-settings-row__icon" />
+                  <span class="ik-mobile-settings-row__text">
+                    <span class="ik-mobile-settings-row__title">匿名发布</span>
+                    <span class="ik-mobile-settings-row__desc">开启后将隐藏你的身份</span>
+                  </span>
+                  <z-switch v-model="isAnonymous" @change="markDirty()" />
+                </label>
+                <button
+                  v-if="documentId && isEditingPublished"
+                  type="button"
+                  class="ik-mobile-settings-row ik-mobile-settings-row--danger"
+                  :disabled="isDiscardingChanges"
+                  @click="onMobileDiscardChanges"
+                >
+                  <TrashIcon class="ik-mobile-settings-row__icon" />
+                  <span class="ik-mobile-settings-row__title">放弃修改</span>
+                  <ChevronRightIcon class="ik-mobile-settings-row__chevron" />
+                </button>
+                <button
+                  v-else-if="documentId"
+                  type="button"
+                  class="ik-mobile-settings-row ik-mobile-settings-row--danger"
+                  :disabled="isDeletingDraft"
+                  @click="onMobileDeleteDraft"
+                >
+                  <TrashIcon class="ik-mobile-settings-row__icon" />
+                  <span class="ik-mobile-settings-row__title">删除草稿</span>
+                  <ChevronRightIcon class="ik-mobile-settings-row__chevron" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- Category Sheet -->
+      <Teleport to="body">
+        <Transition name="ik-mobile-sheet">
+          <div
+            v-if="isMobileCategoryOpen"
+            class="ik-mobile-sheet"
+            role="dialog"
+            aria-modal="true"
+            @click.self="isMobileCategoryOpen = false"
+          >
+            <div class="ik-mobile-sheet__panel">
+              <div class="ik-mobile-sheet__handle"></div>
+              <span class="ik-mobile-sheet__title">选择分类</span>
+              <div class="ik-mobile-sheet__body ik-mobile-sheet__body--compact ik-mobile-cat-grid">
+                <button
+                  v-for="cat in visibleCategories"
+                  :key="cat.slug"
+                  type="button"
+                  class="ik-mobile-settings-row"
+                  :class="{ 'ik-mobile-settings-row--active': selectedCategory === cat.slug }"
+                  @click="onMobileSelectCategory(cat.slug)"
+                >
+                  <span class="ik-mobile-settings-row__title">{{ cat.name }}</span>
+                  <CheckIcon v-if="selectedCategory === cat.slug" class="ik-mobile-settings-row__check" />
+                </button>
+                <div v-if="!visibleCategories.length" class="ik-mobile-draft-empty">
+                  {{ categoriesLoading ? "加载中..." : "暂无可选分类" }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- Image Picker Modal -->
       <Teleport to="body">
         <Transition name="ik-overlay" appear>
           <PostImagePickerModal
@@ -1786,6 +1707,7 @@ if (import.meta.client) {
     </ClientOnly>
   </section>
 </template>
+
 
 <style scoped>
 
