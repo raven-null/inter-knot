@@ -2129,7 +2129,6 @@ if (import.meta.client) {
 }
 
 .ik-create-delete {
-  width: 100%;
   font-size: var(--ik-text-sm);
   font-weight: 900;
 }
@@ -2142,7 +2141,6 @@ if (import.meta.client) {
 }
 
 .ik-create-publish {
-  width: 100%;
   font-size: var(--ik-text-sm);
   font-weight: 900;
 }
