@@ -58,7 +58,10 @@ function rpcHeaders(): Record<string, string> {
   };
 }
 
-async function post(path: string, body: unknown): Promise<unknown | null> {
+async function post(
+  path: string,
+  body: unknown,
+): Promise<{ ok: boolean; data?: unknown; status?: number; error?: string }> {
   const url = `${PASSPORT_BASE}/${path}`;
   try {
     const res = await fetch(url, {
@@ -66,10 +69,16 @@ async function post(path: string, body: unknown): Promise<unknown | null> {
       headers: rpcHeaders(),
       body: JSON.stringify(body ?? {}),
     });
-    if (!res.ok) return null;
-    return (await res.json()) as unknown;
-  } catch {
-    return null;
+    const text = await res.text();
+    let json: unknown = null;
+    try {
+      json = text ? JSON.parse(text) : null;
+    } catch {
+      // 非 JSON 响应（如网关错误页）
+    }
+    return { ok: res.ok, data: json ?? undefined, status: res.status, error: res.ok ? undefined : text.slice(0, 200) };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -98,14 +107,15 @@ export async function qrCreate(req: Request): Promise<Response> {
   const viewer = await resolveUser(req);
   const mode = viewer ? "bind" : "login";
 
-  const data = (await post("createQRLogin", {})) as {
-    retcode?: number;
-    message?: string;
-    data?: { url?: string; ticket?: string; expire?: number };
-  } | null;
+  const result = await post("createQRLogin", {});
+  const data = result?.data as { retcode?: number; message?: string; data?: { url?: string; ticket?: string; expire?: number } } | undefined;
   const d = data?.data;
-  if (!data || data.retcode !== 0 || !d?.url || !d?.ticket) {
-    return error(502, `米游社返回异常：${data?.message || "未知错误"}`, "MIHOYO_QR_CREATE_FAILED");
+  if (!result?.ok || !d?.url || !d?.ticket) {
+    return error(
+      502,
+      `米游社返回异常：${data?.message || (result?.error ? `HTTP ${result.status} ${result.error}` : "未知错误")}`,
+      "MIHOYO_QR_CREATE_FAILED",
+    );
   }
 
   const ticket = d.ticket;
@@ -140,15 +150,15 @@ export async function qrStatus(req: Request): Promise<Response> {
   }
 
   // 轮询扫码状态：POST queryQRLoginStatus { ticket }
-  const data = (await post("queryQRLoginStatus", { ticket })) as {
+  const qrData = (await post("queryQRLoginStatus", { ticket }))?.data as {
     retcode?: number;
     data?: {
       status?: string;
       tokens?: Array<{ token?: string; token_type?: number }>;
       user_info?: { uid?: string } | null;
     };
-  } | null;
-  let d = data?.data;
+  } | undefined;
+  let d = qrData?.data;
   const rawStatus = String(d?.status || "");
 
   // 状态枚举：Created(等待扫码) / Scanned(已扫码) / Confirmed(已确认) / Expired / Cancelled
@@ -171,12 +181,12 @@ export async function qrStatus(req: Request): Promise<Response> {
     tokenLog.push(d?.tokens ?? []);
     for (let i = 0; i < 5 && !stoken; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      const retry = (await post("queryQRLoginStatus", { ticket })) as {
+      const retry = (await post("queryQRLoginStatus", { ticket }))?.data as {
         data?: {
           status?: string;
           tokens?: Array<{ token?: string; token_type?: number }>;
         };
-      } | null;
+      } | undefined;
       tokenLog.push(retry?.data?.tokens ?? []);
       stoken = retry?.data?.tokens?.find((t) => t?.token_type === 2)?.token || retry?.data?.tokens?.[0]?.token || "";
     }
@@ -276,6 +286,8 @@ async function handleConfirmed(
 
   if (session.mode === "bind" && session.viewerId) {
     await setJson(BINDING(session.viewerId), { userId: session.viewerId, ...binding });
+    // 建立 aid → userId 反查索引：之后用同一米游社账号扫码登录时能找到同一个用户
+    await setJson(BY_MIHOYO(accountId), { document_id: session.viewerId });
     await del(QR_SESSION(ticket));
     return json({
       status: "confirmed",
@@ -286,7 +298,19 @@ async function handleConfirmed(
   }
 
   // 登录模式：查/建用户
-  const idx = await getJson<{ document_id: string }>(BY_MIHOYO(accountId));
+  let idx = await getJson<{ document_id: string }>(BY_MIHOYO(accountId));
+  // 兼容旧绑定：若索引缺失但已有绑定文档（bind 时未建索引），则把绑定用户作为登录用户
+  if (!idx) {
+    const keys = (await import("../storage")).listKeys;
+    for (const key of await keys("mihoyo/bindings/")) {
+      const doc = await getJson<{ userId?: string; aid?: string }>(key);
+      if (doc && doc.userId && doc.aid === accountId) {
+        idx = { document_id: doc.userId };
+        await setJson(BY_MIHOYO(accountId), { document_id: doc.userId });
+        break;
+      }
+    }
+  }
   let user: Doc;
   if (idx) {
     const existing = await getJson<Doc>(userKey(idx.document_id));

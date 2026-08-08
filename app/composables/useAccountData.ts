@@ -219,6 +219,8 @@ function createAccountData() {
   };
 
   if (import.meta.client) {
+    // 登录（含米游社/邮箱等）后清空上一用户的本地缓存，确保重新拉取当前账号的绑定/黑名单
+    window.addEventListener("auth:login", clear);
     window.addEventListener("auth:logout", clear);
   }
 

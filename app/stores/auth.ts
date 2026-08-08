@@ -54,6 +54,12 @@ export const useAuthStore = defineStore("auth", {
         persistUserId(user);
         // 登录后通知首页刷新帖子列表，使已读状态正确合并
         window.dispatchEvent(new CustomEvent("ik:home-refresh"));
+        // 通知账号数据模块清空上一用户的本地缓存（mihoyo 绑定 / 黑名单等）
+        try {
+          window.dispatchEvent(new CustomEvent("auth:login"));
+        } catch {
+          // 忽略事件派发失败
+        }
       }
     },
     clearSession() {
