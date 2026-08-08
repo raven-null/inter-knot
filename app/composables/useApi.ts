@@ -1880,7 +1880,7 @@ export function useApi() {
     const uploaded = await uploadImage(file, (p) => onProgress?.(p * 0.8));
     const response = await $api("/api/me/avatars/upload-custom", {
       method: "PUT",
-      body: { fileId: uploaded.id },
+      body: { fileId: uploaded.documentId },
     });
     onProgress?.(100);
     const data = response as Record<string, unknown>;
