@@ -119,23 +119,23 @@ onMounted(async () => {
       <div class="ik-admin-grid ik-admin-grid--three">
         <AdminCard>
           <template #title>最新注册用户</template>
-          <table class="ik-admin-table">
-            <thead>
-              <tr><th>用户</th><th>等级</th><th>注册时间</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="u in (data.recentUsers as any[] || [])" :key="u.documentId">
-                <td>
-                  <div style="display:flex;align-items:center;gap:8px">
-                    <img :src="u.avatar" class="ik-admin-avatar" alt="" />
-                    <NuxtLink :to="`/profile/${u.documentId}`" style="color:inherit;text-decoration:none">{{ u.name }}</NuxtLink>
-                  </div>
-                </td>
-                <td>Lv.{{ u.level }}</td>
-                <td><RelativeTime :time="u.createdAt" /></td>
-              </tr>
-            </tbody>
-          </table>
+          <ul v-if="(data.recentUsers as any[] || []).length" class="ik-admin-online__list">
+            <li
+              v-for="u in (data.recentUsers as any[] || [])"
+              :key="u.documentId"
+              class="ik-admin-online__row"
+            >
+              <img :src="u.avatar" class="ik-admin-online__row-avatar" alt="" loading="lazy" />
+              <NuxtLink
+                :to="`/profile/${u.documentId}`"
+                class="ik-admin-online__row-name"
+                style="color: inherit; text-decoration: none"
+              >{{ u.name }}</NuxtLink>
+              <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
+              <span class="ik-admin-online__row-duration"><RelativeTime :time="u.createdAt" /></span>
+            </li>
+          </ul>
+          <div v-else class="ik-admin-online__empty">暂无用户</div>
         </AdminCard>
 
         <AdminCard>
@@ -159,21 +159,21 @@ onMounted(async () => {
 
         <AdminCard>
           <template #title>最新委托</template>
-          <table class="ik-admin-table">
-            <thead>
-              <tr><th>标题</th><th>浏览</th><th>点赞</th><th>评论</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="p in (data.recentPosts as any[] || [])" :key="p.documentId">
-                <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                  <NuxtLink :to="`/post/${p.documentId}`" style="color:inherit;text-decoration:none">{{ p.title }}</NuxtLink>
-                </td>
-                <td>{{ p.views }}</td>
-                <td>{{ p.likesCount }}</td>
-                <td>{{ p.commentsCount }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <ul v-if="(data.recentPosts as any[] || []).length" class="ik-admin-online__list">
+            <li
+              v-for="p in (data.recentPosts as any[] || [])"
+              :key="p.documentId"
+              class="ik-admin-online__row"
+            >
+              <NuxtLink
+                :to="`/post/${p.documentId}`"
+                class="ik-admin-online__row-name"
+                style="color: inherit; text-decoration: none"
+              >{{ p.title }}</NuxtLink>
+              <span class="ik-admin-online__row-duration">浏览 {{ p.views }} · 赞 {{ p.likesCount }}</span>
+            </li>
+          </ul>
+          <div v-else class="ik-admin-online__empty">暂无委托</div>
         </AdminCard>
       </div>
     </template>
