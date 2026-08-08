@@ -276,10 +276,20 @@ export async function updateDraft(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const doc = await getPostDoc(id);
-  if (!doc || doc.status !== "draft" || String(doc.author_document_id) !== viewer.userId) {
-    return notFound("草稿不存在");
+  if (!doc || String(doc.author_document_id) !== viewer.userId) {
+    return notFound("帖子不存在");
   }
   const data = await parseDraftBody(req);
+
+  // 已发布/待审帖子的编辑：写入独立暂存，不覆盖线上版本
+  if (doc.status !== "draft") {
+    const base = (await getJson<Doc>(KEYS.editDrafts(viewer.userId, id))) || { ...doc };
+    await applyBodyToDoc(data, base);
+    base.updated_at = new Date().toISOString();
+    await setJson(KEYS.editDrafts(viewer.userId, id), base);
+    return ok(toDraft(base));
+  }
+
   await applyBodyToDoc(data, doc);
   doc.updated_at = new Date().toISOString();
   await setJson(postKey(id), doc);
@@ -295,9 +305,31 @@ export async function publishDraft(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = idBeforeAction(req);
   const doc = await getPostDoc(id);
-  if (!doc || doc.status !== "draft" || String(doc.author_document_id) !== viewer.userId) {
-    return notFound("草稿不存在");
+  if (!doc || String(doc.author_document_id) !== viewer.userId) {
+    return notFound("帖子不存在");
   }
+
+  // 已发布/待审帖子的更新：应用编辑暂存到线上版本，保留原发布时间与统计
+  if (doc.status !== "draft") {
+    const edit = await getJson<Doc>(KEYS.editDrafts(viewer.userId, id));
+    if (!edit) return badRequest("没有待发布的修改");
+    const now = new Date().toISOString();
+    const updated: Doc = {
+      ...doc,
+      ...edit,
+      document_id: id,
+      id,
+      status: doc.status,
+      published_at: doc.published_at || now,
+      updated_at: now,
+      is_hidden: doc.is_hidden,
+    };
+    await setJson(postKey(id), updated);
+    await del(KEYS.editDrafts(viewer.userId, id));
+    await feedUpdate(id, updated);
+    return json({ success: true, status: doc.status });
+  }
+
   // 站点设置「新帖需审核」：开启时发布进入待审队列（pending），不进入信息流
   const settings = (await getJson<Doc>(KEYS.settings)) || {};
   const needAudit = settings.needAudit === true;
@@ -324,8 +356,13 @@ export async function discardDraft(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = idBeforeAction(req);
   const doc = await getPostDoc(id);
-  if (!doc || doc.status !== "draft" || String(doc.author_document_id) !== viewer.userId) {
-    return notFound("草稿不存在");
+  if (!doc || String(doc.author_document_id) !== viewer.userId) {
+    return notFound("帖子不存在");
+  }
+  // 已发布/待审帖子：丢弃编辑暂存，线上版本不变
+  if (doc.status !== "draft") {
+    await del(KEYS.editDrafts(viewer.userId, id));
+    return json({ success: true });
   }
   await del(postKey(id));
   await removeDraft(viewer.userId, id);
@@ -355,6 +392,7 @@ export async function remove(req: Request): Promise<Response> {
   }
 
   if (!isOwner && viewer.role !== "admin") return badRequest("无权删除");
+  await del(KEYS.editDrafts(String(doc.author_document_id), id));
   const deleted: Doc = { ...doc, status: "deleted", is_hidden: true, updated_at: new Date().toISOString() };
   await setJson(postKey(id), deleted);
   await feedRemove(id);
@@ -382,10 +420,18 @@ export async function myDraftDetail(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const doc = await getPostDoc(id);
-  if (!doc || doc.status !== "draft" || String(doc.author_document_id) !== viewer.userId) {
-    return notFound("草稿不存在");
+  if (!doc || String(doc.author_document_id) !== viewer.userId) {
+    return notFound("帖子不存在");
   }
-  return ok(toDraft(doc));
+  // 草稿：直接返回；已发布/待审：返回在线版本（若存在未提交的编辑暂存则返回暂存内容）
+  if (doc.status === "draft") {
+    return ok(toDraft(doc));
+  }
+  if (doc.status === "published" || doc.status === "pending") {
+    const edit = await getJson<Doc>(KEYS.editDrafts(viewer.userId, id));
+    return ok(toDraft(edit ?? doc));
+  }
+  return notFound("帖子不存在");
 }
 
 export async function triple(req: Request): Promise<Response> {

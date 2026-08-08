@@ -157,7 +157,7 @@ export function toDraft(doc: Doc): Doc {
     editorState: Array.isArray(doc.editor_state) ? doc.editor_state : undefined,
     externalVideos: Array.isArray(doc.external_videos) ? doc.external_videos : [],
     cover: covers,
-    hasPublishedVersion: false,
+    hasPublishedVersion: doc.status !== "draft",
     category:
       doc.category_slug && doc.category_name ? { name: String(doc.category_name), slug: String(doc.category_slug) } : null,
     createdAt: String(doc.created_at || ""),

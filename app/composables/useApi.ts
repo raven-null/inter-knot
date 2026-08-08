@@ -1615,6 +1615,7 @@ export function useApi() {
       body: {},
     });
     invalidate(qk.me.drafts);
+    invalidate(qk.me.draft(id));
     invalidate(qk.articles.detail(id));
     invalidate(qk.articles.searchAll);
     invalidate(["profile"]);
@@ -1626,7 +1627,9 @@ export function useApi() {
       method: "POST",
       body: {},
     });
+    invalidate(qk.me.drafts);
     invalidate(qk.me.draft(id));
+    invalidate(qk.articles.detail(id));
   };
 
   const deleteArticle = async (id: string): Promise<void> => {

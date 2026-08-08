@@ -123,4 +123,5 @@ export const KEYS = {
   userComments: (userId: string) => `_indexes/user-comments/${userId}.json`,
   commentLookup: (commentId: string) => `_indexes/comment-lookup/${commentId}.json`,
   customBackgrounds: (userId: string) => `_indexes/custom-backgrounds/${userId}.json`,
+  editDrafts: (userId: string, postId: string) => `_indexes/edit-drafts/${userId}/${postId}.json`,
 };
