@@ -17,7 +17,7 @@ function markCoverLoaded(src: string) {
 </script>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { Post } from "~/types/entities";
 import { FALLBACK_COVER_ASPECT_RATIO, getNormalizedCoverAspectRatio } from "~/utils/cover";
 import { toThumbUrl } from "~/utils/image";
@@ -49,6 +49,59 @@ const coverIsFallback = ref(false);
 const avatarSrc = ref(DEFAULT_AVATAR_IMAGE);
 const cardRef = ref<HTMLElement | null>(null);
 
+/** 多图轮播：当前展示的封面索引 */
+const coverIndex = ref(0);
+/** 封面列表（去空，仅保留有 url 的） */
+const coverList = computed(() => {
+  const covers = Array.isArray(props.post.covers) ? props.post.covers : [];
+  return covers.filter((c) => typeof c?.url === "string" && c.url.trim());
+});
+const hasMultipleCovers = computed(() => coverList.value.length > 1);
+/** 悬停时长达到该值后隐藏切换按钮 */
+const COVER_NAV_HIDE_DELAY = 3000;
+let coverNavTimer: ReturnType<typeof setTimeout> | null = null;
+const coverNavVisible = ref(false);
+
+/** 进入卡片：短暂显示切换按钮，悬停时间过长则隐藏 */
+const showCoverNav = () => {
+  if (!hasMultipleCovers.value) return;
+  coverNavVisible.value = true;
+  if (coverNavTimer) clearTimeout(coverNavTimer);
+  coverNavTimer = setTimeout(() => {
+    coverNavVisible.value = false;
+  }, COVER_NAV_HIDE_DELAY);
+};
+
+const hideCoverNav = () => {
+  if (coverNavTimer) {
+    clearTimeout(coverNavTimer);
+    coverNavTimer = null;
+  }
+  coverNavVisible.value = false;
+};
+
+const goCover = (dir: -1 | 1) => {
+  if (!hasMultipleCovers.value) return;
+  coverIndex.value = (coverIndex.value + dir + coverList.value.length) % coverList.value.length;
+  // 切换后重新计时，避免用户在浏览过程中按钮过早消失
+  showCoverNav();
+};
+
+onBeforeUnmount(() => {
+  if (coverNavTimer) {
+    clearTimeout(coverNavTimer);
+    coverNavTimer = null;
+  }
+});
+
+// 帖子切换时重置索引
+watch(
+  () => props.post.id,
+  () => {
+    coverIndex.value = 0;
+  },
+);
+
 const hasBackendCoverSize = computed(() =>
   typeof props.post.coverWidth === "number" &&
   typeof props.post.coverHeight === "number" &&
@@ -72,10 +125,9 @@ const coverAspectRatio = computed(() => {
 const coverReady = computed(() => coverImageLoaded.value);
 
 watch(
-  () => [props.post.id, props.post.cover] as const,
-  ([newId, newCover], oldValue) => {
-    if (oldValue && newId === oldValue[0] && newCover === oldValue[1]) return;
-    const cover = newCover?.trim();
+  () => [props.post.id, coverIndex.value] as const,
+  () => {
+    const cover = coverList.value[coverIndex.value]?.url?.trim() || props.post.cover?.trim() || "";
     // 瀑布流卡片尺寸不大，使用缩略图避免在 CPU / 无 GPU 路径下解码和绘制超大原图。
     // 有 GPU 加速时用 720px 覆盖 2x–3x DPR；无 GPU 时降到 480px，优先保证解码和绘制帧率。
     const thumbWidth = gpuAccelerated.value ? 720 : 480;
@@ -124,6 +176,10 @@ const handleOpen = (e: MouseEvent) => {
   if ((e.target as HTMLElement | null)?.closest?.(".nsfw-image__overlay")) {
     return;
   }
+  // 点击多图切换按钮时只切图，不打开帖子。
+  if ((e.target as HTMLElement | null)?.closest?.(".ik-card__cover-nav")) {
+    return;
+  }
   emit("open", props.post, e);
 };
 </script>
@@ -133,8 +189,8 @@ const handleOpen = (e: MouseEvent) => {
     ref="cardRef"
     class="ik-card"
     @click.capture="handleOpen"
-    @mouseenter="schedulePrefetch(post.id)"
-    @mouseleave="cancelPrefetch"
+    @mouseenter="schedulePrefetch(post.id); showCoverNav()"
+    @mouseleave="cancelPrefetch; hideCoverNav()"
     @focusin="schedulePrefetch(post.id)"
     @focusout="cancelPrefetch"
   >
@@ -157,6 +213,24 @@ const handleOpen = (e: MouseEvent) => {
             @load="onCoverLoad"
             @error="onCoverError"
           />
+          <!-- 多图切换按钮：仅悬停时短暂显示，悬停过久自动隐藏 -->
+          <Transition name="ik-cover-nav">
+            <div v-if="hasMultipleCovers && coverNavVisible" class="ik-card__cover-nav">
+              <button
+                type="button"
+                class="ik-card__cover-arrow ik-card__cover-arrow--prev"
+                aria-label="上一张"
+                @click.stop="goCover(-1)"
+              >‹</button>
+              <span class="ik-card__cover-count">{{ coverIndex + 1 }}/{{ coverList.length }}</span>
+              <button
+                type="button"
+                class="ik-card__cover-arrow ik-card__cover-arrow--next"
+                aria-label="下一张"
+                @click.stop="goCover(1)"
+              >›</button>
+            </div>
+          </Transition>
         </div>
         <div class="ik-card__views">
           <svg
@@ -247,8 +321,70 @@ const handleOpen = (e: MouseEvent) => {
 }
 
 .ik-card__cover-frame {
+  position: relative;
   width: 100%;
   background: var(--ik-post-card-cover-bg);
+}
+
+/* ── 多图切换按钮 ─────────────────────────── */
+.ik-card__cover-nav {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+.ik-card__cover-arrow {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 160ms ease, transform 160ms ease;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+.ik-card__cover-arrow:hover {
+  background: rgba(0, 0, 0, 0.8);
+  transform: scale(1.08);
+}
+.ik-card__cover-arrow:active {
+  transform: scale(0.95);
+}
+.ik-card__cover-count {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  user-select: none;
+  pointer-events: none;
+}
+
+.ik-cover-nav-enter-active,
+.ik-cover-nav-leave-active {
+  transition: opacity 180ms ease;
+}
+.ik-cover-nav-enter-from,
+.ik-cover-nav-leave-to {
+  opacity: 0;
 }
 
 .ik-card__title-cat {
