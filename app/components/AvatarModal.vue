@@ -2,7 +2,7 @@
 import { useMessage } from "zenless-ui";
 import { Cropper, CircleStencil } from "vue-advanced-cropper";
 import "vue-advanced-cropper/dist/style.css";
-import type { Avatar, AvatarType, Profile } from "~/types/entities";
+import type { Avatar, Profile } from "~/types/entities";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { toThumbUrl } from "~/utils/image";
 import { MAX_IMAGE_SIZE } from "~/utils/upload";
@@ -26,19 +26,6 @@ const selectedAvatar = ref<Avatar | null>(null);
 const loading = ref(true);
 const equipping = ref(false);
 
-type TabKey = "all" | AvatarType;
-const activeTab = ref<TabKey>("all");
-const tabs: { key: TabKey; label: string }[] = [
-  { key: "all", label: "全部" },
-  { key: "character", label: "代理人" },
-  { key: "city", label: "城募" },
-  { key: "news", label: "纪闻" },
-];
-
-const filteredAvatars = computed(() =>
-  activeTab.value === "all" ? avatars.value : avatars.value.filter((a) => a.type === activeTab.value),
-);
-
 const previewAvatar = computed(
   () => selectedAvatar.value ?? avatars.value.find((a) => a.documentId === equippedId.value) ?? null,
 );
@@ -52,11 +39,6 @@ const isSelectionEquipped = computed(() => {
   if (!selectedAvatar.value) return true;
   return selectedAvatar.value.documentId === equippedId.value;
 });
-
-const handleTabChange = (key: TabKey) => {
-  activeTab.value = key;
-  selectedAvatar.value = null;
-};
 
 const selectAvatar = (avatar: Avatar) => {
   selectedAvatar.value = avatar;
@@ -203,35 +185,10 @@ onBeforeUnmount(() => {
         <div class="ik-av-frame__inner">
           <div class="ik-av-frame__body">
 
-            <!-- Tab Bar (tabs LEFT, close RIGHT — 与名片相反) -->
+            <!-- Tab Bar (title LEFT, close RIGHT — 与名片相反) -->
             <div class="ik-av-tab-bar">
-              <!-- Type tabs (left) -->
-              <div class="ik-av-tabs" role="tablist">
-                <button
-                  v-for="(tab, idx) in tabs"
-                  :key="tab.key"
-                  type="button"
-                  role="tab"
-                  class="ik-av-tab"
-                  :class="[
-                    idx === 0 ? 'ik-av-tab--first' : idx === tabs.length - 1 ? 'ik-av-tab--last' : 'ik-av-tab--middle',
-                    { 'is-active': activeTab === tab.key },
-                  ]"
-                  :aria-selected="activeTab === tab.key"
-                  @click="handleTabChange(tab.key)"
-                >
-                  <svg v-if="idx === 0" class="ik-av-tab__highlight ik-av-tab__highlight--first" viewBox="0 0 110.7 42" aria-hidden="true">
-                    <path d="M 21 0 L 94.38 0 A 10 10 0 0 1 103.29 14.54 L 93.75 33.26 A 16 16 0 0 1 79.5 42 L 21 42 A 21 21 0 0 1 21 0 Z" fill="currentColor" />
-                  </svg>
-                  <svg v-else-if="idx === tabs.length - 1" class="ik-av-tab__highlight ik-av-tab__highlight--last" viewBox="0 0 110.7 42" aria-hidden="true">
-                    <path d="M 89.7 0 A 21 21 0 0 1 89.7 42 L 13.05 42 A 8 8 0 0 1 5.93 30.37 L 16.95 8.74 A 16 16 0 0 1 31.2 0 Z" fill="currentColor" />
-                  </svg>
-                  <svg v-else class="ik-av-tab__highlight ik-av-tab__highlight--middle" viewBox="0 0 121.4 42" aria-hidden="true">
-                    <path d="M 105.08 0 A 10 10 0 0 1 113.99 14.54 L 104.45 33.26 A 16 16 0 0 1 90.2 42 L 16.32 42 A 10 10 0 0 1 7.41 27.46 L 16.95 8.74 A 16 16 0 0 1 31.2 0 Z" fill="currentColor" />
-                  </svg>
-                  <span class="ik-av-tab__content">{{ tab.label }}</span>
-                </button>
-              </div>
+              <!-- Title (left) -->
+              <span class="ik-av-title">修改头像</span>
 
               <!-- Close button (right) -->
               <button class="ik-av-close" aria-label="关闭" @click="handleClose">
@@ -287,14 +244,11 @@ onBeforeUnmount(() => {
                 <div v-if="loading" class="ik-av-grid-loading">
                   <i class="z-icon-loading ik-spin" /> 加载中...
                 </div>
-                <div v-else-if="!filteredAvatars.length" class="ik-av-grid-empty">
-                  暂无此类头像
-                </div>
                 <Transition name="ik-fade">
-                  <z-scrollbar v-if="!loading && filteredAvatars.length" class="ik-av-grid-scroll">
+                  <z-scrollbar v-if="!loading && avatars.length" class="ik-av-grid-scroll">
                     <div class="ik-av-grid">
                       <button
-                        v-for="avatar in filteredAvatars"
+                        v-for="avatar in avatars"
                         :key="avatar.documentId"
                         class="ik-av-grid__item"
                         :class="{
@@ -493,80 +447,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-/* Type tabs (left side, reuse header tab style) */
-.ik-av-tabs {
-  position: relative;
-  display: flex;
-  overflow: visible;
-  border: 3px solid #313131;
-  border-radius: 999px;
-  background: #050505 url("/images/tab-bg-point.webp") repeat;
-}
-
-.ik-av-tab {
-  position: relative;
-  z-index: 0;
-  width: 90px;
-  height: 38px;
-  padding: 0;
-  overflow: visible;
-  border: 0;
-  appearance: none;
-  background: transparent;
+/* ── Title (left side) ── */
+.ik-av-title {
+  font-size: 17px;
+  font-weight: 900;
   color: #fff;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  font-style: italic;
-  line-height: 1;
-  text-align: center;
-  user-select: none;
-  transition: color 140ms ease;
-}
-.ik-av-tab:focus-visible { outline: 2px solid rgba(215, 255, 0, 0.7); outline-offset: 4px; }
-.ik-av-tab:active { color: #b8b8b8; }
-.ik-av-tab.is-active { color: #000; }
-
-.ik-av-tab__content {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.ik-av-tab__highlight {
-  position: absolute;
-  top: 0;
-  z-index: 1;
-  height: 38px;
-  color: #fbfe00;
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(1.1);
-  transform-origin: center;
-}
-.ik-av-tab__highlight--first { left: 0; width: 100px; }
-.ik-av-tab__highlight--middle { left: -10px; width: 110px; }
-.ik-av-tab__highlight--last { right: 0; width: 100px; }
-
-.ik-av-tab.is-active .ik-av-tab__highlight {
-  opacity: 1;
-  animation:
-    ik-av-tab-color 800ms linear infinite alternate,
-    ik-av-tab-scale 700ms linear infinite;
-}
-
-@keyframes ik-av-tab-color {
-  from { color: #fbfe00; }
-  to { color: #dcfe00; }
-}
-@keyframes ik-av-tab-scale {
-  0% { transform: scale(1.1); animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19); }
-  50% { transform: scale(1.25); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
-  100% { transform: scale(1.1); }
+  letter-spacing: 0.5px;
 }
 
 /* ── Main content ── */
@@ -861,13 +747,7 @@ onBeforeUnmount(() => {
   .ik-av-frame__inner { border-radius: 0; }
   .ik-av-frame__body { border-radius: 0; }
   .ik-av-grid { grid-template-columns: repeat(4, 1fr); padding: 12px; gap: 4px; }
-  /* Shrink the type tabs so all tabs + close button fit on narrow phones
-     (fixed 90px tabs previously overflowed and pushed the close off-screen). */
   .ik-av-tab-bar { padding: 10px 12px; }
-  .ik-av-tab { width: 66px; font-size: 14px; }
-  .ik-av-tab__highlight--first { width: 73px; }
-  .ik-av-tab__highlight--middle { width: 80px; left: -7px; }
-  .ik-av-tab__highlight--last { width: 73px; }
   .ik-av-close__img { height: 28px; }
 }
 
