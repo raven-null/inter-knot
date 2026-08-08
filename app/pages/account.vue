@@ -81,6 +81,7 @@ const onMenuChange = (name: string | number) => {
 };
 
 // ── 米游社绑定 ─────────────────────────────
+const mihoyoDebugText = ref("");
 const mihoyo = useMihoyoQr({
   isActive: () => activeMenuKey.value === "mihoyo" && !mihoyoBinding.value,
   width: 200,
@@ -100,6 +101,7 @@ const mihoyo = useMihoyoQr({
     if (mihoyoBinding.value?.zzzUid) {
       message.success("米游社账号绑定成功");
     } else {
+      mihoyoDebugText.value = res.debug ? JSON.stringify(res.debug) : "";
       message.error("扫码已确认，但绑定数据未同步，请刷新重试");
     }
   },
@@ -675,6 +677,7 @@ useHead({ title: "账号中心" });
                 <p class="ik-ac-qr-status" :class="`is-${mihoyoQrStatus}`">
                   {{ mihoyoQrStatusText }}
                 </p>
+                <pre v-if="mihoyoDebugText" class="ik-ac-mihoyo-debug">{{ mihoyoDebugText }}</pre>
                 <z-button class="ik-ac-mihoyo-qr-refresh-btn" :disabled="mihoyoQrStatus === 'loading'" @click="startMihoyoQr">
                   刷新二维码
                 </z-button>
@@ -1187,6 +1190,21 @@ useHead({ title: "账号中心" });
   align-self: center;
   min-width: 140px;
   font-weight: 800;
+}
+
+.ik-ac-mihoyo-debug {
+  margin: 4px 0 0;
+  padding: 10px;
+  max-height: 120px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #ffb3b3;
+  background: rgba(255, 0, 0, 0.06);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* ── 黑名单 ── */

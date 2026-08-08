@@ -149,6 +149,7 @@ export type MihoyoQrPollResult =
       status: "confirmed";
       mode: "bind";
       binding: MihoyoBinding | null;
+      debug?: unknown;
     }
   | {
       status: "confirmed";
@@ -156,6 +157,7 @@ export type MihoyoQrPollResult =
       isNewUser: boolean;
       binding: MihoyoBinding | null;
       auth: AuthResult;
+      debug?: unknown;
     };
 
 interface SendRegisterCodeResult {
@@ -760,7 +762,7 @@ export function useApi() {
     }
     const binding = (data.binding as MihoyoBinding | null) ?? null;
     if (data.mode === "bind") {
-      return { status: "confirmed", mode: "bind", binding };
+      return { status: "confirmed", mode: "bind", binding, debug: data.debug };
     }
     clearAllCache();
     return {
@@ -772,6 +774,7 @@ export function useApi() {
         token: (data.jwt as string | undefined) || null,
         user: toAuthor(data.user, apiBaseUrl),
       },
+      debug: data.debug,
     };
   };
 
