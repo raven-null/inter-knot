@@ -100,6 +100,8 @@ const categoriesLoading = ref(true);
 const visibleCategories = computed(() =>
   categories.value.filter((c) => !c.adminOnly || auth.user?.isAdmin === true),
 );
+// 标签行直接展示的最大个数，超过则收起进「全部」下拉
+const TAG_CHIPS_MAX = 6;
 
 /* ── Mobile-only UI state ─────────────────────────── */
 const isMobileDraftsOpen = ref(false);
@@ -992,6 +994,11 @@ function selectCategory(slug: string) {
   markDirty();
 }
 
+/** 标签「全部」下拉选中 */
+function onTagDropdownSelect(slug: string) {
+  selectCategory(slug);
+}
+
 async function loadCategories() {
   try {
     const list = await api.getCategories();
@@ -1122,37 +1129,6 @@ if (import.meta.client) {
             <span class="ik-create-section__count">{{ editorTitleCount }}/200</span>
           </div>
 
-          <!-- Category section（发布帖子必选频道）
-               加载中即渲染占位标签，为分类栏预留高度，避免列表后到挤压正文导致跳动 -->
-          <div v-if="categoriesLoading || visibleCategories.length" class="ik-create-section">
-            <div class="ik-create-section__head">
-              <span class="ik-create-section__label">分类</span>
-              <span class="ik-create-section__hint">选择帖子所属频道</span>
-            </div>
-            <div class="ik-create-category-chips">
-              <template v-if="visibleCategories.length">
-                <button
-                  v-for="cat in visibleCategories"
-                  :key="cat.slug"
-                  type="button"
-                  class="ik-create-category-chip"
-                  :class="{ 'ik-create-category-chip--active': selectedCategory === cat.slug }"
-                  @click="selectCategory(cat.slug)"
-                >
-                  {{ cat.name }}
-                </button>
-              </template>
-              <template v-else>
-                <span
-                  v-for="n in 4"
-                  :key="`cat-skeleton-${n}`"
-                  class="ik-create-category-chip ik-create-category-chip--placeholder"
-                  aria-hidden="true"
-                ></span>
-              </template>
-            </div>
-          </div>
-
           <!-- Body section -->
           <div class="ik-create-section">
             <div class="ik-create-section__head">
@@ -1188,6 +1164,59 @@ if (import.meta.client) {
                 placeholder="请尽情发挥吧..."
               />
               <div v-else class="ik-create-preview" v-html="bodyPreviewHtml"></div>
+            </div>
+          </div>
+
+          <!-- 标签（原分类）置于媒体上方：标签行 + 过多时「全部」下拉 -->
+          <div v-if="categoriesLoading || visibleCategories.length" class="ik-create-section">
+            <div class="ik-create-section__head">
+              <span class="ik-create-section__label">标签</span>
+              <span class="ik-create-section__hint">选择帖子所属标签</span>
+            </div>
+            <div class="ik-create-category-chips">
+              <template v-if="visibleCategories.length">
+                <button
+                  v-for="cat in visibleCategories.slice(0, TAG_CHIPS_MAX)"
+                  :key="cat.slug"
+                  type="button"
+                  class="ik-create-category-chip"
+                  :class="{ 'ik-create-category-chip--active': selectedCategory === cat.slug }"
+                  @click="selectCategory(cat.slug)"
+                >
+                  {{ cat.name }}
+                </button>
+                <z-dropdown
+                  v-if="visibleCategories.length > TAG_CHIPS_MAX"
+                  trigger="click"
+                  size="small"
+                  class="ik-create-tag-more"
+                  @command="onTagDropdownSelect"
+                >
+                  <button
+                    type="button"
+                    class="ik-create-category-chip ik-create-category-chip--more"
+                    :class="{ 'ik-create-category-chip--active': !visibleCategories.slice(0, TAG_CHIPS_MAX).some((c) => c.slug === selectedCategory) }"
+                  >
+                    全部 <i class="ik-create-tag-more__caret" aria-hidden="true">▾</i>
+                  </button>
+                  <template #dropdown>
+                    <z-dropdown-item
+                      v-for="cat in visibleCategories"
+                      :key="cat.slug"
+                      :command="cat.slug"
+                      :class="{ 'is-selected': selectedCategory === cat.slug }"
+                    >{{ cat.name }}</z-dropdown-item>
+                  </template>
+                </z-dropdown>
+              </template>
+              <template v-else>
+                <span
+                  v-for="n in 4"
+                  :key="`cat-skeleton-${n}`"
+                  class="ik-create-category-chip ik-create-category-chip--placeholder"
+                  aria-hidden="true"
+                ></span>
+              </template>
             </div>
           </div>
 
@@ -3582,6 +3611,17 @@ if (import.meta.client) {
   background: var(--ik-primary, #bfff09);
   color: #111;
   font-size: 11px;
+  font-weight: 700;
+}
+
+.ik-create-tag-more__caret {
+  font-style: normal;
+  margin-left: 2px;
+  font-size: 11px;
+}
+
+.ik-create-tag-more :deep(.z-dropdown-item.is-selected) {
+  color: var(--ik-primary, #bfff09);
   font-weight: 700;
 }
 </style>
