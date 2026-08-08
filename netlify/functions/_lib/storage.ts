@@ -27,6 +27,12 @@ export async function setJson(key: string, value: unknown): Promise<void> {
   await data().setJSON(key, value);
 }
 
+/** 仅当 key 不存在时写入；返回是否真的写入（用于并发去重/锁） */
+export async function setJsonOnce(key: string, value: unknown): Promise<boolean> {
+  const res = await data().setJSON(key, value, { onlyIfNew: true });
+  return res.modified;
+}
+
 export async function del(key: string): Promise<void> {
   try {
     await data().delete(key);
