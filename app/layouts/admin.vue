@@ -265,14 +265,16 @@ onMounted(async () => {
 
 .ik-admin__content {
   flex: 1 1 auto;
-  padding: 28px 32px 20px;
+  padding: 28px 32px 48px;
 }
 
 .ik-admin__footer {
   flex-shrink: 0;
-  margin: 8px 32px 0;
-  padding: 16px 24px 24px;
-  border-top: 1px solid #1e1e1e;
+  margin: 0 32px 28px;
+  padding: 18px 24px;
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px 12px 0 12px;
 }
 
 .ik-admin__footer-inner {
@@ -307,7 +309,7 @@ onMounted(async () => {
 }
 
 .ik-admin__footer-link {
-  color: #8a8a8a;
+  color: #a0a0a0;
   font-size: 12px;
   text-decoration: none;
 }
@@ -317,7 +319,7 @@ onMounted(async () => {
 }
 
 .ik-admin__footer-copy {
-  color: #666;
+  color: #8a8a8a;
   font-size: 12px;
 }
 
