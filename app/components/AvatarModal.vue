@@ -274,6 +274,14 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
+              <!-- Upload custom avatar entry -->
+              <div class="ik-av-upload-box" @click="triggerFileInput">
+                <svg class="ik-av-upload-box__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span class="ik-av-upload-box__text">上传头像</span>
+                <span class="ik-av-upload-box__hint">选择图片自动转 WebP 上传</span>
+              </div>
+              <input ref="fileInputRef" type="file" accept="image/*" class="ik-av-grid__file-input" @change="onFileSelected" />
+
               <!-- Avatar list (8 cols, ~3.5 rows visible) -->
               <div class="ik-av-grid-wrap">
                 <div v-if="loading" class="ik-av-grid-loading">
@@ -285,13 +293,6 @@ onBeforeUnmount(() => {
                 <Transition name="ik-fade">
                   <z-scrollbar v-if="!loading && filteredAvatars.length" class="ik-av-grid-scroll">
                     <div class="ik-av-grid">
-                      <!-- Upload custom avatar entry -->
-                      <button class="ik-av-grid__item ik-av-grid__item--upload" @click="triggerFileInput">
-                        <div class="ik-av-grid__thumb ik-av-grid__thumb--upload">
-                          <svg class="ik-av-grid__upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        </div>
-                      </button>
-                      <input ref="fileInputRef" type="file" accept="image/*" class="ik-av-grid__file-input" @change="onFileSelected" />
                       <button
                         v-for="avatar in filteredAvatars"
                         :key="avatar.documentId"
@@ -646,6 +647,52 @@ onBeforeUnmount(() => {
 .ik-av-preview__tag--empty { color: rgba(255,255,255,0.85); }
 .ik-av-preview__lv { color: rgba(255,255,255,0.45); }
 
+/* ── Upload box (自定义头像上传) ── */
+.ik-av-upload-box {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px 16px 0;
+  padding: 22px 16px;
+  border: 2px dashed #3a3a3a;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #999;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+.ik-av-upload-box:hover {
+  border-color: #fbfe00;
+  color: #fff;
+  background: rgba(20, 20, 0, 0.6);
+}
+.ik-av-upload-box:active {
+  transform: scale(0.99);
+}
+.ik-av-upload-box__icon {
+  width: 28px;
+  height: 28px;
+}
+.ik-av-upload-box__text {
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+}
+.ik-av-upload-box__hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: #888;
+}
+
+.ik-av-grid__file-input {
+  display: none;
+}
+
 /* ── Avatar grid ── (8 列 / ~3.5 行可见) */
 .ik-av-grid-wrap {
   position: relative;
@@ -825,22 +872,6 @@ onBeforeUnmount(() => {
 }
 
 /* prefers-reduced-motion 由 theme.css 全局接管 */
-
-/* ── Upload button in grid ── */
-.ik-av-grid__item--upload { border: 2px dashed #444; }
-.ik-av-grid__item--upload:hover { border-color: #fbfe00; }
-.ik-av-grid__thumb--upload {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  border-radius: 999px;
-  background: transparent;
-}
-.ik-av-grid__upload-icon { width: 28px; height: 28px; color: #666; transition: color 0.15s; }
-.ik-av-grid__item--upload:hover .ik-av-grid__upload-icon { color: #fbfe00; }
-.ik-av-grid__file-input { display: none; }
 
 /* ── Cropper overlay (reuses .ik-overlay / .ik-av-frame) ── */
 .ik-crop-overlay { z-index: 9500; }
