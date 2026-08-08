@@ -97,7 +97,7 @@ export async function stats(req: Request): Promise<Response> {
 
   return json({
     userCount: Number(s.userCount || 0),
-    postCount: Number(s.postCount || 0),
+    postCount: feed.length, // 以信息流为准（发布即入流），避免计数漂移成负数
     commentCount: Number(s.commentCount || 0),
     viewCount: Number(s.viewCount || 0),
     todayPosts,

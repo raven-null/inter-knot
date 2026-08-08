@@ -71,6 +71,11 @@ export function useAdminApi() {
     return $api(`/api/admin/posts/${documentId}`, { method: "PATCH", body: patch });
   };
 
+  /** 彻底删除（草稿删档；已发布标记删除并从信息流移除） */
+  const deleteArticle = async (documentId: string) => {
+    return $api(`/api/articles/${documentId}`, { method: "DELETE" });
+  };
+
   const comments = async (page = 1, pageSize = 20, q = "") => {
     return $api<Paginated<AdminComment>>("/api/admin/comments", {
       query: { page: String(page), pageSize: String(pageSize), q },
@@ -135,6 +140,7 @@ export function useAdminApi() {
     updateUser,
     posts,
     updatePost,
+    deleteArticle,
     comments,
     deleteComment,
     categories,

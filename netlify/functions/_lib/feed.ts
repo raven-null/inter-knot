@@ -68,12 +68,20 @@ export async function getStats(): Promise<Record<string, number>> {
   return s ?? {};
 }
 
+/** 原子化累加全局统计（CAS + 重试），避免并发丢更新导致计数漂移 */
 export async function bumpStats(patch: Record<string, number>): Promise<void> {
-  const s = await getStats();
-  for (const [k, v] of Object.entries(patch)) {
-    s[k] = Number(s[k] || 0) + v;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const cur = await getJsonWithEtag<Record<string, number>>(KEYS.stats);
+    if (!cur) {
+      await setJson(KEYS.stats, { ...patch });
+      return;
+    }
+    const next: Record<string, number> = { ...cur.data };
+    for (const [k, v] of Object.entries(patch)) {
+      next[k] = Math.max(0, Number(next[k] || 0) + v);
+    }
+    if (await setJsonIfMatch(KEYS.stats, next, cur.etag)) return;
   }
-  await setJson(KEYS.stats, s);
 }
 
 /** 读取用户文档 */
