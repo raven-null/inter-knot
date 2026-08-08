@@ -99,7 +99,7 @@ async function dispatch(req: Request): Promise<Response> {
       if (s.length >= 4 && sub2 === "view" && isPost(req)) return articleRoutes.view(req);
       if (s.length >= 4 && sub2 === "publish" && isPost(req)) return articleRoutes.publishDraft(req);
       if (s.length >= 4 && sub2 === "discard-draft" && isPost(req)) return articleRoutes.discardDraft(req);
-      if (s.length === 3 && isPost(req)) return articleRoutes.createDraft(req);
+      if (s.length === 2 && isPost(req)) return articleRoutes.createDraft(req);
       if (s.length === 3 && isPut(req)) return articleRoutes.updateDraft(req);
       if (s.length === 3 && isDelete(req)) return articleRoutes.remove(req);
       return error(404, "接口不存在");
@@ -108,7 +108,7 @@ async function dispatch(req: Request): Promise<Response> {
     // ── 评论 ─────────────────────────────────────────
     case "comments": {
       if (sub === "list" && isGet(req)) return commentRoutes.list(req);
-      if (s.length === 3 && isPost(req)) return commentRoutes.create(req);
+      if (s.length === 2 && isPost(req)) return commentRoutes.create(req);
       if (s.length === 3 && isDelete(req)) return commentRoutes.remove(req);
       if (sub2 === "pin" && isPost(req)) return commentRoutes.pin(req);
       if (sub2 === "unpin" && isPost(req)) return commentRoutes.unpin(req);
