@@ -538,40 +538,43 @@ onBeforeUnmount(() => {
       <!-- ── 下半 (帖子区域) ───────────────── -->
       <div class="ik-aframe__content">
 
-      <!-- ── Article Grid ────────────────────────── -->
-      <div v-if="profile.isHidden" class="ik-article-grid">
-        <div class="ik-article-grid__empty">
-          该用户已隐藏个人资料
-        </div>
-      </div>
-      <div v-else-if="isBlockedRelationship" class="ik-article-grid">
-        <div class="ik-article-grid__empty">
-          {{ profile.isBlockedByMe ? "你已拉黑该用户，内容不可见" : "你已被该用户拉黑，内容不可见" }}
-        </div>
-      </div>
-      <div v-else class="ik-article-grid">
-        <template v-if="articleLoading && !articles.length">
-          <div v-for="n in 6" :key="n" class="ik-article-grid__item">
-            <div class="ik-skel" style="width:100%;aspect-ratio:3/4;border-radius:12px"></div>
+      <!-- ── 发布作品 ────────────────────── -->
+      <section class="ik-profile-section">
+        <h2 class="ik-profile-section__title">发布作品</h2>
+        <div v-if="profile.isHidden" class="ik-article-grid">
+          <div class="ik-article-grid__empty">
+            该用户已隐藏个人资料
           </div>
-        </template>
-        <div v-else-if="!articles.length" class="ik-article-grid__empty">
-          还没有发布任何内容哦
         </div>
-        <template v-else>
-          <div
-            v-for="(item, index) in articles"
-            :key="item.id"
-            class="ik-article-grid__item"
-          >
-            <PostCard
-              :post="item"
-              :eager="index < 6"
-              @open="goArticle"
-            />
+        <div v-else-if="isBlockedRelationship" class="ik-article-grid">
+          <div class="ik-article-grid__empty">
+            {{ profile.isBlockedByMe ? "你已拉黑该用户，内容不可见" : "你已被该用户拉黑，内容不可见" }}
           </div>
-        </template>
-      </div>
+        </div>
+        <div v-else class="ik-article-grid">
+          <template v-if="articleLoading && !articles.length">
+            <div v-for="n in 6" :key="n" class="ik-article-grid__item">
+              <div class="ik-skel" style="width:100%;aspect-ratio:3/4;border-radius:12px"></div>
+            </div>
+          </template>
+          <div v-else-if="!articles.length" class="ik-article-grid__empty">
+            还没有发布任何内容哦
+          </div>
+          <template v-else>
+            <div
+              v-for="(item, index) in articles"
+              :key="item.id"
+              class="ik-article-grid__item"
+            >
+              <PostCard
+                :post="item"
+                :eager="index < 6"
+                @open="goArticle"
+              />
+            </div>
+          </template>
+        </div>
+      </section>
 
       <!-- ── 收藏夹 ────────────────────────── -->
       <section v-if="profile.isSelf" class="ik-profile-section">
