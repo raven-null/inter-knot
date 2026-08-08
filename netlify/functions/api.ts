@@ -20,6 +20,7 @@ import * as meRoutes from "./_lib/routes/me";
 import * as adminRoutes from "./_lib/routes/admin";
 import * as emoteRoutes from "./_lib/routes/emotes";
 import * as githubRoutes from "./_lib/routes/github";
+import * as mihoyoRoutes from "./_lib/routes/mihoyo";
 import * as stubRoutes from "./_lib/routes/stubs";
 
 export default async function handler(req: Request): Promise<Response> {
@@ -80,10 +81,10 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "register-with-code" && isPost(req)) return authRoutes.registerWithCode(req);
       if (sub === "send-reset-code" && isPost(req)) return authRoutes.sendResetCode(req);
       if (sub === "reset-password" && isPost(req)) return authRoutes.resetPassword(req);
-      if (sub === "mihoyo" && sub2 === "qr" && s.length === 4 && isPost(req)) return stubRoutes.mihoyoQrCreate();
-      if (sub === "mihoyo" && sub2 === "qr" && s[4] === "status" && isPost(req)) return stubRoutes.mihoyoQrStatus();
-      if (sub === "mihoyo" && sub2 === "binding" && isGet(req)) return stubRoutes.mihoyoBinding();
-      if (sub === "mihoyo" && sub2 === "binding" && isDelete(req)) return stubRoutes.mihoyoUnbind();
+      if (sub === "mihoyo" && sub2 === "qr" && s.length === 4 && isPost(req)) return mihoyoRoutes.qrCreate(req);
+      if (sub === "mihoyo" && sub2 === "qr" && s[4] === "status" && isPost(req)) return mihoyoRoutes.qrStatus(req);
+      if (sub === "mihoyo" && sub2 === "binding" && isGet(req)) return mihoyoRoutes.binding(req);
+      if (sub === "mihoyo" && sub2 === "binding" && isDelete(req)) return mihoyoRoutes.unbind(req);
       return error(404, "接口不存在");
     }
 

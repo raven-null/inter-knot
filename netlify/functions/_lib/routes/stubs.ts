@@ -1,25 +1,7 @@
-/** 外围功能桩接口：米游社 / 丁尼 / 签到 / 考试 / 私信 / 在线状态等。
+/** 外围功能桩接口：丁尼 / 签到 / 考试 / 私信 / 在线状态等。
  *  首期论坛核心未实现的功能返回安全的空值，保证前端 UI 不崩溃。 */
 
 import { ok, json, error, readJson } from "../http";
-
-// ── 米游社扫码（未实现：返回明确提示，前端展示为暂未开放） ──
-export function mihoyoQrCreate(): Response {
-  return error(
-    501,
-    "米游社登录暂未开放，请使用邮箱注册或登录",
-    "MIHOYO_NOT_SUPPORTED",
-  );
-}
-export function mihoyoQrStatus(): Response {
-  return json({ status: "expired" });
-}
-export function mihoyoBinding(): Response {
-  return json({ binding: null });
-}
-export function mihoyoUnbind(): Response {
-  return json({ success: true });
-}
 
 // ── 签到（桩） ──────────────────────────────────────
 export function checkInStatus(): Response {
