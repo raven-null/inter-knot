@@ -118,6 +118,7 @@ export const KEYS = {
   stats: "stats.json",
   feed: "_indexes/feed.json",
   emotes: "emotes.json",
+  deletedPosts: "_indexes/deleted.json",
   drafts: (userId: string) => `_indexes/drafts/${userId}.json`,
   userComments: (userId: string) => `_indexes/user-comments/${userId}.json`,
   commentLookup: (commentId: string) => `_indexes/comment-lookup/${commentId}.json`,

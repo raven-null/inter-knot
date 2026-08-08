@@ -45,6 +45,24 @@ export async function feedAdd(doc: Doc): Promise<void> {
 
 export async function feedRemove(documentId: string): Promise<void> {
   await mutateFeed((posts) => posts.filter((p) => p.document_id !== documentId));
+  await logDeletedPost(documentId);
+}
+
+/** 已删帖日志（近 N 条），供前端轮询「删除后自动移除」 */
+const DELETED_LOG_CAP = 500;
+
+async function logDeletedPost(documentId: string): Promise<void> {
+  if (!documentId) return;
+  const log = (await getJson<{ items: Array<{ id: string; at: number }> }>(KEYS.deletedPosts)) || { items: [] };
+  const items = [...log.items.filter((i) => i.id !== documentId), { id: documentId, at: Date.now() }];
+  if (items.length > DELETED_LOG_CAP) items.length = DELETED_LOG_CAP;
+  await setJson(KEYS.deletedPosts, { items });
+}
+
+/** 读取 since(epoch ms) 之后被删除的帖子 id 列表 */
+export async function deletedPostIdsSince(since: number): Promise<string[]> {
+  const log = (await getJson<{ items: Array<{ id: string; at: number }> }>(KEYS.deletedPosts)) || { items: [] };
+  return log.items.filter((i) => i.at > since).map((i) => i.id);
 }
 
 export async function feedUpdate(documentId: string, patch: Doc): Promise<void> {

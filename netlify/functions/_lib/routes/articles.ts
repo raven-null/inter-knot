@@ -1,7 +1,7 @@
 /** 帖子/帖子相关路由（基于 Netlify Blobs） */
 
 import { genId, getJson, setJson, del, exists, listKeys, postKey, categoryKey, userKey, likeKey, favoriteKey, readKey, KEYS } from "../storage";
-import { getFeed, feedAdd, feedRemove, feedUpdate, bumpStats, getUser, updateUserStats } from "../feed";
+import { getFeed, feedAdd, feedRemove, feedUpdate, bumpStats, getUser, updateUserStats, deletedPostIdsSince } from "../feed";
 import { resolveUser, requireAuth } from "../auth";
 import { ok, paginated, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
 import { toPost, toDraft, DEFAULT_AVATAR, type Doc, type ViewerState } from "../serialize";
@@ -324,6 +324,14 @@ export async function discardDraft(req: Request): Promise<Response> {
   await del(postKey(id));
   await removeDraft(viewer.userId, id);
   return json({ success: true });
+}
+
+/** 查询 since 之后被删除的帖子 id（首页轮询自动移除已删帖，公开） */
+export async function deletedSince(req: Request): Promise<Response> {
+  const qp = queryParams(req);
+  const since = Number(qp.get("since")) || 0;
+  const ids = await deletedPostIdsSince(since);
+  return json({ ids });
 }
 
 export async function remove(req: Request): Promise<Response> {

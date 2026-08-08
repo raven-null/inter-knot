@@ -468,14 +468,64 @@ const stopPolling = () => {
   }
 };
 
+// ── 已删帖轮询：后台/作者删除帖子后，首页立刻移除，无需刷新 ──
+const DELETED_POLL_MS = 8000;
+let lastDeletedSince = 0;
+let deletedPollTimer: ReturnType<typeof setInterval> | null = null;
+
+const pollDeletedPosts = async () => {
+  // 仅推荐流（无搜索词、非关注/收藏）下做移除；列表为空时无需探测
+  if (feedMode.value !== "recommend") return;
+  if (query.value.trim()) return;
+  if (!list.value.length) return;
+  if (import.meta.client && document.visibilityState !== "visible") return;
+
+  try {
+    // 首次轮询以「当前时刻 - 30s」为起点，覆盖初始加载与首轮之间的删除窗口
+    const since = lastDeletedSince || Date.now() - 30000;
+    const ids = await api.deletedSince(since);
+    lastDeletedSince = Date.now();
+    if (!ids.length) return;
+
+    const removed = new Set(ids);
+    const next = list.value.filter((d) => !removed.has(d.id));
+    if (next.length !== list.value.length) {
+      list.value = next;
+      for (const id of removed) seenIds.delete(id);
+      // 已删帖不应再出现在「新内容」提示里
+      if (newArticleIds.value.some((i) => removed.has(i))) {
+        newArticleIds.value = newArticleIds.value.filter((i) => !removed.has(i));
+      }
+    }
+  } catch {
+    // 网络错误静默忽略：下次轮询再试
+  }
+};
+
+const startDeletedPolling = () => {
+  if (deletedPollTimer) return;
+  lastDeletedSince = 0;
+  deletedPollTimer = setInterval(() => {
+    void pollDeletedPosts();
+  }, DELETED_POLL_MS);
+};
+
+const stopDeletedPolling = () => {
+  if (deletedPollTimer) {
+    clearInterval(deletedPollTimer);
+    deletedPollTimer = null;
+  }
+};
+
 // 用户点击"有 N 条新内容" → 顶部刷新
 const applyNewArticles = () => {
   void handleRefresh();
 };
 
-// Tab 回到前台：立即跳一次轮询，让用户尽快看到提示
+// Tab 回到前台：立即跳一次轮询，让用户尽快看到提示/移除
 const onTabVisible = () => {
   void pollLatestArticles();
+  void pollDeletedPosts();
 };
 
 const doLoadMore = () => {
@@ -538,14 +588,17 @@ watch(
     if (q.trim() && feedMode.value !== "recommend") {
       feedMode.value = "recommend";
       stopPolling();
+      stopDeletedPolling();
       return;
     }
     debouncedSearch();
     // q 非空 ⇒ 进入搜索；空 ⇒ 回到推荐流（轮询照常运行）
     if (q.trim()) {
       stopPolling();
+      stopDeletedPolling();
     } else {
       startPolling();
+      startDeletedPolling();
     }
   },
 );
@@ -789,7 +842,10 @@ onMounted(async () => {
   // 此处无需手动 scrollTo——scrollBehavior 在导航到 / 时自动读取缓存的 scrollY。
 
   // 仅在推荐流下启动轮询；搜索状态由 watch(query) 控制
-  if (!query.value.trim()) startPolling();
+  if (!query.value.trim()) {
+    startPolling();
+    startDeletedPolling();
+  }
 });
 
 // ── 路由离开前：保存首页状态快照 ──────────────────────
@@ -829,6 +885,7 @@ onBeforeUnmount(() => {
     stopPendingWatch = null;
   }
   stopPolling();
+  stopDeletedPolling();
   loadMoreObserverRef.value?.disconnect();
   loadMoreObserverRef.value = null;
   if (cooldownTimer) {

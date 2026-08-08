@@ -949,13 +949,26 @@ export function useApi() {
     );
   };
 
+  /** 查询 since(epoch ms) 之后被删除的帖子 id（用于首页自动移除已删帖） */
+  const deletedSince = async (since: number): Promise<string[]> => {
+    if (!since) return [];
+    try {
+      const response = await $api("/api/articles/deleted-since", {
+        query: { since: String(since) },
+      });
+      const data = (response || {}) as { ids?: unknown };
+      return Array.isArray(data.ids) ? data.ids.filter((v): v is string => typeof v === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+
   const recordArticleView = async (id: string): Promise<number | undefined> => {
     if (!id) return undefined;
     const response = await $api(`/api/articles/${id}/view`, {
       method: "POST",
       body: {},
-    });
-    const data = response as Record<string, unknown>;
+    });    const data = response as Record<string, unknown>;
     const views = Number(data.views);
     return Number.isFinite(views) && views >= 0 ? views : undefined;
   };
@@ -2216,6 +2229,7 @@ export function useApi() {
     peekArticles,
     getCategories,
     getPost,
+    deletedSince,
     recordArticleView,
     getComments,
     addPostComment,
