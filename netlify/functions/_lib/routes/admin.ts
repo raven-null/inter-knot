@@ -505,21 +505,39 @@ export async function usersIntrospect(req: Request): Promise<Response> {
   }
   return json({ total: out.length, users: out });
 }
-// 临时清理失效 uid 索引（验证后移除）
+// 临时：修复 uid 索引（安全幂等：仅确认 uid 不匹配才删，并补齐缺失索引；验证后移除）
 export async function usersCleanup(req: Request): Promise<Response> {
   await requireAdmin(req);
   const removed: string[] = [];
-  const keys = await listKeys("users/by-uid/");
-  for (const key of keys) {
+  const added: string[] = [];
+
+  // 1) 删除「确认不匹配」的失效 by-uid 索引（读取失败则跳过，不删除）
+  const byUidKeys = await listKeys("users/by-uid/");
+  for (const key of byUidKeys) {
     const idx = await getJson<{ document_id?: string }>(key);
     if (!idx?.document_id) continue;
     const uidFromKey = Number(key.split("/")[2]);
     const u = await getJson<Doc>(userKey(idx.document_id));
-    const realUid = Number(u?.uid || 0);
-    if (!u || realUid !== uidFromKey) {
+    if (u && Number(u.uid) !== uidFromKey) {
       await del(key);
       removed.push(key);
     }
   }
-  return json({ success: true, removed });
+
+  // 2) 补齐缺失的 by-uid 索引（每个真实用户都应有一条）
+  const userKeys = (await listKeys("users/")).filter(
+    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/") && !k.includes("/by-github/"),
+  );
+  for (const key of userKeys) {
+    const u = await getJson<Doc>(key);
+    if (!u || !u.uid || !u.document_id) continue;
+    const uidKey2 = users/by-uid/.json;
+    const idx = await getJson<unknown>(uidKey2);
+    if (!idx) {
+      await setJson(uidKey2, { document_id: u.document_id });
+      added.push(uidKey2);
+    }
+  }
+
+  return json({ success: true, removed, added });
 }
