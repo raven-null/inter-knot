@@ -1770,7 +1770,7 @@ if (import.meta.client) {
   position: relative;
   width: min(1440px, calc(100% - 40px));
   margin: 0 auto;
-  padding: var(--ik-space-xl) 0 0;
+  padding: var(--ik-space-xl) 0 var(--ik-space-2xl);
   height: calc(100vh - 78px);
   min-height: 0;
   overflow: hidden;
@@ -2021,7 +2021,7 @@ if (import.meta.client) {
   display: flex;
   flex-direction: column;
   gap: var(--ik-space-xl);
-  padding: var(--ik-space-xl) 26px var(--ik-space-lg);
+  padding: var(--ik-space-xl) 26px var(--ik-space-2xl);
   background:
     url("/images/tab-bg-point.webp") repeat,
     linear-gradient(180deg, #0a0a0a 0%, #070707 100%);
@@ -2122,7 +2122,7 @@ if (import.meta.client) {
   display: flex;
   flex-direction: column;
   gap: var(--ik-space-sm);
-  padding: var(--ik-space-md) var(--ik-space-lg);
+  padding: var(--ik-space-md);
   background: #141414;
   border-top: 1px solid #262626;
   border-radius: 0 0 22px 22px;
@@ -2130,28 +2130,28 @@ if (import.meta.client) {
 
 .ik-create-delete {
   width: 100%;
-  font-size: var(--ik-text-base);
+  font-size: var(--ik-text-sm);
   font-weight: 900;
 }
 
 .ik-create-delete :deep(.z-button__inner),
 .ik-create-delete :deep(button) {
-  padding: var(--ik-space-md) var(--ik-space-2xl);
-  font-size: var(--ik-text-base);
-  letter-spacing: 1px;
+  padding: 10px var(--ik-space-lg);
+  font-size: var(--ik-text-sm);
+  letter-spacing: 0.5px;
 }
 
 .ik-create-publish {
   width: 100%;
-  font-size: var(--ik-text-base);
+  font-size: var(--ik-text-sm);
   font-weight: 900;
 }
 
 .ik-create-publish :deep(.z-button__inner),
 .ik-create-publish :deep(button) {
-  padding: var(--ik-space-md) var(--ik-space-2xl);
-  font-size: var(--ik-text-base);
-  letter-spacing: 1px;
+  padding: 10px var(--ik-space-lg);
+  font-size: var(--ik-text-sm);
+  letter-spacing: 0.5px;
 }
 
 /* ═════════ Section (shared) ═════════ */
@@ -3144,7 +3144,8 @@ if (import.meta.client) {
     height: auto;
     min-height: calc(100vh - 78px);
     overflow: visible;
-    padding-bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    padding: var(--ik-space-xl) 0 var(--ik-space-2xl);
+    padding-bottom: calc(var(--ik-space-2xl) + 62px + env(safe-area-inset-bottom, 0px));
   }
 
   .ik-create-columns {
