@@ -82,7 +82,7 @@ export async function favorites(req: Request): Promise<Response> {
   if (!viewer || viewer.userId !== id) return notFound("资源不存在");
 
   const keys = await listKeys(`favorites/${id}/`);
-  const byId = new Map(keys.map((k) => [k.split("/")[2], k]));
+  const byId = new Map(keys.map((k) => [k.split("/")[2].replace(/\.json$/, ""), k]));
   const feed = await getFeed();
   const withTime: Array<{ doc: Doc; at: string }> = [];
   for (const p of feed) {
@@ -110,7 +110,7 @@ export async function history(req: Request): Promise<Response> {
   if (!viewer || viewer.userId !== id) return notFound("资源不存在");
 
   const keys = await listKeys(`read_records/${id}/`);
-  const byId = new Map(keys.map((k) => [k.split("/")[2], k]));
+  const byId = new Map(keys.map((k) => [k.split("/")[2].replace(/\.json$/, ""), k]));
   const feed = await getFeed();
   const withTime: Array<{ doc: Doc; at: string }> = [];
   for (const p of feed) {

@@ -156,7 +156,7 @@ export async function myBlockedList(req: Request): Promise<Response> {
   const start = Math.max(0, int(qp.get("start")));
   const limit = Math.min(50, Math.max(1, int(qp.get("limit"), 20)));
   const keys = await listKeys(`user_blocks/${viewer.userId}/`);
-  const blockedIds = keys.map((k) => k.split("/")[2]).filter(Boolean);
+  const blockedIds = keys.map((k) => k.split("/")[2].replace(/\.json$/, "")).filter(Boolean);
   const users: Doc[] = [];
   for (const id of blockedIds) {
     const u = await getUser(id);

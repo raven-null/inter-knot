@@ -118,13 +118,14 @@ async function listPosts(req: Request, opts: ListOptions): Promise<Response> {
   }
 
   if (viewer) {
-    const blocked = new Set((await listKeys(`user_blocks/${viewer.userId}/`)).map((k) => k.split("/")[2]));
+    const stripJson = (key: string) => key.split("/")[2].replace(/\.json$/, "");
+    const blocked = new Set((await listKeys(`user_blocks/${viewer.userId}/`)).map(stripJson));
     posts = posts.filter((p) => !blocked.has(String(p.author_document_id)));
     if (opts.feed === "following") {
-      const follows = new Set((await listKeys(`follows/${viewer.userId}/`)).map((k) => k.split("/")[2]));
+      const follows = new Set((await listKeys(`follows/${viewer.userId}/`)).map(stripJson));
       posts = posts.filter((p) => follows.has(String(p.author_document_id)));
     } else if (opts.feed === "favorites") {
-      const favs = new Set((await listKeys(`favorites/${viewer.userId}/`)).map((k) => k.split("/")[2]));
+      const favs = new Set((await listKeys(`favorites/${viewer.userId}/`)).map(stripJson));
       posts = posts.filter((p) => favs.has(String(p.document_id)));
     }
   } else if (opts.feed !== "recommend") {
@@ -198,6 +199,11 @@ export async function view(req: Request): Promise<Response> {
   if (!doc) return notFound();
   const views = Number(doc.views || 0) + 1;
   await touchPost(id, { views, updated_at: String(doc.updated_at || "") });
+  // 记录阅读历史（登录用户），供个人主页「历史阅读」展示
+  const viewer = await resolveUser(req);
+  if (viewer) {
+    await setJson(readKey(viewer.userId, id), { read_at: new Date().toISOString() });
+  }
   return json({ views });
 }
 
