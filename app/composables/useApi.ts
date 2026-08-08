@@ -2009,64 +2009,8 @@ export function useApi() {
   // ── 丁尼(Denny)货币系统 ───────────────────────────────
 
   /**
-   * 获取当前用户的丁尼余额和最近记录
-   */
-  const getMyDenny = async (): Promise<{
-    denny: number;
-    dennyGiven: number;
-    recentLogs: Array<{
-      action: string;
-      amount: number;
-      balance: number;
-      description: string;
-      createdAt: string;
-    }>;
-  }> => {
-    const response = await $api("/api/user-denny", {
-      method: "GET",
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      denny: Number(data.denny) || 0,
-      dennyGiven: Number(data.dennyGiven) || 0,
-      recentLogs: Array.isArray(data.recentLogs)
-        ? data.recentLogs.map((log: any) => ({
-            action: String(log.action || ""),
-            amount: Number(log.amount) || 0,
-            balance: Number(log.balance) || 0,
-            description: String(log.description || ""),
-            createdAt: String(log.createdAt || ""),
-          }))
-        : [],
-    };
-  };
-
-  /**
-   * 给委托投币
-   */
-  const giveDennyToArticle = async (
-    articleId: string,
-    message?: string,
-  ): Promise<{
-    success: boolean;
-    newBalance: number;
-    articleDennyCount: number;
-  }> => {
-    const response = await $api("/api/user-denny/give", {
-      method: "POST",
-      body: { articleId, message },
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      success: Boolean(data.success),
-      newBalance: Number(data.newBalance) || 0,
-      articleDennyCount: Number(data.articleDennyCount) || 0,
-    };
-  };
-
-  /**
-   * 一键三连：点赞 + 收藏（幂等） + 投币（软失败）
-   * 后端原子接口，一次返回三态；投币失败不影响点赞+收藏。
+   * 一键三连：点赞 + 收藏（幂等）
+   * 后端原子接口，一次返回三态。
    */
   const tripleAction = async (
     articleId: string,
@@ -2322,9 +2266,6 @@ export function useApi() {
     getPinnedArticles,
     updatePinnedArticles,
     searchAuthors,
-    // 丁尼系统
-    getMyDenny,
-    giveDennyToArticle,
     tripleAction,
     // 签到系统
     getCheckInStatus,

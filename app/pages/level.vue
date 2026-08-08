@@ -55,10 +55,6 @@ const expToNextLevel = computed(() => {
   return Math.max(0, expNeededToNext.value - currentLevelExp.value);
 });
 
-// -- Denny --
-const dennyBalance = ref(0);
-const dennyGiven = ref(0);
-
 // -- Check-in --
 const checkInStatus = ref({
   canCheckIn: false,
@@ -83,12 +79,7 @@ const loadData = async () => {
   if (!auth.isLogin) return;
   startProgress();
   try {
-    const [dennyData, statusData] = await Promise.all([
-      api.getMyDenny(),
-      api.getCheckInStatus(),
-    ]);
-    dennyBalance.value = dennyData.denny;
-    dennyGiven.value = dennyData.dennyGiven;
+    const statusData = await api.getCheckInStatus();
     checkInStatus.value = {
       canCheckIn: statusData.canCheckIn,
       totalDays: statusData.totalDays,
@@ -100,7 +91,7 @@ const loadData = async () => {
     try {
       dailyExpStatus.value = await api.getDailyExpStatus();
     } catch {
-      // 每日经验状态接口失败不应影响丁尼/签到基础数据展示
+      // 每日经验状态接口失败不应影响签到基础数据展示
     }
   } catch {
     // silent
@@ -125,13 +116,8 @@ const doCheckIn = async () => {
     if (Object.keys(userUpdates).length > 0) {
       auth.updateUserPartial(userUpdates);
     }
-    if (result.currentDenny !== undefined) {
-      dennyBalance.value = result.currentDenny;
-      window.dispatchEvent(new CustomEvent("ik:denny-updated", { detail: result.currentDenny }));
-    }
 
-    const dennyAdded = result.dennyAdded > 0 ? result.dennyAdded : 10;
-    const parts = [`丁尼+${dennyAdded}`];
+    const parts: string[] = [];
     if (result.reward > 0) parts.push(`绳网信用+${result.reward}`);
     const rankText = result.rank > 0 ? `，今日第${result.rank}名` : "";
     message.success(`签到成功！${parts.join("，")}${rankText}`);
@@ -280,22 +266,6 @@ useHead({ title: "绳网等级" });
           >
             {{ checkInLoading ? '签到中...' : checkInStatus.canCheckIn ? '今日签到' : '已签到' }}
           </button>
-        </div>
-      </section>
-
-      <!-- Denny card -->
-      <section class="ik-lv__card">
-        <div class="ik-lv__card-header">
-          <h2 class="ik-lv__card-title">丁尼</h2>
-        </div>
-        <div class="ik-lv__denny-body">
-          <div class="ik-lv__denny-row">
-            <img src="/images/materials/dennies_v2.webp" alt="" class="ik-lv__denny-icon" draggable="false" />
-            <span class="ik-lv__denny-balance">{{ formatExp(dennyBalance) }}</span>
-          </div>
-          <p class="ik-lv__denny-sub">
-            已投出 {{ formatExp(dennyGiven) }} 丁尼
-          </p>
         </div>
       </section>
 
@@ -638,38 +608,6 @@ useHead({ title: "绳网等级" });
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.3);
   cursor: default;
-}
-
-/* ── Denny ── */
-.ik-lv__denny-body {
-  padding: 16px 20px 20px;
-}
-
-.ik-lv__denny-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ik-lv__denny-icon {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.4));
-}
-
-.ik-lv__denny-balance {
-  font-size: 32px;
-  font-weight: 800;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.5px;
-}
-
-.ik-lv__denny-sub {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.35);
 }
 
 /* ── Chevron ── */

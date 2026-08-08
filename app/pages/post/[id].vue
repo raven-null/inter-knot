@@ -620,91 +620,17 @@ const handleTriple = async () => {
   if (tripling.value) return;
   tripling.value = true;
 
-  // 仅当确有可能投币时才乐观 -1，避免无谓的余额回弹
-  const willCoin =
-    !post.value.hasGivenDenny &&
-    !isOwner.value &&
-    !post.value.isAnonymous;
-  if (willCoin) window.dispatchEvent(new CustomEvent("ik:denny-decrement"));
-
   try {
     const result = await api.tripleAction(post.value.id);
     post.value.liked = result.liked;
     post.value.likesCount = result.likesCount;
     post.value.favorited = result.favorited;
     post.value.favoritesCount = result.favoritesCount;
-    post.value.dennyCount = result.dennyCount;
-    if (result.coinGiven) post.value.hasGivenDenny = true;
-
-    if (typeof result.newBalance === "number")
-      window.dispatchEvent(
-        new CustomEvent("ik:denny-updated", { detail: result.newBalance }),
-      );
-    else
-      // 未真正投币 → 回滚乐观 -1
-      window.dispatchEvent(new CustomEvent("ik:denny-updated"));
-
     message.success("三连成功！(￣︶￣)↗");
   } catch (err) {
-    window.dispatchEvent(new CustomEvent("ik:denny-updated"));
     message.error(resolveErrorMessage(err, "三连失败"));
   } finally {
     tripling.value = false;
-  }
-};
-
-const givingDenny = ref(false);
-
-const giveDenny = async () => {
-  if (!post.value) return;
-  if (!auth.isLogin) {
-    loginDialog.open();
-    return;
-  }
-  if (isOwner.value) {
-    message.warning("不能给自己的委托投币");
-    return;
-  }
-  if (post.value.isAnonymous) {
-    message.warning("匿名委托不能投币");
-    return;
-  }
-  if (post.value.hasGivenDenny) {
-    message.warning("已经投过币了");
-    return;
-  }
-
-  const prevHasGiven = post.value.hasGivenDenny;
-  const prevDennyCount = post.value.dennyCount ?? 0;
-
-  post.value.hasGivenDenny = true;
-  post.value.dennyCount = prevDennyCount + 1;
-  givingDenny.value = true;
-
-  window.dispatchEvent(new CustomEvent("ik:denny-decrement"));
-
-  try {
-    const result = await api.giveDennyToArticle(post.value.id);
-    if (result?.success) {
-      message.success("投币成功");
-      if (typeof result.articleDennyCount === "number") {
-        post.value.dennyCount = result.articleDennyCount;
-      }
-      if (typeof result.newBalance === "number") {
-        window.dispatchEvent(new CustomEvent("ik:denny-updated", { detail: result.newBalance }));
-      } else {
-        window.dispatchEvent(new CustomEvent("ik:denny-updated"));
-      }
-    } else {
-      throw new Error("投币失败");
-    }
-  } catch (err) {
-    post.value.hasGivenDenny = prevHasGiven;
-    post.value.dennyCount = prevDennyCount;
-    window.dispatchEvent(new CustomEvent("ik:denny-updated"));
-    message.error(resolveErrorMessage(err, "投币失败"));
-  } finally {
-    givingDenny.value = false;
   }
 };
 
@@ -1223,20 +1149,6 @@ onBeforeUnmount(() => {
                         @triple="handleTriple"
                         @charge="onTripleCharge"
                       />
-                      <button
-                        type="button"
-                        class="ik-engage-bar__action"
-                        :class="{ 'ik-engage-bar__action--active': post.hasGivenDenny }"
-                        :disabled="isOwner || post.isAnonymous || givingDenny"
-                        :title="isOwner ? '不能给自己的委托投币' : post.isAnonymous ? '匿名委托无法投币' : '给作者投喂丁尼'"
-                        @click="giveDenny"
-                      >
-                        <span class="ik-triple__icon-shell">
-                          <img src="/images/materials/dennies_v2.webp" class="ik-engage-icon ik-engage-icon--denny" alt="投币" />
-                          <TripleChargeRing :progress="tripleCharge.progress" :show="tripleCharge.active" />
-                        </span>
-                        <IkRollingDigit :value="post.dennyCount ?? 0" fallback="投币" />
-                      </button>
                       <button
                         type="button"
                         class="ik-engage-bar__action"
@@ -2102,28 +2014,6 @@ onBeforeUnmount(() => {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-}
-
-.ik-engage-icon--denny {
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  object-fit: contain;
-  opacity: 0.65;
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.ik-engage-bar__action:hover:not(:disabled) .ik-engage-icon--denny {
-  transform: scale(1.1) rotate(15deg);
-  opacity: 0.9;
-}
-
-.ik-engage-bar__action--active .ik-engage-icon--denny {
-  opacity: 1 !important;
-}
-
-.ik-engage-bar__action:disabled .ik-engage-icon--denny {
-  opacity: 0.3;
 }
 
 .ik-engage-bar__comment-badge {

@@ -21,14 +21,6 @@ export function mihoyoUnbind(): Response {
   return json({ success: true });
 }
 
-// ── 丁尼货币（桩） ──────────────────────────────────
-export function denny(): Response {
-  return json({ denny: 0, dennyGiven: 0, recentLogs: [] });
-}
-export function dennyGive(): Response {
-  return json({ success: true, newBalance: 0, articleDennyCount: 0 });
-}
-
 // ── 签到（桩） ──────────────────────────────────────
 export function checkInStatus(): Response {
   return json({ canCheckIn: false, totalDays: 0, consecutiveDays: 0, rank: 0, nextEligibleAt: null });

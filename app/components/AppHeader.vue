@@ -129,49 +129,6 @@ const expProgressPercent = computed(() => {
   return Math.min(100, (current / needed) * 100);
 });
 
-// 丁尼货币系统 (自定义 Z-Button 按钮风格)
-const api = useApi();
-const dennyBalance = ref(0);
-
-const fetchDennyBalance = async () => {
-  if (!auth.isLogin) return;
-  try {
-    const data = await api.getMyDenny();
-    dennyBalance.value = data.denny;
-  } catch {
-    // 忽略异常
-  }
-};
-
-if (import.meta.client) {
-  watch(
-    () => auth.isLogin,
-    (isLogin) => {
-      if (isLogin) {
-        void fetchDennyBalance();
-      } else {
-        dennyBalance.value = 0;
-      }
-    },
-    { immediate: true },
-  );
-
-  useEventListener(window, "ik:home-refresh", fetchDennyBalance);
-  useEventListener(window, "ik:denny-decrement", () => {
-    if (dennyBalance.value > 0) {
-      dennyBalance.value -= 1;
-    }
-  });
-  useEventListener(window, "ik:denny-updated", (e: any) => {
-    if (typeof e?.detail === "number") {
-      dennyBalance.value = e.detail;
-    } else {
-      void fetchDennyBalance();
-    }
-  });
-}
-
-
 const resolveActiveTab = (path: string): HeaderTabName => {
   if (path.startsWith("/profile")) {
     return "mine";
@@ -259,14 +216,6 @@ watch(
           <div class="ik-level-right">
             <span class="ik-level-number">{{ userLevel }}</span>
             <span class="ik-level-label">LEVEL</span>
-          </div>
-        </div>
-
-        <!-- 丁尼显示（自定义 Z-Button 风格，登录后显示） -->
-        <div v-if="auth.isLogin" class="ik-header-denny" @click="navigateTo(auth.profilePath || '/profile')" title="丁尼余额">
-          <img alt="Dennies" src="/images/materials/dennies_v2.webp" class="ik-header-denny__img" draggable="false" />
-          <div class="ik-header-denny__content">
-            <IkRollingDigit :value="dennyBalance" :min-digits="8" :duration="800" pad-end />
           </div>
         </div>
 
@@ -1321,77 +1270,9 @@ watch(
   line-height: 1;
 }
 
-/* 丁尼显示组件：复刻 z-button--default round 样式 */
-.ik-header-denny {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px 0 8px; /* 左右对调：左侧由于硬币左溢出改收窄至 8px，右侧文字收边放宽至 12px */
-  background-color: #000;
-  
-  /* chessboard 棋盘格纹理背景 */
-  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.06) 75%),
-                    linear-gradient(45deg, rgba(255, 255, 255, 0.06) 25%, transparent 25% 75%, rgba(255, 255, 255, 0.06) 75%);
-  background-position: 0 0, 3px 3px;
-  background-size: 6px 6px;
-  background-repeat: repeat;
-
-  border: 1px solid #000;
-  border-radius: 9999px; /* round 药丸圆角 */
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  margin-left: 12px;
-  transition: transform 0.1s ease;
-}
-
-/* 三层内阴影叠边实现 3D 浮雕质感 */
-.ik-header-denny::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.2), inset 0 0 0 3px #333, inset 0 0 0 4px #000;
-  transition: box-shadow 0.15s ease;
-}
-
-.ik-header-denny:hover::after {
-  /* Hover 态亮起内框：使用项目标准荧光黄绿品牌色 */
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), inset 0 0 0 3px var(--ik-primary), inset 0 0 0 4px #000;
-}
-
-.ik-header-denny:active {
-  transform: scale(0.96); /* 点击反馈 */
-}
-
-.ik-header-denny__content {
-  font-feature-settings: "tnum"; /* 开启 OpenType Tabular Numbers 特征，使非等宽字体强制以等宽数字排列，防止宽度抖动 */
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  line-height: 14px;
-  display: flex;
-  align-items: center;
-  z-index: 1; /* 置于边框阴影之上 */
-}
-
-.ik-header-denny__img {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  display: block;
-  z-index: 1; /* 置于边框阴影之上 */
-  margin-left: -4px; /* 向左打破边界，在左侧营造 3D 越界感 */
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45)); /* 溢出落影 */
-}
-
 /* 响应式断点隐藏 */
 @media (max-width: 1100px) {
-  .ik-level-display,
-  .ik-header-denny {
+  .ik-level-display {
     display: none;
   }
 }

@@ -136,12 +136,7 @@ const doCheckIn = async () => {
       });
     }
 
-    if (result.currentDenny !== undefined) {
-      window.dispatchEvent(new CustomEvent("ik:denny-updated", { detail: result.currentDenny }));
-    }
-
-    const dennyAdded = result.dennyAdded > 0 ? result.dennyAdded : 10;
-    const rewardParts = [`丁尼+${dennyAdded}`];
+    const rewardParts: string[] = [];
     if (result.reward > 0) rewardParts.push(`绳网信用+${result.reward}`);
     const rankText = result.rank > 0 ? `，今日第${result.rank}名` : "";
     const daysText =
