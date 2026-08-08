@@ -39,6 +39,20 @@ const profileId = computed(() => String(route.params.id || ""));
 
 const PROFILE_ARTICLES_MAX = 6;
 
+/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读 */
+const profileTab = ref<"works" | "favorites" | "history">("works");
+
+const profileTabs = computed(() => {
+  const tabs: Array<{ key: "works" | "favorites" | "history"; label: string }> = [
+    { key: "works", label: "发布作品" },
+  ];
+  if (profile.value?.isSelf) {
+    tabs.push({ key: "favorites", label: "收藏夹" });
+    tabs.push({ key: "history", label: "历史阅读" });
+  }
+  return tabs;
+});
+
 const loadProfileArticles = async () => {
   if (articleLoading.value || !articleHasNext.value) return;
   articleLoading.value = true;
@@ -46,7 +60,7 @@ const loadProfileArticles = async () => {
     const page = await api.getProfileArticles(profileId.value, articleCursor.value, PROFILE_ARTICLES_MAX);
     articles.value.push(...page.nodes);
     articleCursor.value = page.endCursor;
-    articleHasNext.value = false;
+    articleHasNext.value = page.hasNextPage;
   } catch (err) {
     message.error(resolveErrorMessage(err, "获取用户帖子失败"));
   } finally {
@@ -331,6 +345,7 @@ const profileTabLabel = useState<string | null>("profileTabLabel", () => null);
 onMounted(async () => {
   loading.value = true;
   loadError.value = false;
+  profileTab.value = "works";
   pageDataLoading.claim();
   try {
     profile.value = await api.getProfile(profileId.value);
@@ -538,9 +553,22 @@ onBeforeUnmount(() => {
       <!-- ── 下半 (帖子区域) ───────────────── -->
       <div class="ik-aframe__content">
 
+      <!-- ── 内容区 Tab 导航 ───────────────── -->
+      <div class="ik-profile-tabs">
+        <button
+          v-for="tab in profileTabs"
+          :key="tab.key"
+          type="button"
+          class="ik-profile-tab"
+          :class="{ 'is-active': profileTab === tab.key }"
+          @click="profileTab = tab.key"
+        >
+          {{ tab.label }}
+        </button>
+      </div>
+
       <!-- ── 发布作品 ────────────────────── -->
-      <section class="ik-profile-section">
-        <h2 class="ik-profile-section__title">发布作品</h2>
+      <section v-if="profileTab === 'works'" class="ik-profile-section">
         <div v-if="profile.isHidden" class="ik-article-grid">
           <div class="ik-article-grid__empty">
             该用户已隐藏个人资料
@@ -574,11 +602,15 @@ onBeforeUnmount(() => {
             </div>
           </template>
         </div>
+        <div v-if="articleHasNext" class="ik-load-more-wrap">
+          <button class="ik-load-more" :disabled="articleLoading" @click="loadProfileArticles">
+            {{ articleLoading ? "加载中..." : "加载更多" }}
+          </button>
+        </div>
       </section>
 
       <!-- ── 收藏夹 ────────────────────────── -->
-      <section v-if="profile.isSelf" class="ik-profile-section">
-        <h2 class="ik-profile-section__title">收藏夹</h2>
+      <section v-else-if="profileTab === 'favorites' && profile.isSelf" class="ik-profile-section">
         <div class="ik-article-grid">
           <template v-if="favoritesLoading && !favorites.length">
             <div v-for="n in 6" :key="n" class="ik-article-grid__item">
@@ -610,8 +642,7 @@ onBeforeUnmount(() => {
       </section>
 
       <!-- ── 历史阅读 ────────────────────────── -->
-      <section v-if="profile.isSelf" class="ik-profile-section">
-        <h2 class="ik-profile-section__title">历史阅读</h2>
+      <section v-else-if="profileTab === 'history' && profile.isSelf" class="ik-profile-section">
         <div class="ik-article-grid">
           <template v-if="historyLoading && !history.length">
             <div v-for="n in 6" :key="n" class="ik-article-grid__item">
@@ -1070,10 +1101,50 @@ onBeforeUnmount(() => {
   animation: ik-spin 0.8s linear infinite;
 }
 
-/* ── Profile Sections (收藏夹 / 历史阅读) ─────── */
+/* ── Profile Sections (发布作品 / 收藏夹 / 历史阅读) ─ */
 .ik-tab-bar :deep(.z-button__content) {
   font-weight: 700;
 }
+
+/* 内容区 Tab 导航（左右切换） */
+.ik-profile-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ik-profile-tabs::-webkit-scrollbar {
+  display: none;
+}
+.ik-profile-tab {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+.ik-profile-tab:hover {
+  color: #fff;
+}
+.ik-profile-tab.is-active {
+  background: var(--ik-primary, #bfff09);
+  color: #0a0a0a;
+}
+
 .ik-profile-section {
   display: flex;
   flex-direction: column;
