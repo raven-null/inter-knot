@@ -48,7 +48,7 @@ const loadProfileArticles = async () => {
     articleCursor.value = page.endCursor;
     articleHasNext.value = false;
   } catch (err) {
-    message.error(resolveErrorMessage(err, "获取用户委托失败"));
+    message.error(resolveErrorMessage(err, "获取用户帖子失败"));
   } finally {
     articleLoading.value = false;
   }
@@ -359,7 +359,7 @@ const profileTitle = computed(() =>
   profile.value?.name ? `${profile.value.name}的主页 - 绳网` : "用户主页 - 绳网",
 );
 const profileDescription = computed(() =>
-  profile.value?.bio || `查看 ${profile.value?.name || "用户"} 在绳网上的委托和评论`,
+  profile.value?.bio || `查看 ${profile.value?.name || "用户"} 在绳网上的帖子和评论`,
 );
 
 useSeoMeta({
@@ -501,7 +501,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- ── A-Frame (包含名片 + 委托) ────────── -->
+      <!-- ── A-Frame (包含名片 + 帖子) ────────── -->
       <div class="ik-aframe">
 
       <!-- ── Profile Banner Card (flush 贴合 A-frame 上边) ─── -->
@@ -578,7 +578,7 @@ onBeforeUnmount(() => {
         </z-pattern>
       </div>
 
-      <!-- ── 下半 (委托区域) ───────────────── -->
+      <!-- ── 下半 (帖子区域) ───────────────── -->
       <div class="ik-aframe__content">
 
       <!-- ── Article Grid ────────────────────────── -->
@@ -829,7 +829,7 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 
-/* ── Banner Card (与委托卡片左右对齐) ──────── */
+/* ── Banner Card (与帖子卡片左右对齐) ──────── */
 .ik-banner-card {
   background: transparent;
   padding: 0;

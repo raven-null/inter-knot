@@ -86,7 +86,7 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
 
-    // ── 帖子 / 委托 ─────────────────────────────────
+    // ── 帖子 / 帖子 ─────────────────────────────────
     case "articles": {
       if (sub === "list" && isGet(req)) return articleRoutes.list(req);
       if (sub === "search" && isGet(req)) return articleRoutes.list(req);

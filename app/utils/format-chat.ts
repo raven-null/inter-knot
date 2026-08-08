@@ -72,7 +72,7 @@ const createRenderer = (withHighlight: boolean): MarkdownIt => {
   });
 
   // 链接：外链自动 target=_blank + rel=noopener nofollow noreferrer；
-  // 站内相对链接（/post/xxx 等）不加 target——由 AiMessageBody 事件委托
+  // 站内相对链接（/post/xxx 等）不加 target——由 AiMessageBody 事件帖子
   // 拦截后走 postModal，保持 SPA 体验。
   // 在 markdown-it 渲染钩子里处理而非 DOMPurify hook，避免与 format-body.ts
   // 注册的全局 hook 顺序耦合。
@@ -198,7 +198,7 @@ function normalizePostLinks(text: string): string {
       if (i % 2 === 1) return part;
       return part
         .replace(POST_LINK_BARE_RE, "[$1]($2)")
-        .replace(POST_BARE_RE, "[查看委托]($1)");
+        .replace(POST_BARE_RE, "[查看帖子]($1)");
     })
     .join("");
 }

@@ -154,13 +154,13 @@ onMounted(load);
           <dt style="color: #9a9a9a">等级</dt><dd style="margin: 0">Lv.{{ current.level }}（经验 {{ current.exp }}）</dd>
           <dt style="color: #9a9a9a">注册时间</dt><dd style="margin: 0">{{ new Date(current.createdAt).toLocaleString() }}</dd>
         </dl>
-        <h4 style="margin: 0 0 8px; font-size: 13px">最近委托</h4>
+        <h4 style="margin: 0 0 8px; font-size: 13px">最近帖子</h4>
         <ul v-if="currentPosts.length" style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px">
           <li v-for="p in currentPosts" :key="p.id">
             <NuxtLink :to="`/post/${p.id}`" style="color: #e8e8e8; text-decoration: none; font-size: 13px">{{ p.title }}</NuxtLink>
           </li>
         </ul>
-        <div v-else style="color: #666; font-size: 12px">暂无委托</div>
+        <div v-else style="color: #666; font-size: 12px">暂无帖子</div>
       </template>
     </AdminDrawer>
   </div>

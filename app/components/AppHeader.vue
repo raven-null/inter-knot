@@ -317,7 +317,7 @@ watch(
                 fill="currentColor"
               />
             </svg>
-            <span class="ik-header-tab__content">委托</span>
+            <span class="ik-header-tab__content">发布</span>
           </button>
 
           <button

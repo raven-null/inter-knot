@@ -65,7 +65,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="ik-overlay" @mousedown.self="handleOverlayClick">
-    <!-- 斜线纹理背景（与委托弹窗一致） -->
+    <!-- 斜线纹理背景（与帖子弹窗一致） -->
     <div class="ik-overlay__stripe" aria-hidden="true"></div>
 
     <!-- 弹窗主体 -->
@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
                     <span>签到<em class="ik-checkin-help__rule-once">每日</em><em v-if="dailyExpStatus?.sources?.checkIn?.done" class="ik-checkin-help__rule-done">已获取</em></span><strong>+6 ~ +10</strong>
                   </div>
                   <div class="ik-checkin-help__rule-item">
-                    <span>委托<em class="ik-checkin-help__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createArticle?.done" class="ik-checkin-help__rule-done">已获取</em></span><strong>+4</strong>
+                    <span>帖子<em class="ik-checkin-help__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createArticle?.done" class="ik-checkin-help__rule-done">已获取</em></span><strong>+4</strong>
                   </div>
                   <div class="ik-checkin-help__rule-item">
                     <span>评论<em class="ik-checkin-help__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createComment?.done" class="ik-checkin-help__rule-done">已获取</em></span><strong>+3</strong>
@@ -144,7 +144,7 @@ onBeforeUnmount(() => {
               <section class="ik-checkin-help__block">
                 <h3 class="ik-checkin-help__heading">丁尼</h3>
                 <p>丁尼是站内流通货币，存放于你的丁尼余额中。每日签到会发放 <strong>10 丁尼</strong>（与绳网信用一并到账）。</p>
-                <p>你可以将丁尼投给喜欢的委托以支持作者：投币会消耗你的余额，委托会累计显示收到的丁尼数量。</p>
+                <p>你可以将丁尼投给喜欢的帖子以支持作者：投币会消耗你的余额，帖子会累计显示收到的丁尼数量。</p>
               </section>
 
               <p
@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
   );
 }
 
-/* ── Dialog Shell（紧凑尺寸，外壳与委托弹窗一致） ── */
+/* ── Dialog Shell（紧凑尺寸，外壳与帖子弹窗一致） ── */
 .ik-dialog {
   position: relative;
   width: 520px;

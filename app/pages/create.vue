@@ -44,7 +44,7 @@ const pendingPost = usePendingPost();
 const { articleMaxImages: maxCoverImages, articleMaxBody: maxBodyChars } = useBenefits();
 
 useSeoMeta({
-  title: "发布委托 - 绳网",
+  title: "发布帖子 - 绳网",
   robots: "noindex, nofollow",
 });
 
@@ -64,7 +64,7 @@ const isPublishing = ref(false);
 const isDeletingDraft = ref(false);
 const isDiscardingChanges = ref(false);
 const hasUnsavedChanges = ref(false);
-// 编辑已发布委托模式：自动保存仍写 draft 版本，点「更新委托」后重新发布。
+// 编辑已发布帖子模式：自动保存仍写 draft 版本，点「更新帖子」后重新发布。
 const isEditingPublished = ref(false);
 const isAnonymous = ref(false);
 const showImagePickerModal = ref(false);
@@ -85,14 +85,14 @@ function onMediaLeave(type: "image" | "video") {
   if (hoveredMediaType.value === type) hoveredMediaType.value = null;
 }
 
-/* ── 委托分类（频道）：发布委托必选，默认兜底「综合」 ── */
+/* ── 帖子分类（频道）：发布帖子必选，默认兜底「综合」 ── */
 const DEFAULT_CATEGORY_SLUG = "general";
 const categories = ref<Category[]>([]);
 const selectedCategory = ref<string>(DEFAULT_CATEGORY_SLUG);
 // 频道列表是否仍在首次加载：用于在无缓存冷启动时渲染占位标签预留高度，
 // 避免列表后到把正文区往下挤导致页面跳动。
 const categoriesLoading = ref(true);
-// 仅管理员可发布委托的分区，对非管理员隐藏（后端发布委托时同样会拦截，前端只是不展示入口）。
+// 仅管理员可发布帖子的分区，对非管理员隐藏（后端发布帖子时同样会拦截，前端只是不展示入口）。
 const visibleCategories = computed(() =>
   categories.value.filter((c) => !c.adminOnly || auth.user?.isAdmin === true),
 );
@@ -273,7 +273,7 @@ async function onVideoDialogConfirm(raw: string) {
 
 function openVideoDialog() {
   if (uploadTasks.value.length > 0) {
-    message.error("已上传图片的委托不能再添加视频");
+    message.error("已上传图片的帖子不能再添加视频");
     return;
   }
   isVideoDialogVisible.value = true;
@@ -343,7 +343,7 @@ const performSaveDraft = async (force = false) => {
       documentId.value = result.documentId;
     }
 
-    // 同步左侧草稿列表（已发布委托的 draft 版本不进草稿箱）
+    // 同步左侧草稿列表（已发布帖子的 draft 版本不进草稿箱）
     if (result.documentId && !isEditingPublished.value) {
       const idx = drafts.value.findIndex(
         (d) => d.documentId === result.documentId,
@@ -575,14 +575,14 @@ async function publish() {
     }
 
     if (isEditingPublished.value) {
-      // 编辑重发：回到委托详情页查看更新后的内容。
+      // 编辑重发：回到帖子详情页查看更新后的内容。
       const editedId = documentId.value;
-      message.success("委托已更新");
+      message.success("帖子已更新");
       router.replace(`/post/${editedId}`);
       return;
     }
 
-    // 乐观插入：fire-and-forget 拉取刚发布的委托详情塞进 pending 队列，
+    // 乐观插入：fire-and-forget 拉取刚发布的帖子详情塞进 pending 队列，
     // 不阻塞跳转——usePendingPost 是响应式 ref，首页 watch 队列即可消费
     // 迟到的 push（可能晚于 onMounted 才到达）。拉取失败时首页正常列表加载兜底。
     const draftId = documentId.value;
@@ -694,7 +694,7 @@ function onMobileSelectCategory(slug: string) {
 function onMenuChange(name: string | number) {
   const key = String(name);
   if (key === EDITING_KEY) {
-    // 编辑已发布委托时该项即当前项，点击不应重置编辑器
+    // 编辑已发布帖子时该项即当前项，点击不应重置编辑器
     if (documentId.value && !isEditingPublished.value) newDraft();
     return;
   }
@@ -956,14 +956,14 @@ async function loadCategories() {
     if (list.length) {
       categories.value = list;
       // 默认选中无效（如默认分类被下架，或非管理员落在仅管理员分区）时
-      // 回落到可见列表首项，保证发布委托必选且不会停留在不可发布委托的分区。
+      // 回落到可见列表首项，保证发布帖子必选且不会停留在不可发布帖子的分区。
       const selectable = visibleCategories.value;
       if (selectable.length && !selectable.some((c) => c.slug === selectedCategory.value)) {
         selectedCategory.value = selectable[0]!.slug;
       }
     }
   } catch {
-    // 拉取失败不阻塞发布委托：仍以默认分类兜底（后端同样会兜底「综合」）。
+    // 拉取失败不阻塞发布帖子：仍以默认分类兜底（后端同样会兜底「综合」）。
   } finally {
     categoriesLoading.value = false;
   }
@@ -975,7 +975,7 @@ async function loadEditTarget(id: string) {
     const detail = await api.getMyDraftDetail(id);
     applyDraftToEditor(detail);
   } catch (err) {
-    message.error(resolveErrorMessage(err, "加载委托失败"));
+    message.error(resolveErrorMessage(err, "加载帖子失败"));
   }
 }
 
@@ -993,12 +993,12 @@ if (import.meta.client) {
 
 <template>
   <section class="ik-create-page" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
-    <!-- 未通过入站考试：禁止发布委托，引导去考试页 -->
+    <!-- 未通过入站考试：禁止发布帖子，引导去考试页 -->
     <div v-if="auth.needExam" class="ik-create-exam-gate">
       <div class="ik-create-exam-gate__panel">
         <div class="ik-create-exam-gate__card">
           <h2>需要先通过入站考试</h2>
-          <p>通过入站考试后即可解锁发布委托、评论等功能。</p>
+          <p>通过入站考试后即可解锁发布帖子、评论等功能。</p>
           <NuxtLink to="/exam" class="ik-create-exam-gate__btn">前往考试</NuxtLink>
         </div>
       </div>
@@ -1028,10 +1028,10 @@ if (import.meta.client) {
             <div class="ik-nav-item__content">
               <span class="ik-nav-item__title">
                 <span class="ik-nav-item__editing-arrow">▶</span>
-                {{ isEditingPublished ? (title.trim() || "编辑委托") : documentId ? "编辑新委托" : (title.trim() || "编辑委托") }}
+                {{ isEditingPublished ? (title.trim() || "编辑帖子") : documentId ? "编辑新帖子" : (title.trim() || "编辑帖子") }}
               </span>
-              <span v-if="isEditingPublished" class="ik-nav-item__meta">正在编辑已发布的委托</span>
-              <span v-else-if="documentId" class="ik-nav-item__meta">点击开始编辑新委托</span>
+              <span v-if="isEditingPublished" class="ik-nav-item__meta">正在编辑已发布的帖子</span>
+              <span v-else-if="documentId" class="ik-nav-item__meta">点击开始编辑新帖子</span>
             </div>
           </z-menu-item>
 
@@ -1080,12 +1080,12 @@ if (import.meta.client) {
             <span class="ik-create-section__count">{{ editorTitleCount }}/200</span>
           </div>
 
-          <!-- Category section（发布委托必选频道）
+          <!-- Category section（发布帖子必选频道）
                加载中即渲染占位标签，为分类栏预留高度，避免列表后到挤压正文导致跳动 -->
           <div v-if="categoriesLoading || visibleCategories.length" class="ik-create-section">
             <div class="ik-create-section__head">
               <span class="ik-create-section__label">分类</span>
-              <span class="ik-create-section__hint">选择委托所属频道</span>
+              <span class="ik-create-section__hint">选择帖子所属频道</span>
             </div>
             <div class="ik-create-category-chips">
               <template v-if="visibleCategories.length">
@@ -1284,7 +1284,7 @@ if (import.meta.client) {
             :disabled="!canPublish"
             @click="publish"
           >
-            {{ isPublishing ? (isEditingPublished ? "更新中..." : "发布中...") : isEditingPublished ? "更新委托" : "发布委托" }}
+            {{ isPublishing ? (isEditingPublished ? "更新中..." : "发布中...") : isEditingPublished ? "更新帖子" : "发布帖子" }}
           </z-button>
         </div>
       </div>
@@ -1462,7 +1462,7 @@ if (import.meta.client) {
         @click="isMobileSettingsOpen = true"
       >
         <Cog6ToothIcon class="ik-mobile-row__icon" />
-        <span class="ik-mobile-row__title">委托设置</span>
+        <span class="ik-mobile-row__title">帖子设置</span>
         <ChevronRightIcon class="ik-mobile-row__chevron" />
       </button>
     </div>
@@ -1525,9 +1525,9 @@ if (import.meta.client) {
               >
                 <PlusCircleIcon class="ik-mobile-draft-row__icon" />
                 <div class="ik-mobile-draft-row__content">
-                  <span class="ik-mobile-draft-row__title">编辑新委托</span>
+                  <span class="ik-mobile-draft-row__title">编辑新帖子</span>
                   <span class="ik-mobile-draft-row__meta">
-                    {{ documentId ? "点击开始编辑新委托" : "当前正在编辑" }}
+                    {{ documentId ? "点击开始编辑新帖子" : "当前正在编辑" }}
                   </span>
                 </div>
               </button>
@@ -1592,7 +1592,7 @@ if (import.meta.client) {
         >
           <div class="ik-mobile-sheet__panel">
             <div class="ik-mobile-sheet__handle"></div>
-            <span class="ik-mobile-sheet__title">委托设置</span>
+            <span class="ik-mobile-sheet__title">帖子设置</span>
             <div class="ik-mobile-sheet__body ik-mobile-sheet__body--compact">
               <label class="ik-mobile-settings-row ik-mobile-settings-row--toggle">
                 <EyeSlashIcon class="ik-mobile-settings-row__icon" />
@@ -1687,7 +1687,7 @@ if (import.meta.client) {
 
 <style scoped>
 /* ═══════════════════════════════════════════════
-   Create Post Page – ZZZ "发布委托" Layout
+   Create Post Page – ZZZ "发布帖子" Layout
    ═══════════════════════════════════════════════ */
 .ik-create-page {
   position: relative;

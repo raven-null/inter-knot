@@ -52,7 +52,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="ik-overlay" @mousedown.self="handleOverlayClick">
-    <!-- 斜线纹理背景（与委托弹窗一致） -->
+    <!-- 斜线纹理背景（与帖子弹窗一致） -->
     <div class="ik-overlay__stripe" aria-hidden="true"></div>
 
     <!-- 弹窗主体 -->
@@ -71,7 +71,7 @@ onBeforeUnmount(() => {
           <div class="ik-dialog__body">
             <div class="ik-benefits__panel">
               <p class="ik-benefits__lead">
-                当前 <strong>Lv.{{ level }}</strong> · {{ levelTitle }}。等级越高，可发布的<strong>图片数量</strong>与<strong>正文字数</strong>上限越高；未通过入站考试（<strong>Lv.0</strong>）暂无法发布委托与评论。
+                当前 <strong>Lv.{{ level }}</strong> · {{ levelTitle }}。等级越高，可发布的<strong>图片数量</strong>与<strong>正文字数</strong>上限越高；未通过入站考试（<strong>Lv.0</strong>）暂无法发布帖子与评论。
               </p>
 
               <div class="ik-benefits__table">

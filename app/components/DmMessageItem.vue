@@ -209,7 +209,7 @@ const messageSegments = computed((): string[] | null => {
         <template v-else>{{ entry.rendered }}</template>
         <span v-if="entry.msg.editedAt && !entry.msg.deletedAt" class="ik-knock__msg-edited">(已编辑)</span>
       </div>
-      <!-- 通知 quote 卡：点击跳到关联委托（postModal） -->
+      <!-- 通知 quote 卡：点击跳到关联帖子（postModal） -->
       <button
         v-if="entry.quote"
         type="button"
@@ -473,7 +473,7 @@ const messageSegments = computed((): string[] | null => {
   30% { transform: translateY(-4px); opacity: 1; }
 }
 
-/* 引用委托卡片：与正常 DM 区分，hint 标签 + 标题 + 文档图标 */
+/* 引用帖子卡片：与正常 DM 区分，hint 标签 + 标题 + 文档图标 */
 .ik-knock__msg-quote {
   display: inline-flex;
   align-items: center;

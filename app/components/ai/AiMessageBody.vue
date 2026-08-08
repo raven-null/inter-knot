@@ -113,7 +113,7 @@ const copyText = async (text: string): Promise<boolean> => {
 };
 
 /**
- * 事件委托：v-html 内容无法绑定 Vue 事件，统一在根节点分发。
+ * 事件帖子：v-html 内容无法绑定 Vue 事件，统一在根节点分发。
  * - 复制按钮 → 复制相邻 <pre> 的纯文本
  * - /post/xxx 链接 → postModal（emit）
  * - 其它站内链接 → SPA 导航

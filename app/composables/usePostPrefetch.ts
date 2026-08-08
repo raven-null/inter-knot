@@ -1,5 +1,5 @@
 /**
- * 委托预取
+ * 帖子预取
  *
  * - 鼠标停留一小段时间后再拉取，避免快速划过
  * - 页面滚动中 / 刚停滚的冷却期内不预取，并取消已排队的定时器
@@ -46,7 +46,7 @@ export function usePostPrefetch() {
 
   const prefetchPost = (id: string) => {
     if (!import.meta.client || !id) return;
-    // 只预取委托详情；评论列表在弹窗/页面进入时强制拉取，避免旧缓存被预取污染
+    // 只预取帖子详情；评论列表在弹窗/页面进入时强制拉取，避免旧缓存被预取污染
     void api.getPost(id).catch(() => {});
   };
 

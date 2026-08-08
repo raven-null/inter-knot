@@ -129,7 +129,7 @@ const cachedMeasuredHeights = shallowRef<Map<string | number, number> | undefine
 const loadMoreSentinelRef = ref<HTMLElement | null>(null);
 const loadMoreObserverRef = shallowRef<IntersectionObserver | null>(null);
 
-// ── 后台轮询：检测有无新委托（仅在无搜索关键词时启用） ─────────
+// ── 后台轮询：检测有无新帖子（仅在无搜索关键词时启用） ─────────
 const NEW_ARTICLES_POLL_MS = 60_000;
 const newArticleIds = shallowRef<string[]>([]);
 const hasNewArticles = computed(() => newArticleIds.value.length > 0);
@@ -327,7 +327,7 @@ const fetchList = async (reset = false) => {
     // 缓存命中路径下，scrollToTopAfterReset 不再需要（避免破坏用户期望的滚动位置）
     if (!cacheHit) await scrollToTopAfterReset(reset);
   } catch (err) {
-    message.error(resolveErrorMessage(err, "获取委托失败"));
+    message.error(resolveErrorMessage(err, "获取帖子失败"));
   } finally {
     loading.value = false;
     loadingMore.value = false;
@@ -404,7 +404,7 @@ const handleRefresh = async () => {
   // 用户明确下拉刷新：跳过 staleTime 缓存，强制重拉最新首页列表
   api.invalidateQueries(["articles", "search"]);
   await fetchList(true);
-  // 刷新后清掉"新委托提示"
+  // 刷新后清掉"新帖子提示"
   newArticleIds.value = [];
   await minDelay;
   refreshing.value = false;
@@ -412,7 +412,7 @@ const handleRefresh = async () => {
 
 // 工具栏右侧常驻搜索框由 HomeSearchBar 组件提供
 
-// ── 后台静默轮询：比对最新一页与本地 list 的差集，检测有无新委托 ────
+// ── 后台静默轮询：比对最新一页与本地 list 的差集，检测有无新帖子 ────
 const pollLatestArticles = async () => {
   // 仅在推荐流（无搜索词、非关注/收藏）下做轮询
   if (feedMode.value !== "recommend") return;
@@ -435,9 +435,9 @@ const pollLatestArticles = async () => {
     for (const node of page.nodes) {
       if (!node.id) continue;
       // 收集第一页中所有本地未知的 id。
-      // 不能在遇到第一个已知 id 时 break：推荐流顶部会注入热门委托（按热度排序，
-      // 非时间序），这些热门委托已在初始加载时进入 list，若 break 会导致新委托
-      // （排在热门委托之后的普通区）永远检测不到。
+      // 不能在遇到第一个已知 id 时 break：推荐流顶部会注入热门帖子（按热度排序，
+      // 非时间序），这些热门帖子已在初始加载时进入 list，若 break 会导致新帖子
+      // （排在热门帖子之后的普通区）永远检测不到。
       if (!knownIds.has(node.id)) fresh.push(node.id);
     }
     if (fresh.length) {
@@ -530,7 +530,7 @@ const debouncedSearch = useDebounceFn(() => fetchList(true), 300);
 watch(
   () => query.value,
   (q) => {
-    // 切换到搜索时清掉"新委托提示"，搜索流不轮询
+    // 切换到搜索时清掉"新帖子提示"，搜索流不轮询
     newArticleIds.value = [];
     // 输入搜索词时回到推荐流（关注/收藏不支持文本搜索）。
     // feedMode 变化会触发其 watcher 重拉，避免与 debouncedSearch 重复，这里提前 return。
@@ -568,7 +568,7 @@ const selectCategory = (slug: string) => {
 // 缓存恢复时同步 feedMode 会触发下面的 watcher；用此标记跳过那次重拉。
 let skipFeedWatch = false;
 
-// 切换频道或 feed：清空"新委托提示"、重置分页并强制失效缓存后重拉首屏，
+// 切换频道或 feed：清空"新帖子提示"、重置分页并强制失效缓存后重拉首屏，
 // 确保即使命中旧缓存也会真正打到后端、列表随频道/feed 刷新。
 // 合并 feedMode + selectedCategory 为单个 watcher：切 feed 时常会同时改这两个值
 // （见 selectFeed / selectCategory），合并后同一 flush 周期只触发一次，避免两个独立
@@ -614,16 +614,16 @@ watch(
 const cached = homeStateCache.restore();
 let initialFetchPromise: Promise<void>;
 
-// 乐观插入：消费 /create 发布后塞入的 pending 队列，把刚发布的委托
+// 乐观插入：消费 /create 发布后塞入的 pending 队列，把刚发布的帖子
 // unshift 到 list 头部并加入 seenIds，避免后续 fetch 返回相同 id 时被去重逻辑过滤掉。
-// 搜索流 / 关注 / 收藏 feed 下不插入，避免污染这些列表（新委托既未被收藏也未必来自关注作者）。
+// 搜索流 / 关注 / 收藏 feed 下不插入，避免污染这些列表（新帖子既未被收藏也未必来自关注作者）。
 // drain 仅在真正会写入 list 时调用，不能在冷启动 fetchList 之前就 drain——fetchList 会重置 seenIds 和 list。
 const consumePendingPosts = () => {
   if (feedMode.value !== "recommend") return;
   if (query.value.trim()) return;
   if (!pendingPost.peek().length) return;
   const pending = pendingPost.drain();
-  // 反转后再 unshift：保证 push 顺序最晚的委托排在最顶部
+  // 反转后再 unshift：保证 push 顺序最晚的帖子排在最顶部
   const fresh: Post[] = [];
   for (const post of pending) {
     if (!post.id || seenIds.has(post.id)) continue;
@@ -650,7 +650,7 @@ if (cached && cached.query === query.value && cached.category === selectedCatego
   // scrollY 由 router.options.ts 的 scrollBehavior 通过 consumeScrollY() 独立消费
   homeStateCache.clear();
   initialFetchPromise = Promise.resolve();
-  // 缓存命中：list 已就绪，立即消费 pending 队列，首帧渲染即可看到刚发的委托
+  // 缓存命中：list 已就绪，立即消费 pending 队列，首帧渲染即可看到刚发的帖子
   consumePendingPosts();
 } else {
   homeStateCache.clear();
@@ -752,7 +752,7 @@ const onTouchCancel = () => {
   pullTriggered.value = false;
 };
 
-// 乐观删除：委托详情页/弹窗删除成功后，从首页列表中移除
+// 乐观删除：帖子详情页/弹窗删除成功后，从首页列表中移除
 const onArticleDeleted = (e: Event) => {
   const deletedId = (e as CustomEvent<string>).detail;
   if (!deletedId) return;
@@ -773,7 +773,7 @@ onMounted(async () => {
   // 注册 pending 队列 watch（immediate=true）：
   //   - 冷启动：fetchList 刚填好 list，immediate 触发立即消费当前 pending；
   //   - 迟到 push：/create 的 fire-and-forget getPost 可能晚于此点解析，
-  //     watch 会在 push 时再次触发消费，避免乐观委托被丢；
+  //     watch 会在 push 时再次触发消费，避免乐观帖子被丢；
   //   - 缓存命中路径下队列已在 setup 中 drain，immediate 触发是 no-op。
   stopPendingWatch = watch(
     pendingPost.queue,
@@ -843,7 +843,7 @@ onBeforeUnmount(() => {
       <!-- 频道 Tab 条：按 order 展示，「最新」恒在最前。
            恒渲染（不随 categories 异步加载出现/消失），为分类栏预留固定高度，
            避免无缓存冷启动时频道列表后到导致下方内容跳动。 -->
-      <nav class="ik-category-tabs" aria-label="委托频道">
+      <nav class="ik-category-tabs" aria-label="帖子频道">
         <button
           type="button"
           class="ik-category-tab"
@@ -898,7 +898,7 @@ onBeforeUnmount(() => {
       </div>
     </Transition>
 
-    <!-- New articles toast: 后台轮询发现新委托时弹出 -->
+    <!-- New articles toast: 后台轮询发现新帖子时弹出 -->
     <Transition name="ik-new-articles-pill">
       <button
         v-if="hasNewArticles && !refreshing"
@@ -922,7 +922,7 @@ onBeforeUnmount(() => {
           aria-live="polite"
           aria-busy="true"
         >
-          <span class="ik-sr-only">正在加载委托...</span>
+          <span class="ik-sr-only">正在加载帖子...</span>
           <VirtualMasonry
             class="ik-masonry"
             :items="skeletonItems"
@@ -941,7 +941,7 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- 空状态：loading=false 且 list 为空时显示 -->
-        <div v-else-if="!list.length && !loading" key="empty" class="ik-empty">暂无相关委托... [ o_x ]/</div>
+        <div v-else-if="!list.length && !loading" key="empty" class="ik-empty">暂无相关帖子... [ o_x ]/</div>
 
         <!-- 实际内容：list 不为空时显示 -->
         <div v-else key="list" class="ik-list-state">
@@ -986,7 +986,7 @@ onBeforeUnmount(() => {
       type="button"
       class="ik-refresh-fab"
       :class="{ 'is-loading': refreshing }"
-      :aria-label="presenceOnline > 0 ? `刷新委托，${presenceOnline} 人在线` : '刷新委托'"
+      :aria-label="presenceOnline > 0 ? `刷新帖子，${presenceOnline} 人在线` : '刷新帖子'"
       @click="handleRefresh"
     >
       <span v-if="presenceOnline > 0" class="ik-refresh-fab__online" aria-hidden="true">
@@ -1413,7 +1413,7 @@ onBeforeUnmount(() => {
   }
 }
 
-/* ── 新委托提示药丸按钮 ───────────────────────── */
+/* ── 新帖子提示药丸按钮 ───────────────────────── */
 .ik-new-articles-pill {
   position: fixed;
   top: calc(78px + 12px);

@@ -3,7 +3,7 @@
     <div class="app-footer__inner">
       <div class="app-footer__brand">
         <span class="app-footer__logo">InterKnot</span>
-        <span class="app-footer__copy">&copy; {{ year }} 新艾利都最大的匿名委托中枢。</span>
+        <span class="app-footer__copy">&copy; {{ year }} 新艾利都最大的匿名帖子中枢。</span>
       </div>
 
       <div class="app-footer__links">

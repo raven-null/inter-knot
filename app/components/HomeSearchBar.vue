@@ -89,8 +89,8 @@ watch(
         v-model="keyword"
         class="ik-home-searchbox__input"
         type="text"
-        placeholder="搜索委托…"
-        aria-label="搜索委托"
+        placeholder="搜索帖子…"
+        aria-label="搜索帖子"
         @input="onInput"
         @keydown="onKeydown"
       />

@@ -1,4 +1,4 @@
-/** 帖子/委托相关路由（基于 Netlify Blobs） */
+/** 帖子/帖子相关路由（基于 Netlify Blobs） */
 
 import { genId, getJson, setJson, del, exists, listKeys, postKey, categoryKey, userKey, likeKey, favoriteKey, readKey, KEYS } from "../storage";
 import { getFeed, feedAdd, feedRemove, feedUpdate, bumpStats, getUser, updateUserStats } from "../feed";
@@ -176,13 +176,13 @@ export async function detail(req: Request): Promise<Response> {
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const viewer = await resolveUser(req);
   const doc = await getPostDoc(id);
-  if (!doc || doc.status === "deleted") return notFound("委托不存在");
+  if (!doc || doc.status === "deleted") return notFound("帖子不存在");
   if (doc.status !== "published" && doc.status !== "pending") {
     const isOwner = viewer != null && String(doc.author_document_id) === viewer.userId;
-    if (!isOwner && viewer?.role !== "admin") return notFound("委托不存在");
+    if (!isOwner && viewer?.role !== "admin") return notFound("帖子不存在");
   }
   if (doc.is_hidden === true && viewer?.role !== "admin" && String(doc.author_document_id) !== viewer?.userId) {
-    return notFound("委托不存在");
+    return notFound("帖子不存在");
   }
   const state = await viewerState(viewer, [id]);
   const views = Number(doc.views || 0) + 1;
@@ -330,7 +330,7 @@ export async function remove(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const doc = await getPostDoc(id);
-  if (!doc) return notFound("委托不存在");
+  if (!doc) return notFound("帖子不存在");
   const isOwner = String(doc.author_document_id) === viewer.userId;
 
   if (doc.status === "draft") {
@@ -379,7 +379,7 @@ export async function triple(req: Request): Promise<Response> {
   const { articleId } = await readJson<{ articleId?: string }>(req);
   if (!articleId) return badRequest("缺少参数");
   const doc = await getPostDoc(articleId);
-  if (!doc) return notFound("委托不存在");
+  if (!doc) return notFound("帖子不存在");
 
   let liked = await exists(likeKey(viewer.userId, "article", articleId));
   if (!liked) {

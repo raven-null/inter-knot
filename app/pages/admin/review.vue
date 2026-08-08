@@ -31,7 +31,7 @@ const approve = async (p: any) => {
 };
 
 const reject = async (p: any) => {
-  if (!window.confirm(`驳回委托「${p.title}」？将退回作者草稿箱。`)) return;
+  if (!window.confirm(`驳回帖子「${p.title}」？将退回作者草稿箱。`)) return;
   processing.value = p.documentId;
   try {
     await admin.updatePost(p.documentId, { status: "draft" });
@@ -43,7 +43,7 @@ const reject = async (p: any) => {
 
 const approveAll = async () => {
   if (!list.value.length) return;
-  if (!window.confirm(`通过本页全部 ${list.value.length} 条待审委托？`)) return;
+  if (!window.confirm(`通过本页全部 ${list.value.length} 条待审帖子？`)) return;
   for (const p of list.value) {
     await admin.updatePost(p.documentId, { status: "published" });
   }
@@ -69,7 +69,7 @@ onMounted(load);
 
     <AdminCard>
       <div v-if="loading" class="ik-admin-loading">加载中…</div>
-      <div v-else-if="!list.length" class="ik-admin-empty">没有待审核的委托 🎉</div>
+      <div v-else-if="!list.length" class="ik-admin-empty">没有待审核的帖子 🎉</div>
       <ul v-else class="ik-admin-review">
         <li v-for="p in list" :key="p.documentId" class="ik-admin-review__item">
           <div class="ik-admin-review__main">

@@ -92,7 +92,7 @@ const showCommentsSkeleton = computed(() => {
 });
 const showCommentsEmpty = computed(() => comments.value.length === 0 && commentsLoaded.value && !commentsLoading.value);
 
-// 用于在 postId 切换时废弃旧的评论请求，避免旧数据污染新委托
+// 用于在 postId 切换时废弃旧的评论请求，避免旧数据污染新帖子
 let currentCommentLoadId = 0;
 // 组件卸载时阻止继续加载评论
 let isCommentLoadingCancelled = false;
@@ -356,7 +356,7 @@ const onCoverWheel = (e: WheelEvent) => {
   if (parent) parent.scrollTop += e.deltaX;
 };
 
-// 切换委托时重置封面索引并将轮播滚回起点
+// 切换帖子时重置封面索引并将轮播滚回起点
 watch(() => props.postId, () => {
   coverIndex.value = 0;
   resetLoadWindow();
@@ -383,7 +383,7 @@ const loadPost = async () => {
     }
   } catch (err) {
     loadError.value = true;
-    message.error(resolveErrorMessage(err, "获取委托详情失败"));
+    message.error(resolveErrorMessage(err, "获取帖子详情失败"));
   }
 };
 
@@ -460,7 +460,7 @@ const { seek, highlightedCommentId } = useCommentSeek({
   commentsVisible,
 });
 
-// 同委托切换 commentId（如从通知再打开同一篇委托的另一条评论）时重新定位
+// 同帖子切换 commentId（如从通知再打开同一篇帖子的另一条评论）时重新定位
 watch(targetCommentId, () => {
   if (targetCommentId.value && post.value) {
     void seek();
@@ -732,17 +732,17 @@ const deletingArticle = ref(false);
 
 const handleDeleteArticle = async () => {
   if (!post.value?.id) return;
-  const ok = await confirmDialog.open({ title: "删除委托", message: "确定删除这篇委托吗？此操作不可恢复。（10丁尼）", confirmText: "删除", danger: true });
+  const ok = await confirmDialog.open({ title: "删除帖子", message: "确定删除这篇帖子吗？此操作不可恢复。（10丁尼）", confirmText: "删除", danger: true });
   if (!ok) return;
   deletingArticle.value = true;
   try {
     const deletedId = post.value.id;
     await api.deleteArticle(deletedId);
-    message.success("委托已删除");
+    message.success("帖子已删除");
     window.dispatchEvent(new CustomEvent("ik:article-deleted", { detail: deletedId }));
     emit("close");
   } catch (err) {
-    message.error(resolveErrorMessage(err, "删除委托失败"));
+    message.error(resolveErrorMessage(err, "删除帖子失败"));
   } finally {
     deletingArticle.value = false;
   }
@@ -772,7 +772,7 @@ const handleReportArticle = () => {
     loginDialog.open();
     return;
   }
-  reportDialog.open({ targetType: "article", targetId: post.value.id, targetLabel: "委托" });
+  reportDialog.open({ targetType: "article", targetId: post.value.id, targetLabel: "帖子" });
 };
 
 const handleReportComment = (comment: Comment) => {
@@ -1349,7 +1349,7 @@ onBeforeUnmount(() => {
                     <div class="ik-dialog__detail">
                       <div v-if="post.isHidden" class="ik-dialog__hidden-banner" role="alert">
                         <EyeSlashIcon class="ik-dialog__hidden-icon" aria-hidden="true" />
-                        <span>该委托因收到举报已被隐藏，仅你自己可见。如有异议请联系管理员。</span>
+                        <span>该帖子因收到举报已被隐藏，仅你自己可见。如有异议请联系管理员。</span>
                       </div>
                       <h1 class="ik-dialog__title">
                         <span v-if="post.category" class="ik-dialog__title-cat">[ {{ post.category.name }} ]</span>{{ post.title }}
@@ -1530,9 +1530,9 @@ onBeforeUnmount(() => {
                                 <EllipsisVerticalIcon class="ik-engage-icon" aria-hidden="true" />
                               </button>
                               <template #dropdown>
-                                <z-dropdown-item command="report" :disabled="isOwner">举报委托</z-dropdown-item>
-                                <z-dropdown-item command="edit" :disabled="!isOwner">编辑委托</z-dropdown-item>
-                                <z-dropdown-item command="delete" :disabled="!isOwner || deletingArticle">删除委托</z-dropdown-item>
+                                <z-dropdown-item command="report" :disabled="isOwner">举报帖子</z-dropdown-item>
+                                <z-dropdown-item command="edit" :disabled="!isOwner">编辑帖子</z-dropdown-item>
+                                <z-dropdown-item command="delete" :disabled="!isOwner || deletingArticle">删除帖子</z-dropdown-item>
                               </template>
                             </z-dropdown>
                           </div>

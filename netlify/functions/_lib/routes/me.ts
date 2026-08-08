@@ -148,7 +148,7 @@ export async function uploadCustomAvatar(req: Request): Promise<Response> {
   return json({ avatar: { url } });
 }
 
-// ── 精选委托（简化：返回空） ─────────────────────────
+// ── 精选帖子（简化：返回空） ─────────────────────────
 export async function pinnedArticles(): Promise<Response> {
   return json({ pinned: null, candidates: [], max: 6 });
 }

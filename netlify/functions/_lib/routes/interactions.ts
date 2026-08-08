@@ -69,7 +69,7 @@ export async function toggleFavorite(req: Request): Promise<Response> {
   const { targetId } = await readJson<{ targetId?: string }>(req);
   if (!targetId) return badRequest("缺少参数");
   const doc = await getJson<Doc>(postKey(targetId));
-  if (!doc) return notFound("委托不存在");
+  if (!doc) return notFound("帖子不存在");
 
   const key = favoriteKey(viewer.userId, targetId);
   const favorited = await exists(key);

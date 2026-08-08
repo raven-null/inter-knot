@@ -173,7 +173,7 @@ const loadPost = async () => {
     post.value = await api.getPost(postId.value);
   } catch (err) {
     if (isNotFoundError(err)) {
-      showError({ statusCode: 404, message: "委托不存在" });
+      showError({ statusCode: 404, message: "帖子不存在" });
       return;
     }
     if (isUserBlockedError(err)) {
@@ -181,7 +181,7 @@ const loadPost = async () => {
       return;
     }
     loadError.value = true;
-    message.error(resolveErrorMessage(err, "获取委托详情失败"));
+    message.error(resolveErrorMessage(err, "获取帖子详情失败"));
   } finally {
     loading.value = false;
   }
@@ -435,7 +435,7 @@ const canPin = computed(() => auth.isLogin && (isOwner.value || auth.user?.isAdm
 const isPostAuthorBlocked = ref(false);
 const isPostAuthorBlockLoading = ref(false);
 
-// 当委托作者可识别且非匿名/非自己/非 AI 时，预拉一次当前拉黑状态，用于「更多操作」菜单文案。
+// 当帖子作者可识别且非匿名/非自己/非 AI 时，预拉一次当前拉黑状态，用于「更多操作」菜单文案。
 watch(
   () => ({
     id: post.value?.author?.documentId,
@@ -463,17 +463,17 @@ const deletingArticle = ref(false);
 
 const handleDeleteArticle = async () => {
   if (!post.value?.id) return;
-  const ok = await confirmDialog.open({ title: "删除委托", message: "确定删除这篇委托吗？此操作不可恢复。（10丁尼）", confirmText: "删除", danger: true });
+  const ok = await confirmDialog.open({ title: "删除帖子", message: "确定删除这篇帖子吗？此操作不可恢复。（10丁尼）", confirmText: "删除", danger: true });
   if (!ok) return;
   deletingArticle.value = true;
   try {
     const deletedId = post.value.id;
     await api.deleteArticle(deletedId);
-    message.success("委托已删除");
+    message.success("帖子已删除");
     window.dispatchEvent(new CustomEvent("ik:article-deleted", { detail: deletedId }));
     navigateTo("/");
   } catch (err) {
-    message.error(resolveErrorMessage(err, "删除委托失败"));
+    message.error(resolveErrorMessage(err, "删除帖子失败"));
   } finally {
     deletingArticle.value = false;
   }
@@ -513,7 +513,7 @@ const handleBlockAuthor = async () => {
     api.invalidateQueries(["articles"]);
     api.invalidateQueries(["profile"]);
     if (result.blocked) {
-      // 拉黑后该委托不应再被看到，切回首页
+      // 拉黑后该帖子不应再被看到，切回首页
       post.value = null;
       isBlocked.value = true;
     }
@@ -530,7 +530,7 @@ const handleReportArticle = () => {
     loginDialog.open();
     return;
   }
-  reportDialog.open({ targetType: "article", targetId: post.value.id, targetLabel: "委托" });
+  reportDialog.open({ targetType: "article", targetId: post.value.id, targetLabel: "帖子" });
 };
 
 const handleReportComment = (comment: Comment) => {
@@ -897,7 +897,7 @@ onBeforeUnmount(() => {
           <div class="ik-page__main">
             <IkZzzMarquee />
             <div class="ik-page__error">
-              无法查看该委托：你与作者之间存在拉黑关系
+              无法查看该帖子：你与作者之间存在拉黑关系
             </div>
           </div><!-- /.ik-page__main -->
         </div>
@@ -984,7 +984,7 @@ onBeforeUnmount(() => {
               <div class="ik-page__detail">
                 <div v-if="post.isHidden" class="ik-page__hidden-banner" role="alert">
                   <EyeSlashIcon class="ik-page__hidden-icon" aria-hidden="true" />
-                  <span>该委托因收到举报已被隐藏，仅你自己可见。如有异议请联系管理员。</span>
+                  <span>该帖子因收到举报已被隐藏，仅你自己可见。如有异议请联系管理员。</span>
                 </div>
                 <h1 class="ik-page__title">
                   <span v-if="post.category" class="ik-page__title-cat">[ {{ post.category.name }} ]</span>{{ post.title }}
@@ -1173,9 +1173,9 @@ onBeforeUnmount(() => {
                           <EllipsisVerticalIcon class="ik-engage-icon" aria-hidden="true" />
                         </button>
                         <template #dropdown>
-                          <z-dropdown-item command="report" :disabled="isOwner">举报委托</z-dropdown-item>
-                          <z-dropdown-item command="edit" :disabled="!isOwner">编辑委托</z-dropdown-item>
-                          <z-dropdown-item command="delete" :disabled="!isOwner || deletingArticle">删除委托</z-dropdown-item>
+                          <z-dropdown-item command="report" :disabled="isOwner">举报帖子</z-dropdown-item>
+                          <z-dropdown-item command="edit" :disabled="!isOwner">编辑帖子</z-dropdown-item>
+                          <z-dropdown-item command="delete" :disabled="!isOwner || deletingArticle">删除帖子</z-dropdown-item>
                           <z-dropdown-item
                             command="block"
                             :disabled="isOwner || post.isAnonymous || isPostAuthorBlockLoading || post.author?.isAiAgent"

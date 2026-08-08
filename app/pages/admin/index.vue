@@ -43,7 +43,7 @@ const kpi = computed(() => [
     sub: "注册用户",
   },
   {
-    label: "委托",
+    label: "帖子",
     to: "/admin/posts",
     value: data.value.postCount ?? 0,
     sub: `评论 ${data.value.commentCount ?? 0} · 浏览 ${data.value.viewCount ?? 0}`,
@@ -52,7 +52,7 @@ const kpi = computed(() => [
     label: "审核",
     to: "/admin/review",
     value: data.value.pendingPosts ?? 0,
-    sub: "待审核委托",
+    sub: "待审核帖子",
     warn: true,
   },
   {
@@ -158,7 +158,7 @@ onMounted(async () => {
         </AdminCard>
 
         <AdminCard>
-          <template #title>最新委托</template>
+          <template #title>最新帖子</template>
           <ul v-if="(data.recentPosts as any[] || []).length" class="ik-admin-online__list">
             <li
               v-for="p in (data.recentPosts as any[] || [])"
@@ -173,7 +173,7 @@ onMounted(async () => {
               <span class="ik-admin-online__row-duration">浏览 {{ p.views }} · 赞 {{ p.likesCount }}</span>
             </li>
           </ul>
-          <div v-else class="ik-admin-online__empty">暂无委托</div>
+          <div v-else class="ik-admin-online__empty">暂无帖子</div>
         </AdminCard>
       </div>
     </template>

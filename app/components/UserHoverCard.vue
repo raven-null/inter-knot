@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="ik-hovercard__stat">
               <span class="ik-hovercard__stat-num">{{ formatNumber(profile.stats.articleCount) }}</span>
-              <span class="ik-hovercard__stat-label">委托</span>
+              <span class="ik-hovercard__stat-label">帖子</span>
             </div>
           </div>
 

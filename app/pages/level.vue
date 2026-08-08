@@ -290,7 +290,7 @@ useHead({ title: "绳网等级" });
                   <span class="ik-lv__rule-name">签到<em class="ik-lv__rule-once">每日</em><em v-if="dailyExpStatus?.sources?.checkIn?.done" class="ik-lv__rule-done">已获取</em></span><span class="ik-lv__rule-val">+6 ~ +10</span>
                 </div>
                 <div class="ik-lv__rule-item">
-                  <span class="ik-lv__rule-name">委托<em class="ik-lv__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createArticle?.done" class="ik-lv__rule-done">已获取</em></span><span class="ik-lv__rule-val">+4</span>
+                  <span class="ik-lv__rule-name">帖子<em class="ik-lv__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createArticle?.done" class="ik-lv__rule-done">已获取</em></span><span class="ik-lv__rule-val">+4</span>
                 </div>
                 <div class="ik-lv__rule-item">
                   <span class="ik-lv__rule-name">评论<em class="ik-lv__rule-once">每日首次</em><em v-if="dailyExpStatus?.sources?.createComment?.done" class="ik-lv__rule-done">已获取</em></span><span class="ik-lv__rule-val">+3</span>
@@ -369,7 +369,7 @@ useHead({ title: "绳网等级" });
         </div>
         <ul class="ik-lv__benefits-notes">
           <li>单张图片大小上限 30MB，全等级一致。</li>
-          <li>未通过入站考试（Lv.0）暂无法发布委托与评论。</li>
+          <li>未通过入站考试（Lv.0）暂无法发布帖子与评论。</li>
           <li>已发布的内容不受等级调整影响，仅在新建 / 编辑时生效。</li>
         </ul>
       </section>

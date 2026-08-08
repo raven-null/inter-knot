@@ -113,11 +113,11 @@ export async function create(req: Request): Promise<Response> {
     if (meta?.url) images.push(String(meta.url));
   }
 
-  if (!postId) return badRequest("缺少委托 ID");
+  if (!postId) return badRequest("缺少帖子 ID");
   if (!content && images.length === 0) return badRequest("评论内容不能为空");
 
   const post = await getPostDoc(postId);
-  if (!post) return notFound("委托不存在");
+  if (!post) return notFound("帖子不存在");
 
   if (parentId) {
     const parent = await getJson<Doc>(KEYS.commentLookup(parentId));

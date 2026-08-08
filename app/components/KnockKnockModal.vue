@@ -85,7 +85,7 @@ const activeAiSlug = ref<string | null>(null);
 /** 未配置示例问题时，AI 会话使用的默认示例问题 */
 const DEFAULT_AI_SUGGESTIONS = [
   "介绍一下你自己",
-  "最近有什么热门委托？",
+  "最近有什么热门帖子？",
   "帮我找一下最新情报",
   "分析一下当前版本的角色强度",
   "给我推荐一些值得关注的帖子",
@@ -547,24 +547,24 @@ const handleBubbleLink = (href: string, e: Event) => {
   }
 };
 
-/** AiMessageBody 内点击 /post/xxx 链接 → 打开委托弹窗 */
+/** AiMessageBody 内点击 /post/xxx 链接 → 打开帖子弹窗 */
 const openPostFromBubble = (documentId: string) => {
   postModal.open(documentId);
 };
 
-/** like-on-comment：通知关联委托+评论时，quote 卡引用「评论原文」而不是委托标题 */
+/** like-on-comment：通知关联帖子+评论时，quote 卡引用「评论原文」而不是帖子标题 */
 const isLikeOnComment = (msg: DmMessage): boolean =>
   msg.notificationKind === "like" && !!msg.comment;
 
 /** quote 卡左侧 label */
 const quoteLabel = (msg: DmMessage): string => {
   if (isLikeOnComment(msg)) return "评论";
-  if (msg.notificationKind === "like" || msg.notificationKind === "favorite" || msg.notificationKind === "denny") return "委托";
-  if (msg.notificationKind === "system") return "委托";
-  return "评论委托"; // comment / reply / mention：引用所在委托
+  if (msg.notificationKind === "like" || msg.notificationKind === "favorite" || msg.notificationKind === "denny") return "帖子";
+  if (msg.notificationKind === "system") return "帖子";
+  return "评论帖子"; // comment / reply / mention：引用所在帖子
 };
 
-/** quote 卡右侧主标题：like-on-comment 引用评论原文，其余引用委托标题 */
+/** quote 卡右侧主标题：like-on-comment 引用评论原文，其余引用帖子标题 */
 const quoteTitle = (msg: DmMessage): string => {
   // quote 卡是纯文本单行预览：mention/emote token 降级为可读文案
   if (isLikeOnComment(msg)) {
@@ -578,7 +578,7 @@ const shouldShowQuote = (msg: DmMessage): boolean => {
   if (msg.kind !== "notification") return false;
   // 有 article 引用就有卡片可点
   if (!msg.article && !msg.comment) return false;
-  // comment/reply/mention：主气泡已是评论正文，再放 quote 委托卡
+  // comment/reply/mention：主气泡已是评论正文，再放 quote 帖子卡
   // like / favorite / like-on-comment 都需要卡
   return true;
 };
@@ -1276,7 +1276,7 @@ watch(currentSearchHitId, (id) => {
 /** ESC 优先关闭：上下文菜单 → 会话内搜索 → 编辑模式 → 弹窗本体 */
 const onKeyDown = (e: KeyboardEvent) => {
   if (e.key !== "Escape" || !visible.value) return;
-  // 如果有更上层的弹窗（如委托详情 overlay）处于打开状态，不关闭敲敲
+  // 如果有更上层的弹窗（如帖子详情 overlay）处于打开状态，不关闭敲敲
   // 敲敲自身也是 .ik-overlay，所以检查数量 > 1
   if (document.querySelectorAll(".ik-overlay").length > 1) return;
   if (contextMenuMessageId.value) {
@@ -1349,7 +1349,7 @@ const handleMobileBack = () => {
         class="ik-overlay"
         @mousedown.self="handleBackdropMouseDown"
       >
-        <!-- 斜线纹理背景（与委托弹窗一致） -->
+        <!-- 斜线纹理背景（与帖子弹窗一致） -->
         <div class="ik-overlay__stripe" aria-hidden="true"></div>
 
         <div
@@ -1818,12 +1818,12 @@ const handleMobileBack = () => {
 
 <style scoped>
 /* ═══════════════════════════════════════════════
-   Overlay 外壳 —— 与委托弹窗 / 登录弹窗完全一致
+   Overlay 外壳 —— 与帖子弹窗 / 登录弹窗完全一致
    ═══════════════════════════════════════════════ */
 .ik-overlay {
   position: fixed;
   inset: 0;
-  /* 低于委托弹窗 (9000)，保证点击评论委托后委托弹窗叠加在上方 */
+  /* 低于帖子弹窗 (9000)，保证点击评论帖子后帖子弹窗叠加在上方 */
   z-index: 8900;
   display: flex;
   align-items: center;
@@ -2853,7 +2853,7 @@ const handleMobileBack = () => {
 .ik-knock__context-menu-mask {
   position: fixed;
   inset: 0;
-  /* 高于弹窗主体；与委托弹窗 9000 同级或略高 */
+  /* 高于弹窗主体；与帖子弹窗 9000 同级或略高 */
   z-index: 9100;
 }
 
