@@ -1946,9 +1946,17 @@ if (import.meta.client) {
 
 /* Customize ZMenu items: stack title + meta vertically */
 .ik-create-menu :deep(.z-menu__item) {
+  position: relative;
   align-items: stretch;
   min-height: 56px;
   padding: 10px 16px;
+}
+
+.ik-create-menu :deep(.z-menu__content) {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .ik-create-menu :deep(.z-menu__item) > * {
@@ -1962,9 +1970,11 @@ if (import.meta.client) {
   gap: 3px;
   min-width: 0;
   width: 100%;
+  padding-right: 28px;
+  box-sizing: border-box;
 }
 
-/* 草稿项删除按钮：悬停显示，位于右侧 */
+/* 草稿项删除按钮：悬停显示，位于右侧；隐藏时不可见也不拦截点击 */
 .ik-nav-item__delete {
   position: absolute;
   right: 6px;
@@ -1981,13 +1991,18 @@ if (import.meta.client) {
   background: rgba(0, 0, 0, 0.55);
   color: rgba(255, 255, 255, 0.55);
   cursor: pointer;
+  visibility: hidden;
   opacity: 0;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
+  pointer-events: none;
+  transition: opacity 140ms ease, color 140ms ease, background 140ms ease, visibility 0s linear 140ms;
 }
 
 .ik-create-menu :deep(.z-menu__item):hover .ik-nav-item__delete,
 .ik-nav-item__delete:focus-visible {
+  visibility: visible;
   opacity: 1;
+  pointer-events: auto;
+  transition: opacity 140ms ease, color 140ms ease, background 140ms ease;
 }
 
 .ik-nav-item__delete:hover {
