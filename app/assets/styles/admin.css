@@ -438,23 +438,6 @@
 }
 
 /* ── 论坛设置卡片 ── */
-.ik-admin-kpi-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-
-.ik-admin-kpi-row > .ik-admin-grid {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.ik-admin-forum-settings {
-  flex: 0 0 400px;
-  max-height: 430px;
-  overflow-y: auto;
-}
-
 .ik-forum-settings__grid {
   display: flex;
   flex-direction: column;
@@ -529,14 +512,7 @@
   flex: 1;
 }
 
-@media (max-width: 1100px) {
-  .ik-admin-kpi-row {
-    flex-direction: column;
-  }
-  .ik-admin-forum-settings {
-    flex-basis: auto;
-    width: 100%;
-    max-height: none;
-    overflow: visible;
-  }
+.ik-admin-grid--settings {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  align-items: start;
 }

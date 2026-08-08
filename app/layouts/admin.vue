@@ -30,6 +30,7 @@ const navGroups = [
     label: "系统",
     items: [
       { to: "/admin/categories", label: "版块管理", icon: ICONS.categories },
+      { to: "/admin/forum", label: "论坛设置", icon: ICONS.settings },
       { to: "/admin/settings", label: "站点设置", icon: ICONS.settings },
     ],
   },
