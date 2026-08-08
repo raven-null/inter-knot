@@ -28,6 +28,16 @@ const auth = useAuthStore();
 const loginDialog = useLoginDialog();
 const { online: presenceOnline } = usePresence();
 
+// 瀑布流列宽随屏幕自适应（小屏卡片更窄，保证多列瀑布流）
+const { width: windowWidth } = useWindowSize();
+const masonryColumnWidth = computed(() => {
+  const w = windowWidth.value || 1024;
+  if (w < 480) return 156;
+  if (w < 768) return 200;
+  if (w < 1200) return 220;
+  return 240;
+});
+
 useSeoMeta({
   title: "绳网",
   description: "绳网是一个游戏、技术交流平台，发现并分享有趣的内容。",
@@ -939,10 +949,10 @@ onBeforeUnmount(() => {
             ref="masonryRef"
             class="ik-masonry"
             :items="list"
-            :column-width="240"
+            :column-width="masonryColumnWidth"
             :gap="feedGap"
             :min-columns="2"
-            :max-columns="5"
+            :max-columns="6"
             :buffer="1800"
             :estimated-height="300"
             :height-mapper="estimatePostCardHeight"
