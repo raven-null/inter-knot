@@ -300,8 +300,6 @@ onBeforeUnmount(() => {
               <!-- Appearance actions previously lived in the bottom action
                    bar on desktop; that bar is removed, so these always show. -->
               <z-button @click="openAvatarModal">修改头像</z-button>
-              <z-button disabled>修改称号</z-button>
-              <z-button disabled>修改勋章</z-button>
               <z-button @click="openCardModal">修改名片</z-button>
               <z-button @click="openEditName">修改用户名</z-button>
               <z-button @click="openEditBio">修改签名</z-button>
