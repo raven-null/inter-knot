@@ -1,10 +1,6 @@
 <script setup lang="ts">
-import { useDebounceFn } from "@vueuse/core";
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/vue/24/outline";
 import type { SearchSuggestion } from "~/composables/useApi";
-
-const props = defineProps<{ open: boolean }>();
-const emit = defineEmits<{ (e: "update:open", v: boolean): void }>();
 
 const api = useApi();
 const route = useRoute();
@@ -21,13 +17,14 @@ const suggestOpen = computed(
   () => suggestVisible.value && suggestions.value.length > 0 && !!keyword.value.trim(),
 );
 
-const close = () => {
-  emit("update:open", false);
+const syncKeyword = () => {
+  keyword.value = pickFirstQuery(route.query.q as string | string[] | undefined);
 };
 
 const search = async () => {
   const q = keyword.value.trim();
-  close();
+  suggestions.value = [];
+  suggestVisible.value = false;
   await router.push({ path: "/", query: q ? { q } : {} });
 };
 
@@ -70,123 +67,113 @@ const onKeydown = (e: KeyboardEvent) => {
     e.preventDefault();
     void search();
   } else if (e.key === "Escape") {
-    close();
+    suggestions.value = [];
+    suggestVisible.value = false;
+    inputRef.value?.blur();
   }
 };
 
 watch(
-  () => props.open,
-  (v) => {
-    if (v) {
-      keyword.value = pickFirstQuery(route.query.q as string | string[] | undefined);
-      nextTick(() => inputRef.value?.focus());
-    } else {
-      suggestions.value = [];
-      suggestVisible.value = false;
-    }
-  },
+  () => route.query.q,
+  () => syncKeyword(),
+  { immediate: true },
 );
 </script>
 
 <template>
-  <Transition name="ik-home-search">
-    <div v-if="open" class="ik-home-search" @mousedown.self="close">
-      <div class="ik-home-search__box">
-        <MagnifyingGlassIcon class="ik-home-search__icon" aria-hidden="true" />
-        <input
-          ref="inputRef"
-          v-model="keyword"
-          class="ik-home-search__input"
-          type="text"
-          placeholder="搜索委托…"
-          aria-label="搜索委托"
-          @input="onInput"
-          @keydown="onKeydown"
-        />
-        <button
-          v-if="keyword"
-          type="button"
-          class="ik-home-search__clear"
-          aria-label="清除"
-          @click="clearKeyword"
-        >
-          <XMarkIcon class="ik-home-search__clear-icon" aria-hidden="true" />
-        </button>
-        <button type="button" class="ik-home-search__submit" @click="search">搜索</button>
-      </div>
-
-      <Transition name="ik-suggest">
-        <div v-if="suggestOpen" class="ik-home-search__suggest" role="listbox">
-          <button
-            v-for="s in suggestions"
-            :key="s.documentId"
-            type="button"
-            class="ik-home-search__suggest-item"
-            role="option"
-            @mousedown.prevent
-            @click="selectSuggestion(s)"
-          >
-            <span class="ik-home-search__suggest-title">{{ s.title }}</span>
-            <span v-if="s.categoryName" class="ik-home-search__suggest-category">{{ s.categoryName }}</span>
-          </button>
-        </div>
-      </Transition>
+  <div class="ik-home-searchbox">
+    <div class="ik-home-searchbox__box">
+      <MagnifyingGlassIcon class="ik-home-searchbox__icon" aria-hidden="true" />
+      <input
+        ref="inputRef"
+        v-model="keyword"
+        class="ik-home-searchbox__input"
+        type="text"
+        placeholder="搜索委托…"
+        aria-label="搜索委托"
+        @input="onInput"
+        @keydown="onKeydown"
+      />
+      <button
+        v-if="keyword"
+        type="button"
+        class="ik-home-searchbox__clear"
+        aria-label="清除"
+        @click="clearKeyword"
+      >
+        <XMarkIcon class="ik-home-searchbox__clear-icon" aria-hidden="true" />
+      </button>
+      <button type="button" class="ik-home-searchbox__submit" @click="search">搜索</button>
     </div>
-  </Transition>
+
+    <Transition name="ik-suggest">
+      <div v-if="suggestOpen" class="ik-home-searchbox__suggest" role="listbox">
+        <button
+          v-for="s in suggestions"
+          :key="s.documentId"
+          type="button"
+          class="ik-home-searchbox__suggest-item"
+          role="option"
+          @mousedown.prevent
+          @click="selectSuggestion(s)"
+        >
+          <span class="ik-home-searchbox__suggest-title">{{ s.title }}</span>
+          <span v-if="s.categoryName" class="ik-home-searchbox__suggest-category">{{ s.categoryName }}</span>
+        </button>
+      </div>
+    </Transition>
+  </div>
 </template>
 
 <style scoped>
-.ik-home-search {
+.ik-home-searchbox {
   position: relative;
-  display: flex;
-  justify-content: flex-end;
 }
 
-.ik-home-search__box {
-  position: relative;
+.ik-home-searchbox__box {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: min(460px, 100%);
-  padding: 8px 8px 8px 14px;
+  gap: 6px;
+  width: 280px;
+  padding: 6px 6px 6px 12px;
   background: #181818;
   border: 1px solid #2d2d2d;
   border-radius: 999px;
   transition: border-color 160ms;
 }
 
-.ik-home-search__box:focus-within {
+.ik-home-searchbox__box:focus-within {
   border-color: var(--ik-primary, #bfff09);
 }
 
-.ik-home-search__icon {
+.ik-home-searchbox__icon {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
   color: rgba(255, 255, 255, 0.5);
 }
 
-.ik-home-search__input {
+.ik-home-searchbox__input {
   flex: 1;
   min-width: 0;
   background: transparent;
   border: none;
   outline: none;
   color: #e8e8e8;
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
 }
 
-.ik-home-search__input::placeholder {
+.ik-home-searchbox__input::placeholder {
   color: rgba(255, 255, 255, 0.35);
 }
 
-.ik-home-search__clear {
+.ik-home-searchbox__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: transparent;
@@ -195,18 +182,18 @@ watch(
   flex-shrink: 0;
 }
 
-.ik-home-search__clear:hover {
+.ik-home-searchbox__clear:hover {
   color: #fff;
 }
 
-.ik-home-search__clear-icon {
-  width: 15px;
-  height: 15px;
+.ik-home-searchbox__clear-icon {
+  width: 14px;
+  height: 14px;
 }
 
-.ik-home-search__submit {
+.ik-home-searchbox__submit {
   flex-shrink: 0;
-  padding: 6px 16px;
+  padding: 6px 14px;
   border: none;
   border-radius: 999px;
   background: var(--ik-primary, #bfff09);
@@ -217,19 +204,19 @@ watch(
   transition: background 150ms;
 }
 
-.ik-home-search__submit:hover {
+.ik-home-searchbox__submit:hover {
   background: #d0ff3f;
 }
 
-.ik-home-search__submit:active {
+.ik-home-searchbox__submit:active {
   transform: scale(0.96);
 }
 
-.ik-home-search__suggest {
+.ik-home-searchbox__suggest {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: min(460px, 100%);
+  width: 280px;
   max-height: 320px;
   overflow-y: auto;
   background: #161616;
@@ -240,7 +227,7 @@ watch(
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
 }
 
-.ik-home-search__suggest-item {
+.ik-home-searchbox__suggest-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -256,31 +243,20 @@ watch(
   text-align: left;
 }
 
-.ik-home-search__suggest-item:hover {
+.ik-home-searchbox__suggest-item:hover {
   background: rgba(191, 255, 9, 0.1);
 }
 
-.ik-home-search__suggest-title {
+.ik-home-searchbox__suggest-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.ik-home-search__suggest-category {
+.ik-home-searchbox__suggest-category {
   flex-shrink: 0;
   color: var(--ik-primary, #bfff09);
   font-size: 12px;
-}
-
-.ik-home-search-enter-active,
-.ik-home-search-leave-active {
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.ik-home-search-enter-from,
-.ik-home-search-leave-to {
-  opacity: 0;
-  transform: translateY(-6px);
 }
 
 .ik-suggest-enter-active,
@@ -295,8 +271,11 @@ watch(
 }
 
 @media (max-width: 768px) {
-  .ik-home-search__box {
-    width: 100%;
+  .ik-home-searchbox__box {
+    width: 200px;
+  }
+  .ik-home-searchbox__suggest {
+    width: 200px;
   }
 }
 </style>

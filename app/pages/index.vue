@@ -10,7 +10,7 @@ import {
   getNormalizedCoverAspectRatio,
 } from "~/utils/cover";
 import { calculateSkeletonCount, estimateSkeletonHeight, generateSkeletons, type SkeletonItem } from "~/utils/skeleton";
-import { ArrowPathIcon, MagnifyingGlassIcon } from "@heroicons/vue/24/outline";
+import { ArrowPathIcon } from "@heroicons/vue/24/outline";
 
 // 静态导入核心瀑布流组件，防止下滑加载或冷启动时动态请求分包导致滚动卡顿
 import VirtualMasonry from "~/components/VirtualMasonry.vue";
@@ -400,11 +400,7 @@ const handleRefresh = async () => {
   refreshing.value = false;
 };
 
-// 工具栏搜索按钮：展开/收起首页内联搜索框
-const homeSearchOpen = ref(false);
-const toggleHomeSearch = () => {
-  homeSearchOpen.value = !homeSearchOpen.value;
-};
+// 工具栏右侧常驻搜索框由 HomeSearchBar 组件提供
 
 // ── 后台静默轮询：比对最新一页与本地 list 的差集，检测有无新委托 ────
 const pollLatestArticles = async () => {
@@ -872,21 +868,9 @@ onBeforeUnmount(() => {
         </button>
       </nav>
 
-      <!-- 搜索入口：展开首页内联搜索框；原在线人数已并入右下角刷新按钮 -->
-      <button
-        type="button"
-        class="ik-toolbar-search"
-        :class="{ 'is-active': homeSearchOpen }"
-        :aria-label="homeSearchOpen ? '收起搜索' : '搜索委托'"
-        @click="toggleHomeSearch"
-      >
-        <MagnifyingGlassIcon class="ik-toolbar-search__icon" aria-hidden="true" />
-        <span class="ik-toolbar-search__label">{{ homeSearchOpen ? "收起" : "搜索" }}</span>
-      </button>
+      <!-- 搜索框 + 按钮（常驻工具栏右侧） -->
+      <HomeSearchBar class="ik-toolbar-searchbox" />
     </div>
-
-    <!-- 内联搜索框（工具栏搜索按钮展开） -->
-    <HomeSearchBar v-model:open="homeSearchOpen" />
 
     <!-- 移动端下拉刷新指示器 -->
     <div
@@ -1110,50 +1094,11 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-/* 工具栏搜索按钮（代替原在线人数展示位） */
-.ik-toolbar-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+/* 工具栏右侧搜索框容器（HomeSearchBar） */
+.ik-toolbar-searchbox {
   flex: 0 0 auto;
   align-self: center;
   margin-left: auto;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: #181818;
-  border: 1px solid #2d2d2d;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-  line-height: 1;
-  cursor: pointer;
-  user-select: none;
-  transition: border-color 160ms, color 160ms, background 160ms;
-}
-
-.ik-toolbar-search:hover {
-  border-color: var(--ik-primary, #bfff09);
-  color: var(--ik-primary, #bfff09);
-  background: rgba(191, 255, 9, 0.08);
-}
-
-.ik-toolbar-search.is-active {
-  border-color: var(--ik-primary, #bfff09);
-  color: var(--ik-primary, #bfff09);
-  background: rgba(191, 255, 9, 0.12);
-}
-
-.ik-toolbar-search:active {
-  transform: scale(0.96);
-}
-
-.ik-toolbar-search__icon {
-  width: 15px;
-  height: 15px;
-}
-
-.ik-toolbar-search__label {
-  font-weight: 600;
-  font-feature-settings: "tnum";
 }
 
 @media (max-width: 768px) {
@@ -1188,14 +1133,8 @@ onBeforeUnmount(() => {
     font-size: 13px;
   }
 
-  .ik-toolbar-search {
-    padding: 5px 11px;
-    font-size: 12px;
-  }
-
-  .ik-toolbar-search__icon {
-    width: 13px;
-    height: 13px;
+  .ik-toolbar-searchbox {
+    margin-left: 0;
   }
 }
 
