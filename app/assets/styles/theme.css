@@ -620,3 +620,10 @@ html.no-gpu .ik-mobile-sheet-leave-active .ik-mobile-sheet__panel {
   transition: none !important;
   animation: none !important;
 }
+
+/* ── 弹窗卡片自适应：不超出视口，内容超高时内部滚动 ── */
+.ik-overlay .ik-dialog__inner {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}

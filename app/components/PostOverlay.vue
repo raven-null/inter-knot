@@ -3081,4 +3081,10 @@ onBeforeUnmount(() => {
   }
 }
 
+/* 全屏详情弹窗：覆盖全局自适应规则，保持一屏铺满 + 内部滚动 */
+.ik-overlay .ik-dialog__inner {
+  max-height: none;
+  overflow: hidden;
+}
+
 </style>
