@@ -436,3 +436,78 @@
   font-size: 12px;
   padding-top: 8px;
 }
+
+/* ── 论坛设置卡片 ── */
+.ik-forum-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+.ik-forum-settings__block-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ik-primary, #bfff09);
+}
+.ik-forum-settings__switches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ik-forum-settings__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: #181818;
+  border: 1px solid #262626;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ik-forum-settings__switch-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.ik-forum-settings__switch-text b {
+  font-size: 13px;
+}
+.ik-forum-settings__switch-text em {
+  font-style: normal;
+  font-size: 11px;
+  color: #8a8a8a;
+}
+.ik-forum-settings__tags {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ik-forum-settings__tag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #181818;
+  border: 1px solid #262626;
+  border-radius: 8px;
+}
+.ik-forum-settings__tag-name {
+  font-weight: 700;
+  font-size: 13px;
+}
+.ik-forum-settings__tag-slug {
+  flex: 1;
+  color: var(--ik-primary, #bfff09);
+  font-size: 12px;
+  font-family: monospace;
+}
+.ik-forum-settings__tag-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.ik-forum-settings__tag-add .ik-admin-input {
+  min-width: 0;
+  flex: 1;
+}

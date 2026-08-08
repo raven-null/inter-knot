@@ -171,4 +171,9 @@ export interface AdminSettings {
   announcement: string;
   allowRegister: boolean;
   needAudit: boolean;
+  showSearch?: boolean;
+  showPresence?: boolean;
+  showKnock?: boolean;
+  showCreate?: boolean;
+  showAdmin?: boolean;
 }

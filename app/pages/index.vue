@@ -27,6 +27,7 @@ const pageDataLoading = usePageDataLoading();
 const auth = useAuthStore();
 const loginDialog = useLoginDialog();
 const { online: presenceOnline } = usePresence();
+const { settings: siteSettings, load: loadSiteSettings } = useSiteSettings();
 
 // 瀑布流列宽随屏幕自适应（小屏卡片更窄，保证多列瀑布流）
 const { width: windowWidth } = useWindowSize();
@@ -762,6 +763,7 @@ const onArticleDeleted = (e: Event) => {
 
 onMounted(async () => {
   if (import.meta.client) {
+    void loadSiteSettings();
     window.addEventListener("ik:home-refresh", onHomeRefreshEvent);
     window.addEventListener("ik:tab-visible", onTabVisible);
     window.addEventListener("ik:article-deleted", onArticleDeleted);
@@ -879,7 +881,13 @@ onBeforeUnmount(() => {
       </nav>
 
       <!-- 搜索框 + 按钮（常驻工具栏右侧） -->
-      <HomeSearchBar class="ik-toolbar-searchbox" />
+      <HomeSearchBar v-if="siteSettings.showSearch" class="ik-toolbar-searchbox" />
+    </div>
+
+    <!-- 公告横幅 -->
+    <div v-if="siteSettings.announcement" class="ik-home-announcement">
+      <span class="ik-home-announcement__label">公告</span>
+      <span class="ik-home-announcement__text">{{ siteSettings.announcement }}</span>
     </div>
 
     <!-- 移动端下拉刷新指示器 -->
@@ -1483,5 +1491,36 @@ onBeforeUnmount(() => {
   .ik-new-articles-pill-leave-active {
     transition: none;
   }
+}
+
+/* 公告横幅 */
+.ik-home-announcement {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, #1d1d1d, #161616);
+  border: 1px solid #2d2d2d;
+  border-radius: 12px 12px 0 12px;
+  font-size: 13px;
+  color: #d8d8d8;
+  line-height: 1.5;
+}
+
+.ik-home-announcement__label {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--ik-primary, #bfff09);
+  color: #111;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ik-home-announcement__text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

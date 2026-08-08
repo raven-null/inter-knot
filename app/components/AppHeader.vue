@@ -8,6 +8,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const loginDialog = useLoginDialog();
 const knockKnockModal = useKnockKnockModal();
+const { settings: siteSettings, load: loadSiteSettings } = useSiteSettings();
 const { isActive: showProgress, progress: progressValue, isClaimed, start: startProgress, finish: finishProgress } = usePageDataLoading();
 
 // 敲敲未读：登录态由 knock-auth-bridge 插件在登录后自动启动 stream + refresh，
@@ -34,6 +35,7 @@ const isHeaderHidden = ref(false);
 let lastScrollY = import.meta.client ? window.scrollY : 0;
 
 if (import.meta.client) {
+  void loadSiteSettings();
   // scroll 事件每秒可触发几十次，直接在回调里翻转响应式 class 会让 header
   // 子树每次都重算样式（登录态 header 含等级条/丁尼/滚轮数字，子树更大更贵）。
   // 用 rAF 节流：一帧内只处理一次，把 isHeaderHidden 的更新对齐到渲染节奏。
@@ -260,6 +262,7 @@ watch(
           </button>
 
           <button
+            v-if="siteSettings.showCreate"
             type="button"
             role="tab"
             class="ik-header-tab ik-header-tab--middle"
@@ -277,7 +280,7 @@ watch(
           </button>
 
           <button
-            v-if="auth.user?.isAdmin"
+            v-if="auth.user?.isAdmin && siteSettings.showAdmin"
             type="button"
             role="tab"
             class="ik-header-tab ik-header-tab--middle"
@@ -314,6 +317,7 @@ watch(
 
         <!-- 敲敲入口（图标常驻，置于右侧最右） -->
         <button
+          v-if="siteSettings.showKnock"
           type="button"
           class="ik-header__knock"
           :aria-label="knockUnread > 0 ? `敲敲，${knockUnread} 条未读` : '敲敲'"

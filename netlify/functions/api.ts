@@ -216,6 +216,12 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
 
+    // ── 公开站点设置 ──────────────────────────────
+    case "settings": {
+      if (sub === "public" && isGet(req)) return adminRoutes.publicSettings();
+      return error(404, "接口不存在");
+    }
+
     // ── 后台管理 ─────────────────────────────────────
     case "admin": {
       if (sub === "stats" && isGet(req)) return adminRoutes.stats(req);

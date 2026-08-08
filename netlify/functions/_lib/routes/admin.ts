@@ -348,19 +348,53 @@ export async function settings(req: Request): Promise<Response> {
     announcement: String(s.announcement || ""),
     allowRegister: s.allowRegister !== false,
     needAudit: s.needAudit === true,
+    showSearch: s.showSearch !== false,
+    showPresence: s.showPresence !== false,
+    showKnock: s.showKnock !== false,
+    showCreate: s.showCreate !== false,
+    showAdmin: s.showAdmin !== false,
+  });
+}
+
+/** 公开站点设置（无需登录，供前端导航/首页使用） */
+export async function publicSettings(): Promise<Response> {
+  const s = (await getJson<Doc>(KEYS.settings)) || {};
+  return json({
+    siteName: String(s.siteName || "绳网"),
+    announcement: String(s.announcement || ""),
+    showSearch: s.showSearch !== false,
+    showPresence: s.showPresence !== false,
+    showKnock: s.showKnock !== false,
+    showCreate: s.showCreate !== false,
+    showAdmin: s.showAdmin !== false,
   });
 }
 
 export async function updateSettings(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const { siteName, announcement, allowRegister, needAudit } = await readJson<{ siteName?: string; announcement?: string; allowRegister?: boolean; needAudit?: boolean }>(req);
+  const body = await readJson<{
+    siteName?: string;
+    announcement?: string;
+    allowRegister?: boolean;
+    needAudit?: boolean;
+    showSearch?: boolean;
+    showPresence?: boolean;
+    showKnock?: boolean;
+    showCreate?: boolean;
+    showAdmin?: boolean;
+  }>(req);
   const s = (await getJson<Doc>(KEYS.settings)) || {};
   await setJson(KEYS.settings, {
     ...s,
-    siteName: siteName ?? s.siteName,
-    announcement: announcement ?? s.announcement,
-    allowRegister: allowRegister ?? s.allowRegister,
-    needAudit: needAudit ?? s.needAudit,
+    siteName: body.siteName ?? s.siteName,
+    announcement: body.announcement ?? s.announcement,
+    allowRegister: body.allowRegister ?? s.allowRegister,
+    needAudit: body.needAudit ?? s.needAudit,
+    showSearch: body.showSearch ?? s.showSearch,
+    showPresence: body.showPresence ?? s.showPresence,
+    showKnock: body.showKnock ?? s.showKnock,
+    showCreate: body.showCreate ?? s.showCreate,
+    showAdmin: body.showAdmin ?? s.showAdmin,
   });
   return json({ success: true });
 }
