@@ -734,16 +734,12 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  height: calc(100vh - 78px);
   min-height: 0;
-  overflow: hidden;
 }
 
 /* ── 大框 (Double-border frame) ──────────────── */
 .ik-frame {
   width: 100%;
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -751,8 +747,6 @@ onBeforeUnmount(() => {
   border-radius: 24px;
 }
 .ik-frame__inner {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -761,8 +755,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .ik-frame__body {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -831,16 +823,11 @@ onBeforeUnmount(() => {
 /* ── A-Frame (透明定位包裹) ───────────────── */
 .ik-aframe {
   position: relative;
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #010101 0%, #161616 100%);
 }
 .ik-aframe__content {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1045,10 +1032,10 @@ onBeforeUnmount(() => {
   font-style: italic;
 }
 
-/* ── Article Grid ─────────────────────────────── */
+/* ── Article Grid（自适应列数：小屏 2 列 → 大屏 6+ 列） ── */
 .ik-article-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 12px;
 }
 .ik-article-grid__empty {
@@ -1146,41 +1133,12 @@ onBeforeUnmount(() => {
 
 /* ── Responsive ─────────────────────────────── */
 @media (min-width: 640px) {
-  .ik-article-grid { grid-template-columns: repeat(3, 1fr); }
   .ik-profile { padding: 20px 24px 32px; }
 }
+/* 大屏横屏：网格列数由 auto-fill 自动适配（页面自然滚动，不再强制一屏） */
 @media (min-width: 1024px) and (orientation: landscape) {
-  /* 一屏不滚动布局下，委托区按可用高度自适应：让网格填满 .ik-aframe__content
-     的剩余高度，单行 6 列等高，封面占据卡片去掉信息区后的剩余空间（object-fit
-     裁切），避免窗口偏矮时被 overflow:hidden 截断、偏高时底部留大片空白。 */
-  .ik-article-grid {
-    grid-template-columns: repeat(6, 1fr);
-    grid-auto-rows: minmax(0, 1fr);
-    flex: 1;
-    min-height: 0;
-  }
-  .ik-article-grid__item {
-    min-height: 0;
-    height: 100%;
-  }
-  .ik-article-grid__item :deep(.ik-card),
-  .ik-article-grid__item :deep(.ik-card__link) {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-  }
-  .ik-article-grid__item :deep(.ik-card__cover-wrap) {
-    flex: 1;
-    min-height: 0;
-  }
   .ik-article-grid__item :deep(.ik-card__cover-frame) {
-    height: 100%;
-    max-height: none;
-    aspect-ratio: auto;
-  }
-  .ik-article-grid__item :deep(.ik-card__body) {
-    flex-shrink: 0;
+    max-height: 245px;
   }
 }
 
