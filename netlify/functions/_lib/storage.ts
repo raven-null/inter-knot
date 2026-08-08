@@ -51,6 +51,27 @@ export async function exists(key: string): Promise<boolean> {
   }
 }
 
+/** 读取 JSON 并返回 etag（用于 CAS 条件写） */
+export async function getJsonWithEtag<T>(key: string): Promise<{ data: T; etag: string } | null> {
+  try {
+    const res = await data().getWithMetadata(key, { type: "json", consistency: "strong" });
+    if (!res) return null;
+    return { data: res.data as T, etag: res.etag || "" };
+  } catch {
+    return null;
+  }
+}
+
+/** 仅当 etag 匹配时写入（compare-and-swap）；返回是否真正写入 */
+export async function setJsonIfMatch(key: string, value: unknown, etag: string): Promise<boolean> {
+  try {
+    const res = await data().setJSON(key, value, { onlyIfMatch: etag });
+    return res.modified;
+  } catch {
+    return false;
+  }
+}
+
 /** 列出某前缀下的全部 key（自动翻页） */
 export async function listKeys(prefix: string): Promise<string[]> {
   const keys: string[] = [];

@@ -1,6 +1,10 @@
-/** 信息流索引（_indexes/feed.json）与全局统计（stats.json）辅助 */
+/** 信息流索引（_indexes/feed.json）与全局统计（stats.json）辅助
+ *
+ * feed 更新采用「读-改-写 + etag 条件写（CAS）+ 重试」保证原子性，
+ * 避免并发发布/删除/计数时读-改-写竞态导致丢更新或旧数据回写覆盖。
+ */
 
-import { getJson, setJson, KEYS, userKey } from "./storage";
+import { getJson, setJson, setJsonOnce, getJsonWithEtag, setJsonIfMatch, userKey, KEYS } from "./storage";
 import type { Doc } from "./serialize";
 
 const FEED_CAP = 1000;
@@ -14,44 +18,49 @@ export async function saveFeed(posts: Doc[]): Promise<void> {
   await setJson(KEYS.feed, { posts });
 }
 
+/** 原子化地修改 feed 索引（CAS + 重试） */
+async function mutateFeed(mutate: (posts: Doc[]) => Doc[]): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const cur = await getJsonWithEtag<{ posts?: Doc[] }>(KEYS.feed);
+    if (!cur) {
+      // feed 尚不存在：直接写入（正常由 ensureSeed 预建，这里是兜底）
+      await setJson(KEYS.feed, { posts: mutate([]) });
+      return;
+    }
+    const posts = Array.isArray(cur.data?.posts) ? (cur.data.posts as Doc[]) : [];
+    const next = mutate(posts);
+    const ok = await setJsonIfMatch(KEYS.feed, { posts: next }, cur.etag);
+    if (ok) return;
+    // etag 冲突：其它实例已写入，重读重试
+  }
+}
+
 export async function feedAdd(doc: Doc): Promise<void> {
-  const posts = await getFeed();
-  posts.unshift(doc);
-  if (posts.length > FEED_CAP) posts.length = FEED_CAP;
-  await saveFeed(posts);
+  await mutateFeed((posts) => {
+    const next = [doc, ...posts];
+    if (next.length > FEED_CAP) next.length = FEED_CAP;
+    return next;
+  });
 }
 
 export async function feedRemove(documentId: string): Promise<void> {
-  const posts = await getFeed();
-  const next = posts.filter((p) => p.document_id !== documentId);
-  if (next.length !== posts.length) await saveFeed(next);
+  await mutateFeed((posts) => posts.filter((p) => p.document_id !== documentId));
+}
+
+export async function feedUpdate(documentId: string, patch: Doc): Promise<void> {
+  await mutateFeed((posts) =>
+    posts.map((p) => (p.document_id === documentId ? { ...p, ...patch } : p)),
+  );
 }
 
 /** 存在则更新，不存在则插入到最前（发布/上架用） */
 export async function feedUpsert(doc: Doc): Promise<void> {
-  const posts = await getFeed();
-  const id = String(doc.document_id);
-  const idx = posts.findIndex((p) => p.document_id === id);
-  if (idx >= 0) {
-    posts[idx] = { ...posts[idx], ...doc };
-  } else {
-    posts.unshift(doc);
-  }
-  if (posts.length > FEED_CAP) posts.length = FEED_CAP;
-  await saveFeed(posts);
-}
-
-export async function feedUpdate(documentId: string, patch: Doc): Promise<void> {
-  const posts = await getFeed();
-  let changed = false;
-  const next = posts.map((p) => {
-    if (p.document_id === documentId) {
-      changed = true;
-      return { ...p, ...patch };
-    }
-    return p;
+  await mutateFeed((posts) => {
+    const idx = posts.findIndex((p) => p.document_id === doc.document_id);
+    const next = idx >= 0 ? posts.map((p, i) => (i === idx ? { ...p, ...doc } : p)) : [doc, ...posts];
+    if (next.length > FEED_CAP) next.length = FEED_CAP;
+    return next;
   });
-  if (changed) await saveFeed(next);
 }
 
 export async function getStats(): Promise<Record<string, number>> {
@@ -93,3 +102,5 @@ export async function updateUserCounts(userId: string, delta: Record<string, num
   }
   await setJson(userKey(userId), next);
 }
+
+export { setJsonOnce };
