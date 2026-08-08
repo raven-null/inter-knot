@@ -1755,8 +1755,11 @@ if (import.meta.client) {
   position: relative;
   width: min(1440px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 20px 0 100px;
-  min-height: calc(100vh - 80px);
+  padding: 20px 0 0;
+  /* 桌面：固定视口高度（扣除顶栏与底部操作条），左栏固定、右栏独立滚动 */
+  height: calc(100vh - 78px - 78px);
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1864,17 +1867,19 @@ if (import.meta.client) {
   grid-template-columns: 230px 1fr;
   gap: 16px;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   align-items: stretch;
 }
 
 /* ═════════ Left Nav: Editing + Drafts (ZMenu) ═════════ */
 .ik-create-nav-wrap {
   position: sticky;
-  top: 20px;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: calc(100vh - 100px);
+  max-height: 100%;
 }
 
 .ik-create-menu {
@@ -1980,7 +1985,8 @@ if (import.meta.client) {
   background: #2D2C2D;
   border-radius: 24px 0 24px 24px;
   overflow: hidden;
-  min-height: 480px;
+  height: 100%;
+  min-height: 0;
 }
 
 .ik-create-panel__body {
@@ -1994,7 +2000,8 @@ if (import.meta.client) {
     linear-gradient(180deg, #0a0a0a 0%, #070707 100%);
   border: 4px solid #000;
   border-radius: 22px 0 22px 22px;
-  overflow: hidden;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* ── Delete draft button (in footer) ─────────────────── */
@@ -2713,6 +2720,9 @@ if (import.meta.client) {
     margin: 0;
     padding: 0 0 calc(62px + env(safe-area-inset-bottom, 0px));
     gap: 0;
+    height: auto;
+    min-height: calc(100vh - 62px);
+    overflow: visible;
     background: #121212;
     /* 抑制 iOS/Android 纵向橡皮筋导致暴露 fixed 背景层 */
     overscroll-behavior-y: contain;
