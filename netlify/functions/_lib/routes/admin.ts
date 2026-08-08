@@ -1,4 +1,4 @@
-﻿/** 后台管理路由：统计 / 用户 / 帖子 / 评论 / 版块 / 设置（基于 Netlify Blobs） */
+/** 后台管理路由：统计 / 用户 / 帖子 / 评论 / 版块 / 设置（基于 Netlify Blobs） */
 
 import { genId, getJson, setJson, del, listKeys, KEYS, categoryKey } from "../storage";
 import { getFeed, feedUpsert, feedRemove, feedUpdate, getStats, bumpStats, getUser, updateUserStats } from "../feed";
@@ -483,80 +483,4 @@ export async function processReport(req: Request): Promise<Response> {
     }
   }
   return json({ success: true });
-}
-
-// ── 一次性清空全部内容（临时接口，验证后移除） ──────────
-export async function wipePosts(req: Request): Promise<Response> {
-  await requireAdmin(req);
-  let deletedPosts = 0;
-
-  // 1. 帖子 + 其下的评论
-  const postKeys = (await listKeys("posts/")).filter((k) => !k.includes("/_lookup/"));
-  for (const key of postKeys) {
-    const p = await getJson<Doc>(key);
-    await del(key);
-    if (p) {
-      deletedPosts += 1;
-      const pid = String(p.document_id || "");
-      const ckeys = await listKeys(`comments/${pid}/`);
-      for (const ck of ckeys) {
-        const c = await getJson<Doc>(ck);
-        await del(ck);
-        if (c) await del(KEYS.commentLookup(String(c.document_id)));
-      }
-    }
-  }
-
-  // 2. 兜底：清理所有评论（含楼中楼）与查找索引
-  const commentKeys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
-  for (const key of commentKeys) {
-    const c = await getJson<Doc>(key);
-    await del(key);
-    if (c) await del(KEYS.commentLookup(String(c.document_id)));
-  }
-
-  // 3. 点赞 / 收藏 / 已读 / 举报（帖子与评论相关）
-  for (const k of await listKeys("likes/")) {
-    if (k.includes("/article/") || k.includes("/comment/")) await del(k);
-  }
-  for (const k of await listKeys("favorites/")) await del(k);
-  for (const k of await listKeys("read_records/")) await del(k);
-  for (const k of await listKeys("reports/")) {
-    if (k.includes("/_by-id/")) continue;
-    const r = await getJson<Doc>(k);
-    if (r && (r.target_type === "post" || r.target_type === "comment")) await del(k);
-  }
-
-  // 4. 草稿索引 & 用户评论索引
-  for (const k of await listKeys("_indexes/drafts/")) await del(k);
-  for (const k of await listKeys("_indexes/user-comments/")) await del(k);
-  for (const k of await listKeys("_indexes/comment-lookup/")) await del(k);
-
-  // 5. 信息流置空
-  await setJson(KEYS.feed, { posts: [] });
-
-  // 6. 全局统计重置（保留用户数）
-  const s = await getStats();
-  await setJson(KEYS.stats, {
-    userCount: Number(s.userCount || 0),
-    postCount: 0,
-    commentCount: 0,
-    viewCount: 0,
-  });
-
-  // 7. 用户内容统计重置
-  const userKeys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
-  );
-  for (const key of userKeys) {
-    const u = await getJson<Doc>(key);
-    if (u) {
-      await setJson(key, {
-        ...u,
-        stats: { articleCount: 0, commentCount: 0, totalViews: 0, totalLikes: 0, totalComments: 0 },
-      });
-    }
-  }
-
-  return json({ success: true, deletedPosts });
 }
