@@ -89,7 +89,12 @@ const mihoyo = useMihoyoQr({
     if (res.mode !== "bind") return;
     if (res.binding?.zzzUid) {
       setMihoyoBinding(res.binding);
-      message.success("米游社账号绑定成功");
+      if (res.debug) {
+        mihoyoDebugText.value = JSON.stringify(res.debug);
+        message.success("绑定成功（角色信息状态见下方）");
+      } else {
+        message.success("米游社账号绑定成功");
+      }
       return;
     }
     // 后端确认但未返回绑定数据：主动重拉一次

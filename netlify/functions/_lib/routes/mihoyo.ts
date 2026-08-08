@@ -212,14 +212,18 @@ async function handleConfirmed(
 ): Promise<Response> {
   // 尝试拿角色：有 stoken 则先换 cookie_token，再查角色
   let cookieHeader = "";
+  let cookieDebug = "no-stoken";
   if (stoken) {
     const cookieData = (await get(
       "getCookieAccountInfoBySToken",
       { stoken, uid: accountId },
       true,
     )) as {
+      retcode?: number;
+      message?: string;
       data?: { cookie_token?: string; account_id?: string } | null;
     } | null;
+    cookieDebug = `stoken=${stoken ? "yes" : "no"} retcode=${cookieData?.retcode ?? "null"} ${cookieData?.message || ""}`;
     const ck = cookieData?.data;
     if (ck?.cookie_token && ck?.account_id) {
       cookieHeader = `account_id=${ck.account_id};cookie_token=${ck.cookie_token}`;
@@ -230,6 +234,7 @@ async function handleConfirmed(
   let zzzLevel: number | null = null;
   let zzzRegion = "";
   let zzzRegionName = "";
+  let roleDebug = "no-cookie";
   if (cookieHeader) {
     try {
       const roleRes = await fetch(`${TAKUMI_BINDING}?game_biz=zzz_cn`, {
@@ -237,8 +242,10 @@ async function handleConfirmed(
       });
       const roleData = (await roleRes.json()) as {
         retcode?: number;
+        message?: string;
         data?: { list?: Array<{ game_biz?: string; nickname?: string; level?: number; region?: string; region_name?: string }> };
       };
+      roleDebug = `retcode=${roleData?.retcode ?? "null"} ${roleData?.message || ""}`;
       const role = (roleData?.data?.list || []).find((r) => r?.game_biz === "zzz_cn");
       if (role) {
         zzzNickname = role.nickname || null;
@@ -247,7 +254,7 @@ async function handleConfirmed(
         zzzRegionName = role.region_name || "";
       }
     } catch {
-      // 角色拉取失败不影响绑定本身
+      roleDebug = "fetch-error";
     }
   }
 
@@ -264,7 +271,7 @@ async function handleConfirmed(
   if (session.mode === "bind" && session.viewerId) {
     await setJson(BINDING(session.viewerId), { userId: session.viewerId, ...binding });
     await del(QR_SESSION(ticket));
-    return json({ status: "confirmed", mode: "bind", binding });
+    return json({ status: "confirmed", mode: "bind", binding, debug: { cookie: cookieDebug, role: roleDebug } });
   }
 
   // 登录模式：查/建用户
