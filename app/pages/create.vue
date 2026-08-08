@@ -1882,21 +1882,11 @@ if (import.meta.client) {
   margin-bottom: 24px;
   max-height: calc(100% - 24px);
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #3a3a3a transparent;
+  scrollbar-width: none;
 }
 
 .ik-create-nav-wrap::-webkit-scrollbar {
-  width: 3px;
-}
-
-.ik-create-nav-wrap::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.ik-create-nav-wrap::-webkit-scrollbar-thumb {
-  background: #3a3a3a;
-  border-radius: 3px;
+  display: none;
 }
 
 .ik-create-menu {
