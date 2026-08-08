@@ -122,6 +122,23 @@ export function knockConversations(): Response {
   return ok([]);
 }
 
+/** 敲敲 SSE 实时流（桩）：返回合法的 text/event-stream，避免前端 EventSource 404 报错 */
+export function knockStream(): Response {
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(": connected\n\n"));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
 // ── 在线状态 / 表情 / AI 角色（桩） ─────────────────
 export function presencePing(): Response {
   return json({ data: { online: 1, avatars: [] } });

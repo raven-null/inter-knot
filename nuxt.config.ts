@@ -27,12 +27,6 @@ export default defineNuxtConfig({
       title: "绳网",
       link: [
         { rel: "icon", type: "image/png", href: "/favicon.png" },
-        // 首屏关键图片预加载：SPA loading 屏的 GIF 与首页底图 main.avif
-        // 目的：避免生产环境下 JS 挂载早于 GIF 解码导致 loading 屏一闪而过，
-        // 以及 #__nuxt::before 背景图未就绪出现的"黑屏"过渡。
-        { rel: "preload", as: "image", href: "/images/loading.gif", fetchpriority: "high" },
-        { rel: "preload", as: "image", href: "/images/main.avif", fetchpriority: "high" },
-        { rel: "preconnect", href: "https://im.tiwat.cn" },
       ],
       htmlAttrs: {
         lang: "zh-CN",
@@ -52,14 +46,6 @@ export default defineNuxtConfig({
         { property: "og:description", content: "绳网是一个游戏、技术交流平台" },
         { property: "og:image", content: "/images/zzzicon_200x200.png" },
         { name: "twitter:card", content: "summary_large_image" },
-      ],
-      script: [
-        // Cloudflare Web Analytics
-        {
-          src: "https://static.cloudflareinsights.com/beacon.min.js",
-          defer: true,
-          "data-cf-beacon": '{"token": "87a21c330b51466ca19ec0b32ff89a51"}',
-        },
       ],
     },
   },

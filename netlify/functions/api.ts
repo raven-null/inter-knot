@@ -281,6 +281,7 @@ async function dispatch(req: Request): Promise<Response> {
     }
     case "knock": {
       if (sub === "conversations" && isGet(req)) return stubRoutes.knockConversations();
+      if (sub === "stream" && isGet(req)) return stubRoutes.knockStream();
       return error(404, "接口不存在");
     }
 
