@@ -37,6 +37,7 @@ onMounted(load);
 <template>
   <div class="ik-admin-page">
     <div class="ik-admin-toolbar">
+      <AdminBackButton />
       <input v-model="keyword" class="ik-admin-input" placeholder="搜索评论内容" @keyup.enter="doSearch" />
       <button class="ik-admin-btn ik-admin-btn--primary" @click="doSearch">搜索</button>
     </div>

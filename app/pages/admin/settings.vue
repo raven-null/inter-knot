@@ -38,6 +38,9 @@ onMounted(load);
 
 <template>
   <div class="ik-admin-page">
+    <div class="ik-admin-toolbar">
+      <AdminBackButton />
+    </div>
     <div v-if="loading" class="ik-admin-loading">加载中…</div>
     <div v-else class="ik-admin-card" style="max-width: 560px">
       <h3 class="ik-admin-card__title">站点设置</h3>

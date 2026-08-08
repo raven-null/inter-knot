@@ -84,6 +84,7 @@ onMounted(load);
 <template>
   <div class="ik-admin-page">
     <div class="ik-admin-toolbar">
+      <AdminBackButton />
       <input v-model="keyword" class="ik-admin-input" placeholder="搜索标题 / 正文" @keyup.enter="doSearch" />
       <select v-model="statusFilter" class="ik-admin-input" style="min-width: 120px" @change="doSearch">
         <option value="">全部状态</option>

@@ -58,6 +58,7 @@ onMounted(load);
 <template>
   <div class="ik-admin-page">
     <div class="ik-admin-toolbar">
+      <AdminBackButton />
       <select v-model="statusFilter" class="ik-admin-input" style="min-width: 120px" @change="page = 1; load()">
         <option value="">全部状态</option>
         <option value="open">待处理</option>

@@ -56,9 +56,12 @@ onMounted(load);
 <template>
   <div class="ik-admin-page">
     <div class="ik-admin-toolbar" style="justify-content: space-between">
-      <span style="color: var(--ik-muted, #9a9a9a); font-size: 13px">
-        待审核 <b style="color: #ffb84d">{{ total }}</b> 条
-      </span>
+      <div style="display: flex; align-items: center; gap: 10px">
+        <AdminBackButton />
+        <span style="color: var(--ik-muted, #9a9a9a); font-size: 13px">
+          待审核 <b style="color: #ffb84d">{{ total }}</b> 条
+        </span>
+      </div>
       <button class="ik-admin-btn ik-admin-btn--primary" :disabled="!list.length" @click="approveAll">
         通过本页全部
       </button>

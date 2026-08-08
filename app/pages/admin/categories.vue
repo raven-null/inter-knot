@@ -72,8 +72,9 @@ onMounted(load);
   <div class="ik-admin-page">
     <div class="ik-admin-card">
       <h3 class="ik-admin-card__title">{{ form.editing ? "编辑版块" : "新增版块" }}</h3>
-      <div class="ik-admin-toolbar">
-        <input v-model="form.name" class="ik-admin-input" placeholder="名称（如：游戏交流）" />
+    <div class="ik-admin-toolbar">
+      <AdminBackButton />
+      <input v-model="form.name" class="ik-admin-input" placeholder="名称（如：游戏交流）" />
         <input v-model="form.slug" class="ik-admin-input" placeholder="标识（如：game）" />
         <input v-model="form.description" class="ik-admin-input" placeholder="描述" style="flex: 1" />
         <input v-model.number="form.sortOrder" class="ik-admin-input" type="number" placeholder="排序" style="min-width: 80px" />

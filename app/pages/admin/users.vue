@@ -61,6 +61,7 @@ onMounted(load);
 <template>
   <div class="ik-admin-page">
     <div class="ik-admin-toolbar">
+      <AdminBackButton />
       <input
         v-model="keyword"
         class="ik-admin-input"
