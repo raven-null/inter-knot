@@ -131,6 +131,7 @@ export async function qrStatus(req: Request): Promise<Response> {
     status?: string;
     expiresAt?: number;
     viewerId?: string | null;
+    tokenLog?: unknown[];
   }>(QR_SESSION(ticket));
   if (!session) return json({ status: "expired" });
   if (session.expiresAt && Date.now() > session.expiresAt) {
@@ -164,20 +165,24 @@ export async function qrStatus(req: Request): Promise<Response> {
       return json({ status: "confirmed", mode: session.mode || "bind", binding: null, debug: d });
     }
 
-    // confirmed 后 tokens 可能延迟就绪：等 1.5s 再查一次，争取拿到 stoken 用于角色查询
+    // confirmed 后 tokens 可能延迟就绪：连续重查（最多 10s），争取拿到 stoken
+    const tokenLog: unknown[] = [];
     let stoken = d?.tokens?.find((t) => t?.token_type === 2)?.token || d?.tokens?.[0]?.token || "";
-    if (!stoken) {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+    tokenLog.push(d?.tokens ?? []);
+    for (let i = 0; i < 5 && !stoken; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       const retry = (await post("queryQRLoginStatus", { ticket })) as {
         data?: {
           status?: string;
           tokens?: Array<{ token?: string; token_type?: number }>;
         };
       } | null;
+      tokenLog.push(retry?.data?.tokens ?? []);
       stoken = retry?.data?.tokens?.find((t) => t?.token_type === 2)?.token || retry?.data?.tokens?.[0]?.token || "";
     }
 
     session.status = "confirmed";
+    session.tokenLog = tokenLog;
     await setJson(QR_SESSION(ticket), session);
     return handleConfirmed(req, session, ticket, aid, stoken);
   }
@@ -205,7 +210,7 @@ export async function qrStatus(req: Request): Promise<Response> {
  */
 async function handleConfirmed(
   req: Request,
-  session: { mode?: string; viewerId?: string | null },
+  session: { mode?: string; viewerId?: string | null; tokenLog?: unknown[] },
   ticket: string,
   accountId: string,
   stoken: string,
@@ -266,13 +271,18 @@ async function handleConfirmed(
     zzzRegion,
     zzzRegionName,
     lastSyncedAt: new Date().toISOString(),
-    _debug: { cookie: cookieDebug, role: roleDebug },
+    _debug: { cookie: cookieDebug, role: roleDebug, tokenLog: session.tokenLog ?? [] },
   };
 
   if (session.mode === "bind" && session.viewerId) {
     await setJson(BINDING(session.viewerId), { userId: session.viewerId, ...binding });
     await del(QR_SESSION(ticket));
-    return json({ status: "confirmed", mode: "bind", binding, debug: binding._debug });
+    return json({
+      status: "confirmed",
+      mode: "bind",
+      binding,
+      debug: { cookie: cookieDebug, role: roleDebug, tokenLog: session.tokenLog ?? [] },
+    });
   }
 
   // 登录模式：查/建用户
