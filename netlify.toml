@@ -16,11 +16,10 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Functions 运行时环境变量（Netlify Functions 读不到 [context.deploy.environment]，
-# 必须用 [functions.environment] 或站点 Settings → Environment variables 注入）
-[functions.environment]
-  GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff"
-  GLM_MODEL = "glm-4-flash"
+# 注意：Netlify 官方文档明确「netlify.toml 中声明的环境变量对 serverless functions 不可用」。
+# 智谱 GLM 密钥（GLM_API_KEY / GLM_MODEL）必须在 Netlify 站点后台
+# Site settings → Environment variables 中配置，且 scope 需包含 Functions。
+# 本地开发（netlify dev）读取仓库根目录的 .env。配置方法见 docs/使用文档.md。
 
 # API 路由由函数源码内的 config.path（/api/*）声明，无需在此配置。
 
