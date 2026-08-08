@@ -1,12 +1,13 @@
 /** 米游社扫码登录/绑定（对接 passport-api.mihoyo.com）
  *
- * 流程（社区逆向的非公开接口，参数见环境变量）：
- *   1. createQRLogin → { url(二维码内容), ticket, expire }
- *   2. queryQRLogin(ticket) 轮询 → CONFIRMED 时返回 { uid, token(stoken) }
+ * 新版接口（ma-cn-passport，POST + 请求头参数）：
+ *   1. POST /account/ma-cn-passport/web/createQRLogin  body {} → { data: { url, ticket, expire } }
+ *   2. 轮询 queryQRLogin(ticket) → status（waiting/scanned/confirmed/expired/cancelled），
+ *      CONFIRMED 时返回 { uid, token(stoken) }
  *   3. getCookieAccountInfoBySToken(stoken, uid) → { mid, cookie_token, account_id }
  *   4. binding/api/getUserGameRolesByCookie → 绝区零角色（zzz_cn）
  *
- * 私有请求头（x-rpc-*）与 app 参数通过环境变量配置，未配置时返回明确错误。
+ * 私有请求头（x-rpc-*）通过环境变量配置，未配置时返回明确错误。
  */
 
 import { genId, getJson, setJson, del, userKey, userUidKey } from "../storage";
@@ -16,7 +17,8 @@ import { generateUid } from "../uid";
 import { json, ok, badRequest, error, readJson } from "../http";
 import { toAuthor, DEFAULT_AVATAR, type Doc } from "../serialize";
 
-const PASSPORT_BASE = "https://passport-api.mihoyo.com/account/auth/api";
+const PASSPORT_BASE = "https://passport-api.mihoyo.com/account/ma-cn-passport/web";
+const PASSPORT_LEGACY = "https://passport-api.mihoyo.com/account/auth/api";
 const TAKUMI_BINDING = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie";
 
 const QR_SESSION = (ticket: string) => `mihoyo/qr-sessions/${ticket}.json`;
@@ -25,44 +27,61 @@ const BY_MIHOYO = (mid: string) => `users/by-mihoyo/${mid}.json`;
 
 // 环境变量配置（未配置则扫码接口返回 501）
 const APP_ID = process.env.MIHOYO_APP_ID || "";
-const APP_KEY = process.env.MIHOYO_APP_KEY || "";
-const AUTH_APP_ID = process.env.MIHOYO_AUTH_APP_ID || "";
-const APP_NAME = process.env.MIHOYO_APP_NAME || "绳网";
-const AUTH_KEY_VER = process.env.MIHOYO_AUTH_KEY_VER || "1";
-const VERIFY_KEY = process.env.MIHOYO_VERIFY_KEY || "";
 const DEVICE_ID = process.env.MIHOYO_DEVICE_ID || "";
-const AIGIS = process.env.MIHOYO_AIGIS || "";
+const DEVICE_FP = process.env.MIHOYO_DEVICE_FP || "";
+const SDK_VERSION = process.env.MIHOYO_SDK_VERSION || "2.54.0";
+const CLIENT_TYPE = process.env.MIHOYO_CLIENT_TYPE || "4";
+const GAME_BIZ = process.env.MIHOYO_GAME_BIZ || "plat_cn";
 
 function configured(): boolean {
-  return Boolean(APP_ID && APP_KEY && AUTH_APP_ID);
+  return Boolean(APP_ID);
 }
 
 function rpcHeaders(): Record<string, string> {
+  const deviceId = DEVICE_ID || crypto.randomUUID();
   return {
-    "x-rpc-client_type": "2",
     "x-rpc-app_id": APP_ID,
-    "x-rpc-app_key": APP_KEY,
-    "x-rpc-device_id": DEVICE_ID || crypto.randomUUID(),
-    "x-rpc-device_name": "绳网",
-    "x-rpc-device_model": "Web",
-    "x-rpc-sdk_version": "2.11.0",
-    "x-rpc-platform": "web",
-    "x-rpc-aigis": AIGIS,
-    "x-rpc-verify_key": VERIFY_KEY,
+    "x-rpc-client_type": CLIENT_TYPE,
+    "x-rpc-device_id": deviceId,
+    "x-rpc-device_fp": DEVICE_FP || "38d81ab24d683",
+    "x-rpc-device_model": "Microsoft%20Edge%20151.0.0.0",
+    "x-rpc-device_name": "Microsoft%20Edge",
+    "x-rpc-device_os": "Windows%2010%2064-bit",
+    "x-rpc-game_biz": GAME_BIZ,
+    "x-rpc-sdk_version": SDK_VERSION,
     Origin: "https://user.mihoyo.com",
     Referer: "https://user.mihoyo.com/",
     "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0",
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain, */*",
   };
 }
 
-async function query<T>(path: string, params: Record<string, string>): Promise<T | null> {
-  const url = new URL(`${PASSPORT_BASE}/${path}`);
+async function post(path: string, body: unknown, useLegacy = false): Promise<unknown | null> {
+  const base = useLegacy ? PASSPORT_LEGACY : PASSPORT_BASE;
+  const url = `${base}/${path}`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: rpcHeaders(),
+      body: JSON.stringify(body ?? {}),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+async function get(path: string, params: Record<string, string>, useLegacy = false): Promise<unknown | null> {
+  const base = useLegacy ? PASSPORT_LEGACY : PASSPORT_BASE;
+  const url = new URL(`${base}/${path}`);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   try {
     const res = await fetch(url.toString(), { headers: rpcHeaders() });
     if (!res.ok) return null;
-    return (await res.json()) as T;
+    return (await res.json()) as unknown;
   } catch {
     return null;
   }
@@ -73,23 +92,18 @@ export async function qrCreate(req: Request): Promise<Response> {
   if (!configured()) {
     return error(
       501,
-      "米游社扫码未配置：请在环境变量设置 MIHOYO_APP_ID / MIHOYO_APP_KEY / MIHOYO_AUTH_APP_ID",
+      "米游社扫码未配置：请在环境变量设置 MIHOYO_APP_ID",
       "MIHOYO_NOT_CONFIGURED",
     );
   }
   const viewer = await resolveUser(req);
   const mode = viewer ? "bind" : "login";
 
-  const data = await query<{ retcode?: number; message?: string; data?: { url?: string; ticket?: string; expire?: number } }>(
-    "createQRLogin",
-    {
-      app_id: APP_ID,
-      app_key: APP_KEY,
-      auth_app_id: AUTH_APP_ID,
-      app_name: APP_NAME,
-      auth_key_ver: AUTH_KEY_VER,
-    },
-  );
+  const data = (await post("createQRLogin", {})) as {
+    retcode?: number;
+    message?: string;
+    data?: { url?: string; ticket?: string; expire?: number };
+  } | null;
   const d = data?.data;
   if (!data || data.retcode !== 0 || !d?.url || !d?.ticket) {
     return error(502, `米游社返回异常：${data?.message || "未知错误"}`, "MIHOYO_QR_CREATE_FAILED");
@@ -125,32 +139,43 @@ export async function qrStatus(req: Request): Promise<Response> {
     return json({ status: "expired" });
   }
 
-  const data = await query<{
+  // 轮询扫码状态：POST queryQRLoginStatus { ticket }
+  const data = (await post("queryQRLoginStatus", { ticket })) as {
     retcode?: number;
-    data?: { status?: string; uid?: string; token?: string };
-  }>("queryQRLogin", { app_id: APP_ID, ticket });
+    data?: {
+      status?: string;
+      tokens?: Array<{ token?: string; token_type?: number }>;
+      user_info?: { uid?: string } | null;
+    };
+  } | null;
+  const d = data?.data;
+  const rawStatus = String(d?.status || "");
 
-  const rawStatus = data?.data?.status || "";
-  // 米游社状态码：WAIT_SCAN / WAIT_CONFIRM / CONFIRMED / EXPIRED / CANCELLED
-  if (rawStatus === "CONFIRMED" && data?.data?.token && data?.data?.uid) {
-    session.status = "confirmed";
-    await setJson(QR_SESSION(ticket), session);
-    return handleConfirmed(req, session, ticket, data.data.uid, data.data.token);
+  // 状态枚举：Created(等待扫码) / Scanned(已扫码) / Confirmed(已确认) / Expired / Cancelled
+  if (rawStatus.toLowerCase().includes("confirm")) {
+    const uid = String(d?.user_info?.uid || d?.tokens?.[0]?.token || "");
+    const stoken = d?.tokens?.find((t) => t?.token_type === 2)?.token || d?.tokens?.[0]?.token || "";
+    if (uid && stoken) {
+      session.status = "confirmed";
+      await setJson(QR_SESSION(ticket), session);
+      return handleConfirmed(req, session, ticket, uid, stoken);
+    }
+    return json({ status: "scanned" });
   }
-  if (rawStatus === "WAIT_CONFIRM") {
+  if (rawStatus.toLowerCase().includes("scan")) {
     session.status = "scanned";
     await setJson(QR_SESSION(ticket), session);
     return json({ status: "scanned" });
   }
-  if (rawStatus === "EXPIRED") {
+  if (rawStatus.toLowerCase().includes("expire")) {
     await del(QR_SESSION(ticket));
     return json({ status: "expired" });
   }
-  if (rawStatus === "CANCELLED") {
+  if (rawStatus.toLowerCase().includes("cancel")) {
     await del(QR_SESSION(ticket));
     return json({ status: "cancelled" });
   }
-  // WAIT_SCAN 或未识别：保持等待
+  // Created 或未识别：保持等待
   return json({ status: "waiting" });
 }
 
@@ -162,11 +187,15 @@ async function handleConfirmed(
   uid: string,
   stoken: string,
 ): Promise<Response> {
-  // ① stoken → cookie
-  const cookieData = await query<{
+  // ① stoken → cookie（旧接口路径，未变）
+  const cookieData = (await get(
+    "getCookieAccountInfoBySToken",
+    { stoken, uid },
+    true,
+  )) as {
     retcode?: number;
     data?: { mid?: string; cookie_token?: string; account_id?: string };
-  }>("getCookieAccountInfoBySToken", { stoken, uid });
+  } | null;
   const cookie = cookieData?.data;
   if (!cookie?.mid || !cookie?.cookie_token || !cookie?.account_id) {
     return error(502, "换取米游社凭证失败", "MIHOYO_TOKEN_EXCHANGE_FAILED");
