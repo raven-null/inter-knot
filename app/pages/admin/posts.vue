@@ -1,7 +1,12 @@
 <script setup lang="ts">
 definePageMeta({ layout: "admin", middleware: "admin" });
 
+import { useMessage } from "zenless-ui";
+import { resolveErrorMessage } from "~/utils/api-error";
+
 const admin = useAdminApi();
+const confirmDialog = useConfirmDialog();
+const message = useMessage();
 const list = ref<any[]>([]);
 const total = ref(0);
 const page = ref(1);
@@ -50,9 +55,20 @@ const setStatus = async (p: any, status: string) => {
 
 const removePost = async (p: any) => {
   const label = p.status === "draft" ? "草稿" : "帖子";
-  if (!window.confirm(`确认删除该${label}？`)) return;
-  await admin.deleteArticle(p.documentId);
-  await load();
+  const ok = await confirmDialog.open({
+    title: `删除${label}`,
+    message: `确定删除「${p.title}」吗？此操作将不可恢复。`,
+    confirmText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await admin.deleteArticle(p.documentId);
+    message.success("已删除");
+    await load();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "删除失败"));
+  }
 };
 
 const togglePinned = async (p: any) => {
@@ -135,7 +151,7 @@ onMounted(load);
                   <button class="ik-admin-btn ik-admin-btn--primary" @click="setStatus(p, 'published')">发布</button>
                   <button class="ik-admin-btn ik-admin-btn--danger" @click="removePost(p)">删除</button>
                 </template>
-                <button v-if="p.status === 'published'" class="ik-admin-btn ik-admin-btn--danger" @click="setStatus(p, 'deleted')">删除</button>
+                <button v-if="p.status === 'published'" class="ik-admin-btn ik-admin-btn--danger" @click="removePost(p)">删除</button>
               </div>
             </td>
           </tr>

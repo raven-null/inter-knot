@@ -194,7 +194,14 @@ export async function posts(req: Request): Promise<Response> {
 
   const all = await allPostDocs();
   const filtered = all.filter((p) => {
-    if (status && p.status !== status) return false;
+    // 默认「全部状态」不展示已删除帖子；仅当显式筛选 status=deleted 时展示
+    if (!status) {
+      if (p.status === "deleted") return false;
+    } else if (status === "deleted") {
+      if (p.status !== "deleted") return false;
+    } else if (p.status !== status) {
+      return false;
+    }
     if (q && !`${p.title || ""} ${p.text || ""}`.toLowerCase().includes(q)) return false;
     return true;
   });
