@@ -10,7 +10,7 @@ import {
   getNormalizedCoverAspectRatio,
 } from "~/utils/cover";
 import { calculateSkeletonCount, estimateSkeletonHeight, generateSkeletons, type SkeletonItem } from "~/utils/skeleton";
-import { ArrowPathIcon } from "@heroicons/vue/24/outline";
+import { ArrowPathIcon, MagnifyingGlassIcon } from "@heroicons/vue/24/outline";
 
 // 静态导入核心瀑布流组件，防止下滑加载或冷启动时动态请求分包导致滚动卡顿
 import VirtualMasonry from "~/components/VirtualMasonry.vue";
@@ -26,13 +26,7 @@ const message = useMessage();
 const pageDataLoading = usePageDataLoading();
 const auth = useAuthStore();
 const loginDialog = useLoginDialog();
-const { online: presenceOnline, avatars: presenceAvatars } = usePresence();
-// 头像堆叠最多展示几个，剩余的用 +N 收口。
-const PRESENCE_AVATAR_MAX = 5;
-const presenceShownAvatars = computed(() => presenceAvatars.value.slice(0, PRESENCE_AVATAR_MAX));
-const presenceOverflow = computed(() =>
-  Math.max(0, presenceOnline.value - presenceShownAvatars.value.length),
-);
+const { online: presenceOnline } = usePresence();
 
 useSeoMeta({
   title: "绳网",
@@ -404,6 +398,13 @@ const handleRefresh = async () => {
   newArticleIds.value = [];
   await minDelay;
   refreshing.value = false;
+};
+
+// 工具栏搜索按钮：唤起顶部导航的搜索框聚焦
+const focusHeaderSearch = () => {
+  if (import.meta.client) {
+    window.dispatchEvent(new CustomEvent("ik:focus-search"));
+  }
 };
 
 // ── 后台静默轮询：比对最新一页与本地 list 的差集，检测有无新委托 ────
@@ -872,22 +873,16 @@ onBeforeUnmount(() => {
         </button>
       </nav>
 
-      <!-- 在线人数：🟢 N 在线 + 头像堆叠 +N -->
-      <div v-if="presenceOnline > 0" class="ik-online" aria-label="在线人数">
-        <span class="ik-online__dot" aria-hidden="true" />
-        <span class="ik-online__count">{{ presenceOnline }} 在线</span>
-        <div v-if="presenceShownAvatars.length" class="ik-online__stack" aria-hidden="true">
-          <img
-            v-for="(url, i) in presenceShownAvatars"
-            :key="url + i"
-            :src="url"
-            class="ik-online__avatar"
-            alt=""
-            loading="lazy"
-          />
-          <span v-if="presenceOverflow > 0" class="ik-online__more">+{{ presenceOverflow }}</span>
-        </div>
-      </div>
+      <!-- 搜索入口：唤起顶部搜索框；原在线人数已并入右下角刷新按钮 -->
+      <button
+        type="button"
+        class="ik-toolbar-search"
+        aria-label="搜索委托"
+        @click="focusHeaderSearch"
+      >
+        <MagnifyingGlassIcon class="ik-toolbar-search__icon" aria-hidden="true" />
+        <span class="ik-toolbar-search__label">搜索</span>
+      </button>
     </div>
 
     <!-- 移动端下拉刷新指示器 -->
@@ -989,15 +984,23 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
     </ClientOnly>
-    <!-- Refresh FAB (hidden on mobile) -->
-    <z-button
-      circle
+    <!-- Refresh FAB：集成在线人数（🟢 N），点击刷新列表（移动端隐藏） -->
+    <button
+      type="button"
       class="ik-refresh-fab"
-      :loading="refreshing"
+      :class="{ 'is-loading': refreshing }"
+      :aria-label="presenceOnline > 0 ? `刷新委托，${presenceOnline} 人在线` : '刷新委托'"
       @click="handleRefresh"
     >
-      <ArrowPathIcon v-if="!refreshing" style="width:1em;height:1em" />
-    </z-button>
+      <span v-if="presenceOnline > 0" class="ik-refresh-fab__online" aria-hidden="true">
+        <span class="ik-refresh-fab__dot" />
+        <span class="ik-refresh-fab__count">{{ presenceOnline }}</span>
+      </span>
+      <span class="ik-refresh-fab__icon" aria-hidden="true">
+        <i v-if="refreshing" class="z-icon-loading ik-fab-rotate" />
+        <ArrowPathIcon v-else />
+      </span>
+    </button>
     <z-backtop class="ik-backtop" :target="scrollTarget" :right="32" :bottom="95" />
   </section>
 </template>
@@ -1104,69 +1107,43 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-/* 在线人数：🟢 N 在线 + 头像堆叠 +N */
-.ik-online {
+/* 工具栏搜索按钮（代替原在线人数展示位） */
+.ik-toolbar-search {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex: 0 0 auto;
   align-self: center;
   margin-left: auto;
-  padding-left: 12px;
-  color: rgba(255, 255, 255, 0.6);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #181818;
+  border: 1px solid #2d2d2d;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 13px;
   line-height: 1;
-  white-space: nowrap;
+  cursor: pointer;
   user-select: none;
+  transition: border-color 160ms, color 160ms, background 160ms;
 }
 
-.ik-online__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #4ade80;
-  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.18);
-  flex-shrink: 0;
+.ik-toolbar-search:hover {
+  border-color: var(--ik-primary, #bfff09);
+  color: var(--ik-primary, #bfff09);
+  background: rgba(191, 255, 9, 0.08);
 }
 
-.ik-online__count {
-  font-feature-settings: "tnum";
+.ik-toolbar-search:active {
+  transform: scale(0.96);
+}
+
+.ik-toolbar-search__icon {
+  width: 15px;
+  height: 15px;
+}
+
+.ik-toolbar-search__label {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.78);
-}
-
-.ik-online__stack {
-  display: inline-flex;
-  align-items: center;
-}
-
-.ik-online__avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #1c1c1c;
-  background: #2a2a2a;
-}
-
-.ik-online__avatar:not(:first-child) {
-  margin-left: -8px;
-}
-
-.ik-online__more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  margin-left: -8px;
-  padding: 0 6px;
-  border-radius: 9999px;
-  border: 2px solid #1c1c1c;
-  background: #333;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 11px;
-  font-weight: 700;
   font-feature-settings: "tnum";
 }
 
@@ -1202,17 +1179,14 @@ onBeforeUnmount(() => {
     font-size: 13px;
   }
 
-  .ik-online {
-    gap: 6px;
-    padding-left: 8px;
+  .ik-toolbar-search {
+    padding: 5px 11px;
     font-size: 12px;
   }
 
-  .ik-online__avatar,
-  .ik-online__more {
-    width: 22px;
-    height: 22px;
-    min-width: 22px;
+  .ik-toolbar-search__icon {
+    width: 13px;
+    height: 13px;
   }
 }
 
@@ -1363,36 +1337,70 @@ onBeforeUnmount(() => {
   right: 32px;
   bottom: 32px;
   z-index: 100;
-  width: 28px !important;
-  height: 28px !important;
-  font-size: 22px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: #161616;
+  border: 1px solid #2d2d2d;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  transition: border-color 160ms, background 160ms, transform 120ms;
 }
 
-.ik-refresh-fab :deep(.z-button__content:empty) {
-  display: none;
+.ik-refresh-fab:hover {
+  border-color: var(--ik-primary, #bfff09);
+  background: #1d1d1d;
 }
 
-.ik-refresh-fab :deep(.z-button__icon) {
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%);
+.ik-refresh-fab:active {
+  transform: scale(0.94);
 }
 
-.ik-refresh-fab :deep(.z-button__icon.is-loading) {
-  animation: ik-fab-spin 1.5s linear infinite;
+.ik-refresh-fab__online {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1;
 }
 
-@keyframes ik-fab-spin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+.ik-refresh-fab__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.2);
+  flex-shrink: 0;
 }
 
-/* 刷新按钮加载状态优化 */
-.ik-refresh-fab :deep(.z-button__icon.is-loading) {
-  will-change: transform;
+.ik-refresh-fab__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ik-refresh-fab__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ik-fab-rotate {
+  animation: ik-fab-rotate 1.5s linear infinite;
+}
+
+@keyframes ik-fab-rotate {
+  to { transform: rotate(360deg); }
 }
 
 /* Avoid overlap with the fixed MobileBottomNav (58px) — shown on screens ≤1100px */

@@ -287,6 +287,23 @@ const blurSearchInput = () => {
   input?.blur();
 };
 
+// 聚焦搜索框：首页工具栏的搜索按钮通过 window 事件唤起
+const focusSearchInput = () => {
+  const input = searchInputRef.value?.$el?.querySelector("input") as
+    | HTMLInputElement
+    | undefined;
+  if (!input) return;
+  input.focus();
+  searchFocused.value = true;
+  if (suggestions.value.length > 0 && searchKeyword.value.trim()) {
+    suggestVisible.value = true;
+  }
+};
+
+if (import.meta.client) {
+  useEventListener(window, "ik:focus-search", focusSearchInput);
+}
+
 // 点选历史记录：回填关键词并直接发起全量搜索
 const selectHistory = (keyword: string) => {
   searchKeyword.value = keyword;
