@@ -1425,7 +1425,7 @@ if (import.meta.client) {
       </button>
     </div>
 
-    <!-- ═══ Mobile-only: Cover strip + Settings rows ═══ -->
+    <!-- ═══ Mobile-only: Cover strip + Editor + Settings rows ═══ -->
     <div class="ik-create-mobile-sections">
       <div class="ik-mobile-cover-strip">
         <button
@@ -1511,6 +1511,58 @@ if (import.meta.client) {
           </button>
         </div>
       </div>
+
+      <!-- Mobile title input -->
+      <input
+        v-model="title"
+        class="ik-mobile-title-input"
+        type="text"
+        placeholder="请输入标题"
+        maxlength="200"
+      />
+
+      <div class="ik-mobile-divider"></div>
+
+      <!-- Mobile editor toolbar -->
+      <div class="ik-create-editor-toolbar ik-create-editor-toolbar--mobile">
+        <div class="ik-create-editor-mode">
+          <button type="button" :class="{ 'is-active': bodyMode === 'edit' }" @click="bodyMode = 'edit'">编辑</button>
+          <button type="button" :class="{ 'is-active': bodyMode === 'preview' }" @click="bodyMode = 'preview'">预览</button>
+        </div>
+        <div v-if="bodyMode === 'edit'" class="ik-create-editor-md">
+          <button type="button" title="加粗" @click="insertMarkdown('**', '**')"><b>B</b></button>
+          <button type="button" title="斜体" @click="insertMarkdown('*', '*')"><i>I</i></button>
+          <button type="button" title="链接" @click="insertMarkdown('[', '](https://)')">链接</button>
+          <button type="button" title="引用" @click="insertMarkdown('> ')">引用</button>
+          <button type="button" title="代码" @click="insertMarkdown('`', '`')">&lt;/&gt;</button>
+          <button type="button" title="列表" @click="insertMarkdown('- ')">列表</button>
+        </div>
+      </div>
+
+      <!-- Mobile body input -->
+      <textarea
+        v-if="bodyMode === 'edit'"
+        v-model="body"
+        class="ik-mobile-body-input"
+        placeholder="请尽情发挥吧"
+        rows="6"
+      ></textarea>
+      <div v-else class="ik-create-preview ik-scrollable ik-mobile-preview" v-html="bodyPreviewHtml"></div>
+
+      <!-- Mobile word count -->
+      <div class="ik-mobile-word-bar">
+        <span v-if="saveStatusText" class="ik-create-save-status">
+          <span v-if="isSavingDraft" class="ik-save-spinner" aria-hidden="true"></span>
+          {{ saveStatusText }}
+        </span>
+        <span v-else></span>
+        <span
+          class="ik-create-word-count"
+          :class="{ 'ik-create-word-count--over': isBodyOverLimit }"
+        >{{ bodyCharCount }}/{{ maxBodyChars }}</span>
+      </div>
+
+      <div class="ik-mobile-divider"></div>
 
       <button type="button" class="ik-mobile-row" @click="isMobileCategoryOpen = true">
         <HashtagIcon class="ik-mobile-row__icon" />
@@ -1719,7 +1771,7 @@ if (import.meta.client) {
   width: min(1440px, calc(100% - 40px));
   margin: 0 auto;
   padding: var(--ik-space-xl) 0 0;
-  height: calc(100vh - 78px - 78px);
+  height: calc(100vh - 78px);
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -2672,9 +2724,32 @@ if (import.meta.client) {
   display: none;
 }
 
-/* ═════════ Mobile-only Sections (cover strip + setting rows) ═════════ */
+/* Mobile sections: hidden on desktop/tablet, shown on mobile */
 .ik-create-mobile-sections {
   display: none;
+}
+
+/* Mobile word bar */
+.ik-mobile-word-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 16px;
+}
+
+/* Mobile preview */
+.ik-mobile-preview {
+  min-height: 220px;
+  margin: 0 16px;
+  border-radius: var(--ik-radius-sm);
+}
+
+/* Mobile toolbar - no border on mobile */
+.ik-create-editor-toolbar--mobile {
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  margin: 0;
 }
 
 /* ═════════ Mobile Sheets (Teleported to body) ═════════ */
