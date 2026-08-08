@@ -186,9 +186,9 @@ export async function detail(req: Request): Promise<Response> {
     return notFound("帖子不存在");
   }
   const state = await viewerState(viewer, [id]);
-  const views = Number(doc.views || 0) + 1;
-  await touchPost(id, { views, updated_at: String(doc.updated_at || "") });
-  const post = toPost({ ...doc, views }, state);
+  // 浏览量只由显式的 POST /view（用户真正点进帖子）累加，
+  // 详情 GET 会被 hover 预取 / 弹窗预热触发，不在此处计数。
+  const post = toPost(doc, state);
   return ok(post);
 }
 
