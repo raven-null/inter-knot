@@ -1910,8 +1910,15 @@ if (import.meta.client) {
   min-height: 56px;
   padding: 10px 16px;
   max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   box-sizing: border-box;
+}
+
+/* 约束滚动视图宽度：防止 fit-content 被超长 nowrap 文字撑开导致横向溢出 */
+.ik-create-menu :deep(.z-scrollbar__view) {
+  width: 100% !important;
+  min-width: 0;
 }
 
 .ik-create-menu :deep(.z-menu__content) {
