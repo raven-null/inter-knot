@@ -266,7 +266,7 @@ onMounted(async () => {
 
 .ik-admin__content {
   flex: 1 1 auto;
-  padding: 28px 32px 48px;
+  padding: 32px 40px 24px;
 }
 
 .ik-admin__footer {
