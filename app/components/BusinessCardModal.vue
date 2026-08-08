@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { useMessage } from "zenless-ui";
-import type { BusinessCard, BusinessCardType, Profile } from "~/types/entities";
+import type { BusinessCard, Profile } from "~/types/entities";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { toNoResizeWebpUrl } from "~/utils/image";
+import { MAX_IMAGE_SIZE } from "~/utils/upload";
 
 const props = defineProps<{
   profile: Profile;
@@ -16,110 +17,53 @@ const emit = defineEmits<{
 const api = useApi();
 const message = useMessage();
 
-type TabKey = "all" | BusinessCardType;
-const CARD_TYPE_TABS: BusinessCardType[] = ["character", "city", "news"];
-const activeTab = ref<TabKey>("all");
-const cardsByTab = reactive<Record<TabKey, BusinessCard[] | null>>({
-  all: null,
-  character: null,
-  city: null,
-  news: null,
-});
-const loadingTabs = reactive<Record<TabKey, boolean>>({
-  all: false,
-  character: false,
-  city: false,
-  news: false,
-});
+const cards = ref<BusinessCard[]>([]);
 const equippedId = ref<string | null>(null);
 const equippedCard = ref<BusinessCard | null>(null);
 const selectedCard = ref<BusinessCard | null>(null);
 const equipping = ref(false);
+const loading = ref(true);
+const deletingId = ref<string | null>(null);
 
-const tabs: { key: TabKey; label: string }[] = [
-  { key: "all", label: "全部" },
-  { key: "character", label: "代理人" },
-  { key: "city", label: "城募" },
-  { key: "news", label: "纪闻" },
-];
+// 默认展示当前装备的背景；若尚未装备任何背景则选中第一张（如有）
+const previewCard = computed(() => selectedCard.value ?? equippedCard.value ?? cards.value[0] ?? null);
 
-const filteredCards = computed(() => cardsByTab[activeTab.value] ?? []);
-const loading = computed(() => loadingTabs[activeTab.value]);
-
-const findCachedCard = (documentId: string | null) => {
-  if (!documentId) return null;
-  for (const cards of Object.values(cardsByTab)) {
-    const card = cards?.find((item) => item.documentId === documentId);
-    if (card) return card;
-  }
-  return null;
-};
-
-const previewCard = computed(() => selectedCard.value ?? findCachedCard(equippedId.value) ?? equippedCard.value);
-
-const blocksToText = (blocks: unknown[] | undefined): string => {
-  if (!Array.isArray(blocks)) return "";
-  return blocks
-    .map((block: any) => {
-      if (Array.isArray(block?.children)) {
-        return block.children.map((c: any) => c?.text ?? "").join("");
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n");
-};
-
-const previewStory = computed(() => blocksToText(previewCard.value?.story));
+// 上传中的本地预览优先展示，其次展示当前选中/装备的背景
+const previewImageUrl = computed(() => uploadPreview.value || previewCard.value?.image || "");
 
 const selectCard = (card: BusinessCard) => {
   selectedCard.value = card;
 };
 
-const cacheCards = (key: TabKey, nextCards: BusinessCard[]) => {
-  cardsByTab[key] = nextCards;
-  if (key === "all") {
-    for (const type of CARD_TYPE_TABS) {
-      cardsByTab[type] = nextCards.filter((card) => card.type === type);
-    }
-  }
-};
-
-const loadCardsForTab = async (key: TabKey) => {
-  if (cardsByTab[key] || loadingTabs[key]) return;
-  loadingTabs[key] = true;
+const loadCards = async () => {
+  loading.value = true;
   try {
-    const result = await api.getMyBusinessCards(key === "all" ? undefined : key);
-    cacheCards(key, result.cards);
+    const result = await api.getMyBusinessCards();
+    cards.value = result.cards;
     equippedId.value = result.equippedCardDocumentId;
     equippedCard.value = result.equippedCard;
-    if (!equippedId.value && activeTab.value === key && !selectedCard.value && result.cards.length > 0) {
+    if (!equippedId.value && !selectedCard.value && result.cards.length > 0) {
       selectedCard.value = result.cards[0] ?? null;
     }
   } catch (err) {
-    message.error(resolveErrorMessage(err, "获取名片列表失败"));
+    message.error(resolveErrorMessage(err, "获取背景列表失败"));
   } finally {
-    loadingTabs[key] = false;
+    loading.value = false;
   }
 };
 
-const handleTabChange = (key: TabKey) => {
-  activeTab.value = key;
-  selectedCard.value = null;
-  loadCardsForTab(key).catch(() => undefined);
-};
-
 const handleEquip = async () => {
-  if (!selectedCard.value || equipping.value) return;
+  const target = previewCard.value;
+  if (!target || equipping.value) return;
   equipping.value = true;
   try {
-    await api.equipBusinessCard(selectedCard.value.documentId);
-    equippedId.value = selectedCard.value.documentId;
-    equippedCard.value = selectedCard.value;
-    emit("equipped", selectedCard.value);
-    message.success("已使用此名片");
+    await api.equipBusinessCard(target.documentId);
+    equippedId.value = target.documentId;
+    equippedCard.value = target;
+    emit("equipped", target);
+    message.success("已使用此背景");
   } catch (err) {
-    message.error(resolveErrorMessage(err, "使用名片失败"));
+    message.error(resolveErrorMessage(err, "使用背景失败"));
   } finally {
     equipping.value = false;
   }
@@ -132,13 +76,76 @@ const handleUnequip = async () => {
     await api.equipBusinessCard(null);
     equippedId.value = null;
     equippedCard.value = null;
-    selectedCard.value = null;
     emit("equipped", null);
-    message.success("已卸下名片");
+    message.success("已卸下背景");
   } catch (err) {
-    message.error(resolveErrorMessage(err, "卸下名片失败"));
+    message.error(resolveErrorMessage(err, "卸下背景失败"));
   } finally {
     equipping.value = false;
+  }
+};
+
+const handleDelete = async (card: BusinessCard) => {
+  if (deletingId.value) return;
+  deletingId.value = card.documentId;
+  try {
+    await api.deleteCustomCard(card.documentId);
+    cards.value = cards.value.filter((c) => c.documentId !== card.documentId);
+    if (equippedId.value === card.documentId) {
+      equippedId.value = null;
+      equippedCard.value = null;
+      emit("equipped", null);
+    }
+    if (selectedCard.value?.documentId === card.documentId) {
+      selectedCard.value = null;
+    }
+    message.success("已删除背景");
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "删除背景失败"));
+  } finally {
+    deletingId.value = null;
+  }
+};
+
+// ── 背景图上传 + 预览 ──
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const uploading = ref(false);
+const uploadPreview = ref("");
+
+const triggerFileInput = () => {
+  fileInputRef.value?.click();
+};
+
+const onFileSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    message.warning("请选择图片文件");
+    return;
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    message.warning("图片大小不能超过 30MB");
+    return;
+  }
+  // 上传前先展示本地预览，上传完成自动装备
+  uploadPreview.value = URL.createObjectURL(file);
+  uploading.value = true;
+  try {
+    const card = await api.uploadCustomCard(file);
+    cards.value = [card, ...cards.value.filter((c) => c.documentId !== card.documentId)];
+    equippedId.value = card.documentId;
+    equippedCard.value = card;
+    selectedCard.value = null;
+    emit("equipped", card);
+    message.success("背景上传成功");
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "上传背景失败"));
+  } finally {
+    uploading.value = false;
+    setTimeout(() => URL.revokeObjectURL(uploadPreview.value), 1000);
+    uploadPreview.value = "";
   }
 };
 
@@ -163,7 +170,7 @@ const SCROLL_LOCK_TOKEN = Symbol("business-card-modal");
 onMounted(async () => {
   window.addEventListener("keydown", handleKeydown);
   acquire(SCROLL_LOCK_TOKEN);
-  await loadCardsForTab(activeTab.value);
+  await loadCards();
 });
 
 onBeforeUnmount(() => {
@@ -183,38 +190,13 @@ onBeforeUnmount(() => {
 
             <!-- Tab Bar -->
             <div class="ik-bc-tab-bar">
-              <!-- Close button (left) -->
+              <!-- Title (left) -->
+              <span class="ik-bc-title">修改背景</span>
+
+              <!-- Close button (right) -->
               <button class="ik-bc-close" aria-label="关闭" @click="handleClose">
                 <img src="/images/close-btn.webp" alt="关闭" class="ik-bc-close__img" draggable="false" />
               </button>
-
-              <!-- Type tabs (right) -->
-              <div class="ik-bc-tabs" role="tablist">
-                <button
-                  v-for="(tab, idx) in tabs"
-                  :key="tab.key"
-                  type="button"
-                  role="tab"
-                  class="ik-bc-tab"
-                  :class="[
-                    idx === 0 ? 'ik-bc-tab--first' : idx === tabs.length - 1 ? 'ik-bc-tab--last' : 'ik-bc-tab--middle',
-                    { 'is-active': activeTab === tab.key },
-                  ]"
-                  :aria-selected="activeTab === tab.key"
-                  @click="handleTabChange(tab.key)"
-                >
-                  <svg v-if="idx === 0" class="ik-bc-tab__highlight ik-bc-tab__highlight--first" viewBox="0 0 110.7 42" aria-hidden="true">
-                    <path d="M 21 0 L 94.38 0 A 10 10 0 0 1 103.29 14.54 L 93.75 33.26 A 16 16 0 0 1 79.5 42 L 21 42 A 21 21 0 0 1 21 0 Z" fill="currentColor" />
-                  </svg>
-                  <svg v-else-if="idx === tabs.length - 1" class="ik-bc-tab__highlight ik-bc-tab__highlight--last" viewBox="0 0 110.7 42" aria-hidden="true">
-                    <path d="M 89.7 0 A 21 21 0 0 1 89.7 42 L 13.05 42 A 8 8 0 0 1 5.93 30.37 L 16.95 8.74 A 16 16 0 0 1 31.2 0 Z" fill="currentColor" />
-                  </svg>
-                  <svg v-else class="ik-bc-tab__highlight ik-bc-tab__highlight--middle" viewBox="0 0 121.4 42" aria-hidden="true">
-                    <path d="M 105.08 0 A 10 10 0 0 1 113.99 14.54 L 104.45 33.26 A 16 16 0 0 1 90.2 42 L 16.32 42 A 10 10 0 0 1 7.41 27.46 L 16.95 8.74 A 16 16 0 0 1 31.2 0 Z" fill="currentColor" />
-                  </svg>
-                  <span class="ik-bc-tab__content">{{ tab.label }}</span>
-                </button>
-              </div>
             </div>
 
             <!-- Main content area -->
@@ -228,7 +210,7 @@ onBeforeUnmount(() => {
                 <div v-else class="ik-bc-preview__banner-card">
                   <div
                     class="ik-bc-preview__banner"
-                    :style="previewCard?.image ? { backgroundImage: `url('${previewCard.image}')` } : undefined"
+                    :style="previewImageUrl ? { backgroundImage: `url('${previewImageUrl}')` } : undefined"
                   >
                     <div class="ik-bc-preview__user">
                       <div class="ik-bc-preview__avatar-wrap">
@@ -251,26 +233,26 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <!-- Bottom: card list (left) + card detail (right) -->
+              <!-- Bottom: background list (left) + upload (right) -->
               <div class="ik-bc-bottom">
 
-                <!-- Card grid (left) -->
+                <!-- Background capsule list (left) -->
                 <div class="ik-bc-grid-wrap">
                   <div v-if="loading" class="ik-bc-grid-loading">
                     <i class="z-icon-loading ik-spin" /> 加载中...
                   </div>
-                  <div v-else-if="!filteredCards.length" class="ik-bc-grid-empty">
-                    暂无此类名片
+                  <div v-else-if="!cards.length" class="ik-bc-grid-empty">
+                    还没有上传背景，点击右侧上传
                   </div>
                   <Transition name="ik-fade">
-                  <z-scrollbar v-if="!loading && filteredCards.length" class="ik-bc-grid-scroll">
+                  <z-scrollbar v-if="!loading && cards.length" class="ik-bc-grid-scroll">
                     <div class="ik-bc-grid">
-                      <button
-                        v-for="card in filteredCards"
+                      <div
+                        v-for="card in cards"
                         :key="card.documentId"
                         class="ik-bc-grid__item"
                         :class="{
-                          'is-selected': selectedCard?.documentId === card.documentId,
+                          'is-selected': previewCard?.documentId === card.documentId,
                           'is-equipped': equippedId === card.documentId,
                         }"
                         @click="selectCard(card)"
@@ -282,53 +264,45 @@ onBeforeUnmount(() => {
                             alt=""
                             class="ik-bc-grid__img"
                           />
-                          <div v-else class="ik-bc-grid__placeholder">
-                            {{ card.name.charAt(0) }}
-                          </div>
                         </div>
+                        <button
+                          type="button"
+                          class="ik-bc-grid__delete"
+                          aria-label="删除背景"
+                          :disabled="deletingId === card.documentId"
+                          @click.stop="handleDelete(card)"
+                        >×</button>
                         <i v-if="equippedId === card.documentId" class="z-icon-success ik-bc-grid__badge-icon" />
-                      </button>
+                      </div>
                     </div>
                   </z-scrollbar>
                   </Transition>
                 </div>
 
-                <!-- Card detail (right) -->
+                <!-- Upload box (right) -->
                 <div class="ik-bc-detail">
-                  <template v-if="loading">
-                    <div class="ik-skel" style="width:140px;height:24px;border-radius:6px"></div>
-                    <div class="ik-skel" style="width:100%;height:14px;border-radius:4px;margin-top:12px"></div>
-                    <div class="ik-skel" style="width:80%;height:14px;border-radius:4px;margin-top:8px"></div>
-                    <div class="ik-skel" style="width:60%;height:14px;border-radius:4px;margin-top:8px"></div>
-                    <div style="margin-top:auto;padding-top:12px;display:flex;justify-content:center">
-                      <div class="ik-skel" style="width:130px;height:40px;border-radius:999px"></div>
-                    </div>
-                  </template>
-                  <template v-else-if="previewCard">
-                    <h3 class="ik-bc-detail__name">{{ previewCard.name }}</h3>
-                    <p v-if="previewStory" class="ik-bc-detail__story">{{ previewStory }}</p>
-                    <p v-if="previewCard.description" class="ik-bc-detail__desc">{{ previewCard.description }}</p>
-                    <p v-else class="ik-bc-detail__desc ik-bc-detail__desc--empty">暂无描述</p>
+                  <div class="ik-bc-upload" @click="triggerFileInput">
+                    <svg class="ik-bc-upload__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span class="ik-bc-upload__text">{{ uploading ? "上传中..." : "上传背景图片" }}</span>
+                    <span class="ik-bc-upload__hint">选择图片自动转 WebP 上传</span>
+                  </div>
+                  <input ref="fileInputRef" type="file" accept="image/*" class="ik-bc-upload__file" @change="onFileSelected" />
 
-                    <div class="ik-bc-detail__actions">
-                      <z-button
-                        v-if="selectedCard && selectedCard.documentId !== equippedId"
-                        :disabled="equipping"
-                        @click="handleEquip"
-                      >
-                        {{ equipping ? '使用中...' : '使用名片' }}
-                      </z-button>
-                      <z-button
-                        v-if="equippedId && (!selectedCard || selectedCard.documentId === equippedId)"
-                        :disabled="equipping"
-                        @click="handleUnequip"
-                      >
-                        {{ equipping ? '卸下中...' : '卸下名片' }}
-                      </z-button>
-                    </div>
-                  </template>
-                  <div v-else class="ik-bc-detail__empty">
-                    选择一张名片查看详情
+                  <div class="ik-bc-detail__actions">
+                    <z-button
+                      v-if="previewCard && previewCard.documentId !== equippedId"
+                      :disabled="equipping || uploading"
+                      @click="handleEquip"
+                    >
+                      {{ equipping ? '使用中...' : '使用背景' }}
+                    </z-button>
+                    <z-button
+                      v-else-if="equippedId"
+                      :disabled="equipping || uploading"
+                      @click="handleUnequip"
+                    >
+                      {{ equipping ? '卸下中...' : '卸下背景' }}
+                    </z-button>
                   </div>
                 </div>
 
@@ -442,80 +416,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-/* Type tabs (right side, reuse header tab style) */
-.ik-bc-tabs {
-  position: relative;
-  display: flex;
-  overflow: visible;
-  border: 3px solid #313131;
-  border-radius: 999px;
-  background: #050505 url("/images/tab-bg-point.webp") repeat;
-}
-
-.ik-bc-tab {
-  position: relative;
-  z-index: 0;
-  width: 90px;
-  height: 38px;
-  padding: 0;
-  overflow: visible;
-  border: 0;
-  appearance: none;
-  background: transparent;
+/* ── Title (left side) ── */
+.ik-bc-title {
+  font-size: 17px;
+  font-weight: 900;
   color: #fff;
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 16px;
-  font-weight: 700;
-  font-style: italic;
-  line-height: 1;
-  text-align: center;
-  user-select: none;
-  transition: color 140ms ease;
-}
-.ik-bc-tab:focus-visible { outline: 2px solid rgba(215, 255, 0, 0.7); outline-offset: 4px; }
-.ik-bc-tab:active { color: #b8b8b8; }
-.ik-bc-tab.is-active { color: #000; }
-
-.ik-bc-tab__content {
-  position: relative;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-}
-
-.ik-bc-tab__highlight {
-  position: absolute;
-  top: 0;
-  z-index: 1;
-  height: 38px;
-  color: #fbfe00;
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(1.1);
-  transform-origin: center;
-}
-.ik-bc-tab__highlight--first { left: 0; width: 100px; }
-.ik-bc-tab__highlight--middle { left: -10px; width: 110px; }
-.ik-bc-tab__highlight--last { right: 0; width: 100px; }
-
-.ik-bc-tab.is-active .ik-bc-tab__highlight {
-  opacity: 1;
-  animation:
-    ik-bc-tab-color 800ms linear infinite alternate,
-    ik-bc-tab-scale 700ms linear infinite;
-}
-
-@keyframes ik-bc-tab-color {
-  from { color: #fbfe00; }
-  to { color: #dcfe00; }
-}
-@keyframes ik-bc-tab-scale {
-  0% { transform: scale(1.1); animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19); }
-  50% { transform: scale(1.25); animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
-  100% { transform: scale(1.1); }
+  letter-spacing: 0.5px;
 }
 
 /* ── Main content ── */
@@ -669,9 +575,7 @@ onBeforeUnmount(() => {
   border: 2px solid transparent;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease;
-  appearance: none;
   color: #fff;
-  font-family: inherit;
 }
 .ik-bc-grid__item:hover { background: #1a1a1a; border-color: #333; }
 .ik-bc-grid__item.is-selected { border-color: #fbfe00; background: #1a1a0a; }
@@ -684,6 +588,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   overflow: hidden;
   background: #1a1a1a;
+  pointer-events: none;
 }
 .ik-bc-grid__img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ik-bc-grid__placeholder {
@@ -697,15 +602,40 @@ onBeforeUnmount(() => {
   color: #444;
 }
 
+.ik-bc-grid__delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+.ik-bc-grid__delete:hover { background: rgba(200, 30, 30, 0.9); transform: scale(1.1); }
+.ik-bc-grid__delete:disabled { opacity: 0.5; cursor: default; }
+
 .ik-bc-grid__badge-icon {
   position: absolute;
-  top: 0px;
-  right: 0px;
-  font-size: 25px;
+  bottom: 4px;
+  right: 4px;
+  font-size: 20px;
   color: #00cc0d;
+  background: #000;
+  border-radius: 999px;
 }
 
-/* ── Card detail (right) ── */
+/* ── Upload box + actions (right) ── */
 .ik-bc-detail {
   flex: 2;
   min-width: 0;
@@ -720,32 +650,33 @@ onBeforeUnmount(() => {
 }
 .ik-bc-detail::-webkit-scrollbar { display: none; }
 
-.ik-bc-detail__name {
-  margin: 0 0 12px;
-  font-size: 20px;
-  font-weight: 900;
+.ik-bc-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  min-height: 160px;
+  padding: 24px 16px;
+  border: 2px dashed #3a3a3a;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #999;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+.ik-bc-upload:hover {
+  border-color: #fbfe00;
   color: #fff;
+  background: rgba(20, 20, 0, 0.25);
 }
-.ik-bc-detail__story {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: #ccc;
-  font-weight: 900;
-  white-space: pre-wrap;
-}
-.ik-bc-detail__desc {
-  margin: 0 0 12px;
-  font-size: 14px;
-  line-height: 1.7;
-  color: #888;
-  font-weight: 900;
-  white-space: pre-wrap;
-}
-.ik-bc-detail__desc--empty {
-  color: #555;
-  font-style: italic;
-}
+.ik-bc-upload:active { transform: scale(0.99); }
+.ik-bc-upload__icon { width: 30px; height: 30px; }
+.ik-bc-upload__text { font-size: 15px; font-weight: 800; color: #fff; }
+.ik-bc-upload__hint { font-size: 12px; font-weight: 500; color: #888; }
+.ik-bc-upload__file { display: none; }
+
 .ik-bc-detail__actions {
   display: flex;
   justify-content: center;
@@ -756,14 +687,6 @@ onBeforeUnmount(() => {
 }
 .ik-bc-detail__actions .z-button {
   min-width: 130px;
-}
-.ik-bc-detail__empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: #555;
-  font-size: 14px;
 }
 
 /* ── Skeleton ── */
@@ -817,13 +740,7 @@ onBeforeUnmount(() => {
   .ik-bc-frame { border-radius: 0; }
   .ik-bc-frame__inner { border-radius: 0; }
   .ik-bc-frame__body { border-radius: 0; }
-  /* Shrink the type tabs so all tabs + close button fit on narrow phones
-     (fixed 90px tabs previously overflowed and clipped the last tab). */
   .ik-bc-tab-bar { padding: 10px 12px; }
-  .ik-bc-tab { width: 66px; font-size: 14px; }
-  .ik-bc-tab__highlight--first { width: 73px; }
-  .ik-bc-tab__highlight--middle { width: 80px; left: -7px; }
-  .ik-bc-tab__highlight--last { width: 73px; }
   .ik-bc-close__img { height: 28px; }
 }
 

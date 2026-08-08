@@ -1,8 +1,8 @@
 ﻿/** 「我的」个人设置 / 上传库 / 邮箱 / 安全等路由（基于 Netlify Blobs） */
 
-import { getJson, setJson, del, listKeys, userKey, userEmailKey } from "../storage";
+import { getJson, setJson, del, listKeys, userKey, userEmailKey, KEYS } from "../storage";
 import { requireAuth } from "../auth";
-import { ok, json, badRequest, readJson, int } from "../http";
+import { ok, json, badRequest, notFound, readJson, int } from "../http";
 import { toUploadedFile, type Doc } from "../serialize";
 
 async function userDoc(userId: string): Promise<Doc> {
@@ -111,13 +111,104 @@ export async function deleteUpload(req: Request): Promise<Response> {
   return ok({ deleted: false, inUse: false });
 }
 
-// ── 名片 / 头像（简化实现） ──────────────────────────
-export async function businessCards(): Promise<Response> {
-  return json({ data: [], equippedCardDocumentId: null, equippedCard: null });
+// ── 名片 / 背景（自定义背景图管理） ──────────────
+type BgIndex = {
+  items: Array<{ documentId: string; url: string; name: string; createdAt: string }>;
+  equippedDocumentId: string | null;
+};
+
+async function readBgIndex(userId: string): Promise<BgIndex> {
+  const idx = await getJson<Partial<BgIndex>>(KEYS.customBackgrounds(userId));
+  return {
+    items: Array.isArray(idx?.items) ? idx.items : [],
+    equippedDocumentId: idx?.equippedDocumentId ?? null,
+  };
 }
 
-export async function equipBusinessCard(): Promise<Response> {
-  return json({ success: true });
+async function writeBgIndex(userId: string, idx: BgIndex): Promise<void> {
+  await setJson(KEYS.customBackgrounds(userId), idx);
+}
+
+export async function businessCards(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const idx = await readBgIndex(viewer.userId);
+  const items = idx.items.map((it) => ({
+    documentId: it.documentId,
+    name: it.name || "自定义背景",
+    type: "character",
+    image: it.url,
+    createdAt: it.createdAt,
+  }));
+  const equipped = items.find((it) => it.documentId === idx.equippedDocumentId) ?? null;
+  return json({ data: items, equippedCardDocumentId: idx.equippedDocumentId, equippedCard: equipped });
+}
+
+export async function equipBusinessCard(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const { documentId } = await readJson<{ documentId?: string | null }>(req);
+  const idx = await readBgIndex(viewer.userId);
+  if (documentId) {
+    const found = idx.items.some((it) => it.documentId === documentId);
+    if (!found) return badRequest("背景不存在");
+    idx.equippedDocumentId = documentId;
+  } else {
+    idx.equippedDocumentId = null;
+  }
+  await writeBgIndex(viewer.userId, idx);
+  return json({ success: true, equippedCardDocumentId: idx.equippedDocumentId });
+}
+
+/** 上传自定义背景图（body: { fileId }，fileId 来自 uploads 记录） */
+export async function uploadCustomCard(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const { fileId } = await readJson<{ fileId?: string | number }>(req);
+  if (!fileId) return badRequest("缺少文件");
+  const documentId = String(fileId);
+  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
+  let url = "";
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d && String(d.document_id) === documentId && String(d.owner_id) === viewer.userId) {
+      url = String(d.url || "");
+      break;
+    }
+  }
+  if (!url) return badRequest("文件不存在");
+
+  const idx = await readBgIndex(viewer.userId);
+  const newItem = {
+    documentId,
+    url,
+    name: "自定义背景",
+    createdAt: new Date().toISOString(),
+  };
+  idx.items = [newItem, ...idx.items.filter((it) => it.documentId !== documentId)];
+  idx.equippedDocumentId = documentId;
+  await writeBgIndex(viewer.userId, idx);
+  return json({
+    data: {
+      documentId,
+      name: "自定义背景",
+      type: "character",
+      image: url,
+      createdAt: newItem.createdAt,
+    },
+    equippedCardDocumentId: documentId,
+  });
+}
+
+/** 删除自定义背景图（DELETE /api/me/business-cards/:documentId） */
+export async function deleteCustomCard(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const documentId = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
+  if (!documentId) return badRequest("缺少参数");
+  const idx = await readBgIndex(viewer.userId);
+  const nextItems = idx.items.filter((it) => it.documentId !== documentId);
+  if (nextItems.length === idx.items.length) return notFound("背景不存在");
+  idx.items = nextItems;
+  if (idx.equippedDocumentId === documentId) idx.equippedDocumentId = null;
+  await writeBgIndex(viewer.userId, idx);
+  return ok({ deleted: true, equippedCardDocumentId: idx.equippedDocumentId });
 }
 
 export async function avatars(): Promise<Response> {

@@ -1847,6 +1847,31 @@ export function useApi() {
     invalidate(["profile"]);
   };
 
+  const uploadCustomCard = async (
+    file: File,
+    onProgress?: (percent: number) => void,
+  ): Promise<BusinessCard> => {
+    const uploaded = await uploadImage(file, (p) => onProgress?.(p * 0.8));
+    const response = await $api("/api/me/business-cards/upload-custom", {
+      method: "PUT",
+      body: { fileId: uploaded.documentId },
+    });
+    onProgress?.(100);
+    const data = unwrapData<Record<string, unknown>>(response);
+    const card = toBusinessCard(data, apiBaseUrl);
+    invalidate(["me", "business-cards"]);
+    invalidate(["profile"]);
+    return card as BusinessCard;
+  };
+
+  const deleteCustomCard = async (documentId: string): Promise<void> => {
+    await $api(`/api/me/business-cards/${documentId}`, {
+      method: "DELETE",
+    });
+    invalidate(["me", "business-cards"]);
+    invalidate(["profile"]);
+  };
+
   const getMyAvatars = async (): Promise<{ avatars: Avatar[]; equippedAvatarDocumentId: string | null }> => {
     return cachedRead(
       qk.me.avatars,
@@ -2324,6 +2349,8 @@ export function useApi() {
     deleteMyUpload,
     getMyBusinessCards,
     equipBusinessCard,
+    uploadCustomCard,
+    deleteCustomCard,
     getMyAvatars,
     equipAvatar,
     uploadCustomAvatar,

@@ -40,6 +40,13 @@ export async function detail(req: Request): Promise<Response> {
   const feed = await getFeed();
   const mine = feed.filter((p) => String(p.author_document_id) === id);
 
+  // 解析该用户装备的自定义背景图
+  const bgIdx = await getJson<{
+    items?: Array<{ documentId: string; url: string; name?: string }>;
+    equippedDocumentId?: string | null;
+  }>(KEYS.customBackgrounds(id));
+  const equippedBg = bgIdx?.items?.find((it) => it.documentId === bgIdx.equippedDocumentId);
+
   return ok({
     documentId: id,
     userId: Number(user.uid || 0),
@@ -66,7 +73,14 @@ export async function detail(req: Request): Promise<Response> {
       totalComments: mine.reduce((s, p) => s + Number(p.comments_count || 0), 0),
       totalLikes: mine.reduce((s, p) => s + Number(p.likes_count || 0), 0),
     },
-    equippedCard: null,
+    equippedCard: equippedBg
+      ? {
+          documentId: equippedBg.documentId,
+          name: equippedBg.name || "自定义背景",
+          type: "character",
+          image: equippedBg.url,
+        }
+      : null,
     equippedAvatar: null,
   });
 }

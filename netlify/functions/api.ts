@@ -199,8 +199,10 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "email" && s.length === 3 && isPut(req)) return meRoutes.bindEmail(req);
       if (sub === "uploads" && s.length === 3 && isGet(req)) return meRoutes.uploads(req);
       if (sub === "uploads" && s.length === 4 && isDelete(req)) return meRoutes.deleteUpload(req);
-      if (sub === "business-cards" && sub2 === "equip" && isPut(req)) return meRoutes.equipBusinessCard();
-      if (sub === "business-cards" && isGet(req)) return meRoutes.businessCards();
+      if (sub === "business-cards" && sub2 === "equip" && isPut(req)) return meRoutes.equipBusinessCard(req);
+      if (sub === "business-cards" && sub2 === "upload-custom" && isPut(req)) return meRoutes.uploadCustomCard(req);
+      if (sub === "business-cards" && isGet(req)) return meRoutes.businessCards(req);
+      if (sub === "business-cards" && s.length === 4 && isDelete(req)) return meRoutes.deleteCustomCard(req);
       if (sub === "avatars" && sub2 === "equip" && isPut(req)) return meRoutes.equipAvatar();
       if (sub === "avatars" && sub2 === "upload-custom" && isPut(req)) return meRoutes.uploadCustomAvatar(req);
       if (sub === "avatars" && s.length === 3 && isGet(req)) return meRoutes.avatars();
