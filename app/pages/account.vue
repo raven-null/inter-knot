@@ -35,7 +35,7 @@ const {
   loadBlocked,
   setSecurity,
   setPasswordDone,
-  setMihoyoBinding,
+  bindMihoyo: bindMihoyoAction,
   unbindMihoyo: unbindMihoyoAction,
   unblockUser: unblockUserAction,
 } = accountData;
@@ -67,50 +67,46 @@ const onMenuChange = (name: string | number) => {
   activeSubView.value = "";
   if (key === "mihoyo") {
     if (!mihoyoLoaded.value) {
-      ensureMihoyo().then(() => {
-        if (!mihoyoBinding.value && activeMenuKey.value === "mihoyo") {
-          void startMihoyoQr();
-        }
-      });
-    } else if (!mihoyoBinding.value) {
-      void startMihoyoQr();
+      void ensureMihoyo();
     }
   } else if (key === "blacklist") {
     void ensureBlocked(true);
   }
 };
 
-// ── 米游社绑定 ─────────────────────────────
-const mihoyo = useMihoyoQr({
-  isActive: () => activeMenuKey.value === "mihoyo" && !mihoyoBinding.value,
-  width: 200,
-  onConfirmed: (res) => {
-    if (res.mode !== "bind") return;
-    setMihoyoBinding(res.binding);
-    message.success("米游社账号绑定成功");
-  },
-  onError: (err) => {
-    message.error(resolveErrorMessage(err, "获取二维码失败"));
-  },
+// ── 米游社绑定（手动填写 UID / 区服） ─────────────
+const bindUidInput = ref("");
+const bindRegionInput = ref("官服");
+const bindNicknameInput = ref("");
+const bindLevelInput = ref<number | null>(null);
+const bindMihoyoLoading = ref(false);
+
+const bindUidError = computed(() => {
+  const uid = bindUidInput.value.trim();
+  if (!uid) return "请输入绝区零 UID";
+  if (!/^\d+$/.test(uid)) return "UID 只能为数字";
+  return "";
 });
 
-const mihoyoQrDataUrl = mihoyo.qrDataUrl;
-const mihoyoQrStatus = mihoyo.qrStatus;
-const mihoyoQrNeedRefresh = mihoyo.qrNeedRefresh;
-const startMihoyoQr = mihoyo.startQr;
-const stopMihoyoQr = mihoyo.stopQr;
-
-const mihoyoQrStatusText = computed(() => {
-  switch (mihoyoQrStatus.value) {
-    case "loading": return "二维码生成中…";
-    case "waiting": return "请使用米游社 App 扫码绑定";
-    case "scanned": return "已扫码，请在米游社 App 中确认";
-    case "confirmed": return "绑定中…";
-    case "expired": return "二维码已过期，点击刷新";
-    case "cancelled": return "已取消扫码，点击刷新重试";
-    case "error": return "二维码获取失败，点击刷新重试";
+const bindMihoyo = async () => {
+  if (bindMihoyoLoading.value) return;
+  if (bindUidError.value) {
+    message.warning(bindUidError.value);
+    return;
   }
-});
+  bindMihoyoLoading.value = true;
+  try {
+    await bindMihoyoAction({
+      uid: bindUidInput.value.trim(),
+      region: bindRegionInput.value.trim(),
+      nickname: bindNicknameInput.value.trim() || undefined,
+      level: bindLevelInput.value ?? undefined,
+    });
+    message.success("米游社账号绑定成功");
+  } finally {
+    bindMihoyoLoading.value = false;
+  }
+};
 
 const mihoyoMetaText = computed(() => {
   if (mihoyoLoading.value) return "加载中";
@@ -119,7 +115,6 @@ const mihoyoMetaText = computed(() => {
 
 const unbindMihoyo = async () => {
   await unbindMihoyoAction();
-  void startMihoyoQr();
 };
 
 // ── 账号安全 ─────────────────────────────────
@@ -181,7 +176,6 @@ const openPassword = () => {
 
 const goBack = () => {
   panelTransitionName.value = "ik-ac-slide-left";
-  stopMihoyoQr();
   activeMenuKey.value = "account";
   activeSubView.value = "";
   bindEmailInput.value = "";
@@ -639,28 +633,40 @@ useHead({ title: "账号中心" });
               </template>
 
               <template v-else>
-                <p class="ik-ac-security-send-hint">请使用米游社 App 扫码绑定</p>
-                <div class="ik-ac-qr-box" :class="{ 'is-dimmed': mihoyoQrNeedRefresh }">
-                  <img
-                    v-if="mihoyoQrDataUrl"
-                    :src="mihoyoQrDataUrl"
-                    alt="米游社绑定二维码"
-                    class="ik-ac-qr"
-                    draggable="false"
-                  />
-                  <div v-else class="ik-ac-qr-placeholder" />
-                  <button
-                    v-if="mihoyoQrNeedRefresh"
-                    type="button"
-                    class="ik-ac-qr-refresh"
-                    @click="startMihoyoQr"
-                  >
-                    刷新二维码
-                  </button>
+                <div class="ik-ac-mihoyo-form">
+                  <div class="ik-ac-mihoyo-field">
+                    <label class="ik-ac-mihoyo-field-label" for="ik-mihoyo-uid">绝区零 UID</label>
+                    <z-input
+                      id="ik-mihoyo-uid"
+                      v-model="bindUidInput"
+                      placeholder="请输入绝区零 UID"
+                      :status="bindUidError ? 'error' : undefined"
+                      clearable
+                      @keydown.enter="bindMihoyo"
+                    />
+                    <p v-if="bindUidError" class="ik-ac-mihoyo-field-error">{{ bindUidError }}</p>
+                  </div>
+                  <div class="ik-ac-mihoyo-field">
+                    <label class="ik-ac-mihoyo-field-label" for="ik-mihoyo-region">区服</label>
+                    <z-input id="ik-mihoyo-region" v-model="bindRegionInput" placeholder="如：官服 / B服" clearable />
+                  </div>
+                  <div class="ik-ac-mihoyo-field">
+                    <label class="ik-ac-mihoyo-field-label" for="ik-mihoyo-nickname">昵称（可选）</label>
+                    <z-input id="ik-mihoyo-nickname" v-model="bindNicknameInput" placeholder="游戏内昵称，用于主页展示" clearable />
+                  </div>
+                  <div class="ik-ac-mihoyo-field">
+                    <label class="ik-ac-mihoyo-field-label" for="ik-mihoyo-level">等级（可选）</label>
+                    <z-input
+                      id="ik-mihoyo-level"
+                      v-model.number="bindLevelInput"
+                      type="number"
+                      placeholder="如：55"
+                    />
+                  </div>
+                  <z-button class="ik-ac-mihoyo-submit" :loading="bindMihoyoLoading" :disabled="bindMihoyoLoading" @click="bindMihoyo">
+                    {{ bindMihoyoLoading ? "绑定中…" : "绑定账号" }}
+                  </z-button>
                 </div>
-                <p class="ik-ac-qr-status" :class="`is-${mihoyoQrStatus}`">
-                  {{ mihoyoQrStatusText }}
-                </p>
               </template>
             </div>
           </template>
@@ -1102,67 +1108,40 @@ useHead({ title: "账号中心" });
   word-break: break-all;
 }
 
-.ik-ac-qr-box {
-  position: relative;
-  width: 200px;
-  height: 200px;
-  margin: 0 auto;
-  border-radius: 14px;
-  overflow: hidden;
-  background: #fff;
-  box-shadow: var(--ik-shadow-md);
-}
-
-.ik-ac-qr {
-  width: 100%;
-  height: 100%;
-  display: block;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.ik-ac-qr-box.is-dimmed .ik-ac-qr {
-  filter: blur(3px) brightness(0.5);
-}
-
-.ik-ac-qr-placeholder {
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.ik-ac-qr-refresh {
-  position: absolute;
-  inset: 0;
+/* ── 手动绑定表单 ── */
+.ik-ac-mihoyo-form {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: rgba(0, 0, 0, 0.55);
-  color: #bfff09;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
 }
 
-.ik-ac-qr-status {
+.ik-ac-mihoyo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ik-ac-mihoyo-field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ccc;
+}
+
+.ik-ac-mihoyo-field-error {
   margin: 0;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.ik-ac-qr-status.is-scanned,
-.ik-ac-qr-status.is-confirmed {
-  color: #bfff09;
-}
-
-.ik-ac-qr-status.is-expired,
-.ik-ac-qr-status.is-cancelled,
-.ik-ac-qr-status.is-error {
+  font-size: 12px;
   color: #ff6b6b;
+}
+
+.ik-ac-mihoyo-submit {
+  margin-top: 4px;
+  align-self: center;
+  min-width: 140px;
+  font-weight: 800;
 }
 
 /* ── 黑名单 ── */

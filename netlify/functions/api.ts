@@ -82,8 +82,9 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "reset-password" && isPost(req)) return authRoutes.resetPassword(req);
       if (sub === "mihoyo" && sub2 === "qr" && s.length === 4 && isPost(req)) return stubRoutes.mihoyoQrCreate();
       if (sub === "mihoyo" && sub2 === "qr" && s[4] === "status" && isPost(req)) return stubRoutes.mihoyoQrStatus();
-      if (sub === "mihoyo" && sub2 === "binding" && isGet(req)) return stubRoutes.mihoyoBinding();
-      if (sub === "mihoyo" && sub2 === "binding" && isDelete(req)) return stubRoutes.mihoyoUnbind();
+      if (sub === "mihoyo" && sub2 === "bind" && isPost(req)) return stubRoutes.mihoyoBind(req);
+      if (sub === "mihoyo" && sub2 === "binding" && isGet(req)) return stubRoutes.mihoyoBinding(req);
+      if (sub === "mihoyo" && sub2 === "binding" && isDelete(req)) return stubRoutes.mihoyoUnbind(req);
       return error(404, "接口不存在");
     }
 
