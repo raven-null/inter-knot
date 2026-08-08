@@ -57,7 +57,7 @@ export function useAdminApi() {
     });
   };
 
-  const updateUser = async (documentId: string, patch: { role?: string; status?: string }) => {
+  const updateUser = async (documentId: string, patch: { role?: string; status?: string; level?: number }) => {
     return $api(`/api/admin/users/${documentId}`, { method: "PATCH", body: patch });
   };
 

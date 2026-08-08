@@ -40,6 +40,21 @@ const changeRole = async (u: any, role: string) => {
   if (current.value?.documentId === u.documentId) current.value.role = role;
 };
 
+const changeLevel = async (u: any, level: number) => {
+  await admin.updateUser(u.documentId, { level });
+  message.success(`已将「${u.name}」设为 Lv.${level}`);
+  await load();
+  const fresh = list.value.find((x) => x.documentId === u.documentId);
+  if (fresh) {
+    u.level = fresh.level;
+    u.exp = fresh.exp;
+    if (current.value?.documentId === u.documentId) {
+      current.value.level = fresh.level;
+      current.value.exp = fresh.exp;
+    }
+  }
+};
+
 const toggleBan = async (u: any) => {
   const next = u.status === "active" ? "banned" : "active";
   await admin.updateUser(u.documentId, { status: next });
@@ -125,7 +140,16 @@ onMounted(load);
             </td>
             <td style="font-variant-numeric: tabular-nums; color: var(--ik-primary, #bfff09)">{{ u.uid || "-" }}</td>
             <td>{{ u.email }}</td>
-            <td style="font-variant-numeric: tabular-nums">Lv.{{ u.level }}</td>
+            <td>
+              <select
+                class="ik-admin-input"
+                style="min-width: 0; padding: 4px 8px"
+                :value="u.level"
+                @change="changeLevel(u, Number(($event.target as HTMLSelectElement).value))"
+              >
+                <option v-for="lv in 7" :key="lv" :value="lv">Lv.{{ lv }}</option>
+              </select>
+            </td>
             <td>
               <select
                 class="ik-admin-input"
@@ -183,7 +207,18 @@ onMounted(load);
         </div>
         <dl style="margin: 0 0 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px">
           <dt style="color: #9a9a9a">邮箱</dt><dd style="margin: 0">{{ current.email || "-" }}</dd>
-          <dt style="color: #9a9a9a">等级</dt><dd style="margin: 0">Lv.{{ current.level }}（经验 {{ current.exp }}）</dd>
+          <dt style="color: #9a9a9a">等级</dt>
+          <dd style="margin: 0; display: flex; align-items: center; gap: 8px">
+            <select
+              class="ik-admin-input"
+              style="min-width: 0; padding: 2px 6px; font-size: 13px"
+              :value="current.level"
+              @change="changeLevel(current, Number(($event.target as HTMLSelectElement).value))"
+            >
+              <option v-for="lv in 7" :key="lv" :value="lv">Lv.{{ lv }}</option>
+            </select>
+            <span style="color: #9a9a9a; font-size: 12px">经验 {{ current.exp }}</span>
+          </dd>
           <dt style="color: #9a9a9a">注册时间</dt><dd style="margin: 0">{{ new Date(current.createdAt).toLocaleString() }}</dd>
         </dl>
         <h4 style="margin: 0 0 8px; font-size: 13px">最近帖子</h4>

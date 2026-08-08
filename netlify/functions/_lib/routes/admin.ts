@@ -5,6 +5,7 @@ import { getFeed, feedUpsert, feedRemove, feedUpdate, getStats, bumpStats, getUs
 import { requireAdmin } from "../auth";
 import { json, badRequest, notFound, int, readJson, queryParams } from "../http";
 import { toCategory, toPost, toComment, DEFAULT_AVATAR, type Doc } from "../serialize";
+import { LEVEL_THRESHOLDS, MAX_LEVEL, levelFromExp } from "../level";
 
 const PAGE_SIZE = 20;
 
@@ -170,15 +171,26 @@ export async function users(req: Request): Promise<Response> {
 export async function updateUser(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
-  const { role, status } = await readJson<{ role?: string; status?: string }>(req);
+  const { role, status, level: levelParam } = await readJson<{ role?: string; status?: string; level?: number }>(req);
   const u = await getUser(id);
   if (!u) return notFound("用户不存在");
   if (role && !["user", "moderator", "admin"].includes(role)) return badRequest("角色不合法");
   if (status && !["active", "banned"].includes(status)) return badRequest("状态不合法");
+  let exp = Number(u.exp || 0);
+  let level = Number(u.level || 1);
+  if (levelParam != null) {
+    const lv = Math.floor(Number(levelParam));
+    if (!Number.isFinite(lv) || lv < 1 || lv > MAX_LEVEL) return badRequest("等级不合法");
+    // 设为该等级门槛对应的经验（该等级起点）
+    exp = LEVEL_THRESHOLDS[lv - 1] ?? 0;
+    level = levelFromExp(exp);
+  }
   await setJson(`users/${id}.json`, {
     ...u,
     role: role ?? u.role,
     status: status ?? u.status,
+    exp,
+    level,
   });
   return json({ success: true });
 }
