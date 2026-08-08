@@ -205,9 +205,6 @@ export async function presencePing(req: Request): Promise<Response> {
     },
   });
 }
-export function emotesManifest(): Response {
-  return json({ groups: [], emotes: [] });
-}
 export function agentCharacters(): Response {
   return ok([]);
 }

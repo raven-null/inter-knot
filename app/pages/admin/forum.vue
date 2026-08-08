@@ -25,6 +25,155 @@ const loading = ref(true);
 // 正在删除的标签 documentId（按钮 loading 态）
 const deletingTag = ref<string | null>(null);
 
+/* ── 表情包管理 ─────────────────────────────── */
+const emotes = ref<{ groups: Array<{ name: string; order: number; iconUrl: string | null }>; emotes: any[] }>({ groups: [], emotes: [] });
+const newEmote = ref<{ code: string; name: string; group: string; dataUrl: string }>({ code: "", name: "", group: "通用", dataUrl: "" });
+const newGroupName = ref("");
+const emoteSaving = ref(false);
+const deletingEmote = ref<string | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+
+const emoteGroups = computed(() => emotes.value.groups.map((g) => g.name));
+
+/** 读取图片文件 → canvas 压缩为 WebP → base64 dataUrl */
+async function fileToWebpDataUrl(file: File): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("图片加载失败"));
+    el.src = url;
+  });
+  const MAX_EDGE = 128;
+  const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("无法创建画布");
+  ctx.drawImage(img, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL("image/webp", 0.85);
+  if (!dataUrl.startsWith("data:image/webp")) throw new Error("浏览器不支持 WebP 转换");
+  return dataUrl;
+}
+
+function onEmoteFileChange(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      newEmote.value.dataUrl = await fileToWebpDataUrl(file);
+    } catch (err) {
+      message.error(err instanceof Error ? err.message : "图片处理失败");
+      newEmote.value.dataUrl = "";
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function addEmote() {
+  const code = newEmote.value.code.trim().toLowerCase();
+  const name = newEmote.value.name.trim();
+  if (!code || !name) {
+    message.warning("请填写表情代码与名称");
+    return;
+  }
+  if (!/^ik-[a-z0-9-]{1,32}$/.test(code)) {
+    message.error("表情代码需为 ik- 开头的小写字母数字，如 ik-smile");
+    return;
+  }
+  if (!newEmote.value.dataUrl) {
+    message.warning("请先选择表情图片");
+    return;
+  }
+  emoteSaving.value = true;
+  try {
+    await admin.createEmote({
+      code,
+      name,
+      group: newEmote.value.group || "通用",
+      dataUrl: newEmote.value.dataUrl,
+    });
+    message.success(`已添加表情「${name}」`);
+    newEmote.value = { code: "", name: "", group: "通用", dataUrl: "" };
+    if (fileInputRef.value) fileInputRef.value.value = "";
+    await loadEmotes();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "添加表情失败"));
+  } finally {
+    emoteSaving.value = false;
+  }
+}
+
+async function removeEmote(emote: any) {
+  const ok = await confirmDialog.open({
+    title: "删除表情",
+    message: `确定删除表情「${emote.name}」（:${emote.code}:）吗？引用该表情的旧评论将显示为代码文本。`,
+    confirmText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
+  deletingEmote.value = emote.code;
+  try {
+    await admin.deleteEmote(emote.code);
+    message.success(`已删除「${emote.name}」`);
+    await loadEmotes();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "删除表情失败"));
+  } finally {
+    deletingEmote.value = null;
+  }
+}
+
+async function addGroup() {
+  const name = newGroupName.value.trim();
+  if (!name) {
+    message.warning("请填写分组名称");
+    return;
+  }
+  if (emoteGroups.value.includes(name)) {
+    message.error("分组已存在");
+    return;
+  }
+  try {
+    await admin.addEmoteGroup(name);
+    message.success(`已新增分组「${name}」`);
+    newGroupName.value = "";
+    await loadEmotes();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "新增分组失败"));
+  }
+}
+
+async function removeGroup(groupName: string) {
+  const ok = await confirmDialog.open({
+    title: "删除分组",
+    message: `确定删除分组「${groupName}」吗？该分组下的表情将移动到「通用」。`,
+    confirmText: "删除",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await admin.deleteEmoteGroup(groupName);
+    message.success(`已删除分组「${groupName}」`);
+    await loadEmotes();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "删除分组失败"));
+  }
+}
+
+const loadEmotes = async () => {
+  try {
+    emotes.value = await admin.emotes();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "加载表情失败"));
+  }
+};
+
 const NAV_SWITCHES: Array<{ key: keyof typeof forumSettings.value; label: string; desc: string }> = [
   { key: "showSearch", label: "搜索框", desc: "首页工具栏搜索框" },
   { key: "showPresence", label: "在线人数", desc: "后台概览在线人数卡片" },
@@ -79,6 +228,8 @@ const loadData = async () => {
     loading.value = false;
   }
 };
+
+void loadEmotes();
 
 const toggleTag = async (c: any) => {
   const next = !c.isHidden;
@@ -145,7 +296,7 @@ onMounted(async () => {
       <AdminBackButton />
       <div class="ik-forum-header__text">
         <h2 class="ik-forum-header__title">论坛设置</h2>
-        <p class="ik-forum-header__desc">管理导航开关、标签（版块）与首页公告</p>
+        <p class="ik-forum-header__desc">管理导航开关、标签（版块）、表情包与首页公告</p>
       </div>
     </div>
 
@@ -218,6 +369,105 @@ onMounted(async () => {
           </div>
         </div>
         <div v-else class="ik-admin-empty">暂无标签，请在上方新增</div>
+      </AdminCard>
+
+      <!-- 表情包管理 -->
+      <AdminCard>
+        <template #title>
+          <span class="ik-forum-card-title">表情包管理</span>
+          <AdminBadge>{{ emotes.emotes.length }} 个表情</AdminBadge>
+        </template>
+
+        <!-- 新增表单 -->
+        <div class="ik-emote-add">
+          <label class="ik-emote-add__file">
+            <input
+              ref="fileInputRef"
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              hidden
+              @change="onEmoteFileChange"
+            />
+            <img
+              v-if="newEmote.dataUrl"
+              :src="newEmote.dataUrl"
+              alt="预览"
+              class="ik-emote-add__preview"
+            />
+            <span v-else class="ik-emote-add__placeholder">选择图片</span>
+          </label>
+          <div class="ik-emote-add__fields">
+            <div class="ik-emote-add__row">
+              <input
+                v-model="newEmote.code"
+                class="ik-admin-input"
+                placeholder="代码（如 ik-smile）"
+                @keyup.enter="addEmote"
+              />
+              <input
+                v-model="newEmote.name"
+                class="ik-admin-input"
+                placeholder="名称（如：微笑）"
+                @keyup.enter="addEmote"
+              />
+            </div>
+            <div class="ik-emote-add__row">
+              <select v-model="newEmote.group" class="ik-admin-input ik-emote-add__select">
+                <option v-for="g in emoteGroups" :key="g" :value="g">{{ g }}</option>
+              </select>
+              <button class="ik-admin-btn ik-admin-btn--primary" :disabled="emoteSaving" @click="addEmote">
+                {{ emoteSaving ? "上传中…" : "添加表情" }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 表情列表 -->
+        <div v-if="emotes.emotes.length" class="ik-emote-grid">
+          <div v-for="e in emotes.emotes" :key="e.code" class="ik-emote-item">
+            <img :src="e.url" :alt="e.name" class="ik-emote-item__img" loading="lazy" />
+            <div class="ik-emote-item__meta">
+              <span class="ik-emote-item__name">{{ e.name }}</span>
+              <code class="ik-emote-item__code">{{ e.code }}</code>
+              <span class="ik-emote-item__group">{{ e.group }}</span>
+            </div>
+            <button
+              class="ik-admin-btn ik-admin-btn--danger ik-emote-item__del"
+              :disabled="deletingEmote === e.code"
+              @click="removeEmote(e)"
+            >{{ deletingEmote === e.code ? "删除中…" : "删除" }}</button>
+          </div>
+        </div>
+        <div v-else class="ik-admin-empty">暂无表情，请上传第一个表情包</div>
+
+        <!-- 分组管理 -->
+        <div class="ik-emote-groups">
+          <div class="ik-emote-groups__head">分组管理</div>
+          <div class="ik-forum-tag-add">
+            <input
+              v-model="newGroupName"
+              class="ik-admin-input"
+              placeholder="新分组名称（如：摸鱼）"
+              @keyup.enter="addGroup"
+            />
+            <button class="ik-admin-btn" @click="addGroup">新增分组</button>
+          </div>
+          <div class="ik-emote-groups__list">
+            <span
+              v-for="g in emotes.groups"
+              :key="g.name"
+              class="ik-emote-groups__chip"
+            >
+              {{ g.name }}
+              <button
+                v-if="g.name !== '通用'"
+                class="ik-emote-groups__chip-del"
+                title="删除分组"
+                @click="removeGroup(g.name)"
+              >×</button>
+            </span>
+          </div>
+        </div>
       </AdminCard>
 
       <!-- 公告编写 -->

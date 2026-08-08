@@ -653,3 +653,177 @@
     align-items: flex-start;
   }
 }
+
+/* ── 表情包管理 ── */
+.ik-emote-add {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ik-emote-add__file {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border: 1px dashed #3a3a3a;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.ik-emote-add__file:hover {
+  border-color: var(--ik-primary, #bfff09);
+  background: rgba(191, 255, 9, 0.06);
+}
+.ik-emote-add__preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #101010;
+}
+.ik-emote-add__placeholder {
+  font-size: 11px;
+  color: #8a8a8a;
+  text-align: center;
+  padding: 0 4px;
+}
+.ik-emote-add__fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ik-emote-add__row {
+  display: flex;
+  gap: 8px;
+}
+.ik-emote-add__row .ik-admin-input {
+  flex: 1;
+  min-width: 0;
+}
+.ik-emote-add__select {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  background-color: #141414;
+}
+
+/* 表情网格 */
+.ik-emote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.ik-emote-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  background: #181818;
+  border: 1px solid #262626;
+  border-radius: 10px 10px 0 10px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.ik-emote-item:hover {
+  background: #1c1c1c;
+  border-color: #313131;
+}
+.ik-emote-item__img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+.ik-emote-item__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+.ik-emote-item__name {
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ik-emote-item__code {
+  font-size: 10px;
+  color: var(--ik-primary, #bfff09);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.ik-emote-item__group {
+  font-size: 10px;
+  color: #6a6a6a;
+}
+.ik-emote-item__del {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+/* 分组管理 */
+.ik-emote-groups {
+  border-top: 1px solid #262626;
+  padding-top: 12px;
+}
+.ik-emote-groups__head {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a8a8a;
+  margin-bottom: 8px;
+}
+.ik-emote-groups__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.ik-emote-groups__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1c1c1c;
+  border: 1px solid #2e2e2e;
+  font-size: 12px;
+  color: #c8c8c8;
+}
+.ik-emote-groups__chip-del {
+  border: none;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 140ms ease;
+}
+.ik-emote-groups__chip-del:hover {
+  color: #ff6b6b;
+}
+
+@media (max-width: 600px) {
+  .ik-emote-add {
+    flex-direction: column;
+  }
+  .ik-emote-add__file {
+    width: 100%;
+    height: 80px;
+  }
+  .ik-emote-add__row {
+    flex-direction: column;
+  }
+}

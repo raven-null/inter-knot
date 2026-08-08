@@ -18,6 +18,7 @@ import * as uploadRoutes from "./_lib/routes/uploads";
 import * as profileRoutes from "./_lib/routes/profiles";
 import * as meRoutes from "./_lib/routes/me";
 import * as adminRoutes from "./_lib/routes/admin";
+import * as emoteRoutes from "./_lib/routes/emotes";
 import * as githubRoutes from "./_lib/routes/github";
 import * as stubRoutes from "./_lib/routes/stubs";
 
@@ -237,6 +238,11 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "categories" && s.length === 4 && isDelete(req)) return adminRoutes.deleteCategory(req);
       if (sub === "reports" && s.length === 3 && isGet(req)) return adminRoutes.reports(req);
       if (sub === "reports" && s.length === 4 && isPost(req)) return adminRoutes.processReport(req);
+      if (sub === "emotes" && s.length === 3 && isGet(req)) return emoteRoutes.adminList(req);
+      if (sub === "emotes" && s.length === 3 && isPost(req)) return emoteRoutes.createEmote(req);
+      if (sub === "emotes" && s.length === 4 && isDelete(req)) return emoteRoutes.deleteEmote(req);
+      if (sub === "emotes" && sub2 === "groups" && s.length === 4 && isPost(req)) return emoteRoutes.addGroup(req);
+      if (sub === "emotes" && sub2 === "groups" && s.length === 5 && isDelete(req)) return emoteRoutes.deleteGroup(req);
       if (sub === "settings" && isGet(req)) return adminRoutes.settings(req);
       if (sub === "settings" && isPut(req)) return adminRoutes.updateSettings(req);
       return error(404, "接口不存在");
@@ -264,7 +270,7 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
     case "emotes": {
-      if (sub === "manifest" && isGet(req)) return stubRoutes.emotesManifest();
+      if (sub === "manifest" && isGet(req)) return emoteRoutes.manifest();
       return error(404, "接口不存在");
     }
     case "agent": {

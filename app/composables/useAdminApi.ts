@@ -112,6 +112,28 @@ export function useAdminApi() {
     return $api("/api/admin/settings", { method: "PUT", body: payload });
   };
 
+  /** 表情包：列表（manifest 同构） */
+  const emotes = async () => {
+    const res = await $api<EmoteManifest>("/api/admin/emotes");
+    return res || { groups: [], emotes: [] };
+  };
+
+  const createEmote = async (payload: { code: string; name: string; group?: string; dataUrl: string }) => {
+    return $api("/api/admin/emotes", { method: "POST", body: payload });
+  };
+
+  const deleteEmote = async (code: string) => {
+    return $api(`/api/admin/emotes/${code}`, { method: "DELETE" });
+  };
+
+  const addEmoteGroup = async (name: string, order?: number) => {
+    return $api("/api/admin/emotes/groups", { method: "POST", body: { name, order } });
+  };
+
+  const deleteEmoteGroup = async (name: string) => {
+    return $api(`/api/admin/emotes/groups/${encodeURIComponent(name)}`, { method: "DELETE" });
+  };
+
   interface AdminReport {
     documentId: string;
     targetType: string;
@@ -149,6 +171,11 @@ export function useAdminApi() {
     deleteCategory,
     settings,
     updateSettings,
+    emotes,
+    createEmote,
+    deleteEmote,
+    addEmoteGroup,
+    deleteEmoteGroup,
     reports,
     processReport,
   };
@@ -176,4 +203,17 @@ export interface AdminSettings {
   showKnock?: boolean;
   showCreate?: boolean;
   showAdmin?: boolean;
+}
+
+export interface EmoteManifest {
+  groups: Array<{ name: string; order: number; iconUrl: string | null }>;
+  emotes: Array<{
+    id: string;
+    code: string;
+    name: string;
+    group: string;
+    url: string;
+    width: number | null;
+    height: number | null;
+  }>;
 }
