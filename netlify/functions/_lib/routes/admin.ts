@@ -484,3 +484,22 @@ export async function processReport(req: Request): Promise<Response> {
   }
   return json({ success: true });
 }
+// 临时内省（验证后移除）
+export async function usersIntrospect(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const keys = await listKeys("users/");
+  const out: Doc[] = [];
+  for (const key of keys) {
+    const u = await getJson<Doc>(key);
+    out.push({
+      key,
+      documentId: u?.document_id || null,
+      username: u?.username || null,
+      name: u?.name || null,
+      uid: u?.uid ?? null,
+      email: u?.email ?? null,
+      createdAt: u?.created_at || null,
+    });
+  }
+  return json({ total: out.length, users: out });
+}
