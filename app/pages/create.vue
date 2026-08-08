@@ -1938,16 +1938,15 @@ if (import.meta.client) {
 }
 
 .ik-nav-item__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: var(--ik-text-base);
-  font-weight: 900;
-  line-height: 1.3;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--ik-text-base);
+  font-weight: 900;
+  line-height: 1.3;
   letter-spacing: 0.2px;
+  min-width: 0;
 }
 
 .ik-nav-item__meta {
@@ -1967,6 +1966,7 @@ if (import.meta.client) {
 
 .ik-nav-item__editing-arrow {
   font-size: 10px;
+  margin-right: 4px;
   color: var(--ik-primary);
 }
 
