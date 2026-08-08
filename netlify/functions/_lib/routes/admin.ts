@@ -531,7 +531,7 @@ export async function usersCleanup(req: Request): Promise<Response> {
   for (const key of userKeys) {
     const u = await getJson<Doc>(key);
     if (!u || !u.uid || !u.document_id) continue;
-    const uidKey2 = users/by-uid/.json;
+    const uidKey2 = `users/by-uid/${u.uid}.json`;
     const idx = await getJson<unknown>(uidKey2);
     if (!idx) {
       await setJson(uidKey2, { document_id: u.document_id });
