@@ -5,7 +5,14 @@ const admin = useAdminApi();
 const loading = ref(true);
 const data = ref<any>({});
 const openReports = ref(0);
-const { online: presenceOnline, avatars: presenceAvatars } = usePresence();
+const { online: presenceOnline, avatars: presenceAvatars, users: presenceUsers } = usePresence();
+
+const formatDuration = (seconds: number) => {
+  if (seconds < 60) return `${seconds} 秒`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时`;
+  return `${Math.floor(seconds / 86400)} 天`;
+};
 
 const KPI_W = 720;
 const KPI_H = 320;
@@ -151,6 +158,16 @@ onMounted(async () => {
               <span v-if="presenceOnline > 5" class="ik-admin-online__more">+{{ presenceOnline - 5 }}</span>
             </div>
             <div class="ik-admin-online__note">在线用户实时心跳，每 20 秒更新</div>
+
+            <ul v-if="presenceUsers.length" class="ik-admin-online__list">
+              <li v-for="u in presenceUsers" :key="u.username" class="ik-admin-online__row">
+                <img :src="u.avatar" class="ik-admin-online__row-avatar" alt="" loading="lazy" />
+                <span class="ik-admin-online__row-name">{{ u.name }}</span>
+                <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
+                <span class="ik-admin-online__row-duration">{{ formatDuration(u.durationSeconds) }}</span>
+              </li>
+            </ul>
+            <div v-else class="ik-admin-online__empty">暂无登录用户在线</div>
           </div>
         </AdminCard>
 

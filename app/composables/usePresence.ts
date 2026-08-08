@@ -13,12 +13,13 @@ const PING_INTERVAL_MS = 20_000;
 const STORAGE_KEY = "presence:id";
 
 interface PingResponse {
-  data: { online: number; avatars?: string[] };
+  data: { online: number; avatars?: string[]; users?: Array<{ username: string; name: string; level: number; avatar: string; joinedAt: string; durationSeconds: number }> };
 }
 
 interface PresenceState {
   online: ReturnType<typeof useState<number>>;
   avatars: ReturnType<typeof useState<string[]>>;
+  users: ReturnType<typeof useState<Array<{ username: string; name: string; level: number; avatar: string; joinedAt: string; durationSeconds: number }>>>;
 }
 
 let started = false;
@@ -48,6 +49,10 @@ const doPing = async (state: PresenceState): Promise<void> => {
     if (Array.isArray(avatars)) {
       state.avatars.value = avatars.filter((u): u is string => typeof u === "string");
     }
+    const users = resp?.data?.users;
+    if (Array.isArray(users)) {
+      state.users.value = users;
+    }
   } catch {
     /* fail-open */
   }
@@ -72,7 +77,8 @@ let visibilityHandler: (() => void) | null = null;
 export function usePresence() {
   const online = useState<number>("presence:online", () => 0);
   const avatars = useState<string[]>("presence:avatars", () => []);
-  const state: PresenceState = { online, avatars };
+  const users = useState<Array<{ username: string; name: string; level: number; avatar: string; joinedAt: string; durationSeconds: number }>>("presence:users", () => []);
+  const state: PresenceState = { online, avatars, users };
 
   const start = () => {
     if (!import.meta.client) return;
@@ -101,6 +107,7 @@ export function usePresence() {
   return {
     online: computed(() => online.value),
     avatars: computed(() => avatars.value),
+    users: computed(() => users.value),
     start,
     stop,
   };

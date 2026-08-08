@@ -1,7 +1,7 @@
 /** 外围功能桩接口：米游社 / 丁尼 / 签到 / 考试 / 私信 / 在线状态等。
  *  首期论坛核心未实现的功能返回安全的空值，保证前端 UI 不崩溃。 */
 
-import { ok, json, error } from "../http";
+import { ok, json, error, readJson } from "../http";
 
 // ── 米游社扫码（未实现：返回明确提示，前端展示为暂未开放） ──
 export function mihoyoQrCreate(): Response {
@@ -140,8 +140,78 @@ export function knockStream(): Response {
 }
 
 // ── 在线状态 / 表情 / AI 角色（桩） ─────────────────
-export function presencePing(): Response {
-  return json({ data: { online: 1, avatars: [] } });
+/** 在线状态（真实会话追踪）：按 presenceId 记录心跳会话，
+ *  登录用户携带用户名/等级/头像与首见时间；超时自动清理。 */
+export async function presencePing(req: Request): Promise<Response> {
+  const { getJson, setJson, del, listKeys } = await import("../storage");
+  const { resolveUser } = await import("../auth");
+  const { DEFAULT_AVATAR } = await import("../serialize");
+  const body = await readJson<{ presenceId?: string }>(req);
+  const presenceId = body.presenceId || "";
+  const viewer = await resolveUser(req);
+  const now = Date.now();
+  const STALE_MS = 45_000; // 45s 无心跳视为离线
+  const prefix = "presence/sessions/";
+
+  const keys = await listKeys(prefix);
+  const sessions: Record<string, unknown>[] = [];
+  for (const key of keys) {
+    const s = await getJson<Record<string, unknown>>(key);
+    if (!s) continue;
+    const last = new Date(String(s.lastSeenAt || "")).getTime();
+    if (!Number.isFinite(last) || now - last > STALE_MS) {
+      await del(key);
+      continue;
+    }
+    sessions.push(s);
+  }
+
+  if (presenceId) {
+    const key = `${prefix}${presenceId}.json`;
+    const existing = await getJson<Record<string, unknown>>(key);
+    let info: Record<string, unknown> = {};
+    if (viewer) {
+      const u = await getJson<Record<string, unknown>>(`users/${viewer.userId}.json`);
+      info = {
+        userId: viewer.userId,
+        username: viewer.username,
+        name: u?.name || viewer.username,
+        level: u?.level ?? 1,
+        avatar: u?.avatar_url || DEFAULT_AVATAR,
+      };
+    }
+    const session = {
+      presenceId,
+      ...info,
+      joinedAt: existing?.joinedAt || new Date(now).toISOString(),
+      lastSeenAt: new Date(now).toISOString(),
+    };
+    await setJson(key, session);
+    sessions.push(session);
+  }
+
+  const onlineUsers = sessions
+    .filter((s) => !!s.username)
+    .map((s) => ({
+      username: String(s.username),
+      name: String(s.name || s.username),
+      level: Number(s.level ?? 1),
+      avatar: String(s.avatar || DEFAULT_AVATAR),
+      joinedAt: String(s.joinedAt || ""),
+      durationSeconds: Math.max(
+        0,
+        Math.floor((now - new Date(String(s.joinedAt || "")).getTime()) / 1000),
+      ),
+    }))
+    .sort((a, b) => b.durationSeconds - a.durationSeconds);
+
+  return json({
+    data: {
+      online: sessions.length,
+      avatars: sessions.map((s) => String(s.avatar || DEFAULT_AVATAR)).slice(0, 5),
+      users: onlineUsers,
+    },
+  });
 }
 export function emotesManifest(): Response {
   return json({ groups: [], emotes: [] });

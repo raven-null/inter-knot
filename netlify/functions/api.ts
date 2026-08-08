@@ -259,7 +259,7 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
     case "presence": {
-      if (sub === "ping" && isPost(req)) return stubRoutes.presencePing();
+      if (sub === "ping" && isPost(req)) return stubRoutes.presencePing(req);
       return error(404, "接口不存在");
     }
     case "emotes": {
