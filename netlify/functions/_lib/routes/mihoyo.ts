@@ -153,14 +153,16 @@ export async function qrStatus(req: Request): Promise<Response> {
 
   // 状态枚举：Created(等待扫码) / Scanned(已扫码) / Confirmed(已确认) / Expired / Cancelled
   if (rawStatus.toLowerCase().includes("confirm")) {
-    const uid = String(d?.user_info?.uid || d?.tokens?.[0]?.token || "");
+    const uid = String(d?.user_info?.uid || "");
+    // token_type：米游社 token 数组，通常 2=stoken；兜底取第一个
     const stoken = d?.tokens?.find((t) => t?.token_type === 2)?.token || d?.tokens?.[0]?.token || "";
     if (uid && stoken) {
       session.status = "confirmed";
       await setJson(QR_SESSION(ticket), session);
       return handleConfirmed(req, session, ticket, uid, stoken);
     }
-    return json({ status: "scanned" });
+    // 解析不到 uid/stoken：把原始数据带回前端便于排查
+    return json({ status: "confirmed", mode: session.mode || "bind", binding: null, debug: d });
   }
   if (rawStatus.toLowerCase().includes("scan")) {
     session.status = "scanned";
@@ -194,11 +196,16 @@ async function handleConfirmed(
     true,
   )) as {
     retcode?: number;
-    data?: { mid?: string; cookie_token?: string; account_id?: string };
+    message?: string;
+    data?: { mid?: string; cookie_token?: string; account_id?: string } | null;
   } | null;
   const cookie = cookieData?.data;
   if (!cookie?.mid || !cookie?.cookie_token || !cookie?.account_id) {
-    return error(502, "换取米游社凭证失败", "MIHOYO_TOKEN_EXCHANGE_FAILED");
+    return error(
+      502,
+      `换取米游社凭证失败（${cookieData?.retcode ?? "无响应"} ${cookieData?.message || ""}）`,
+      "MIHOYO_TOKEN_EXCHANGE_FAILED",
+    );
   }
   const accountId = String(cookie.account_id);
   const cookieHeader = `account_id=${accountId};cookie_token=${cookie.cookie_token}`;

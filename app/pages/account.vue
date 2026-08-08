@@ -84,10 +84,24 @@ const onMenuChange = (name: string | number) => {
 const mihoyo = useMihoyoQr({
   isActive: () => activeMenuKey.value === "mihoyo" && !mihoyoBinding.value,
   width: 200,
-  onConfirmed: (res) => {
+  onConfirmed: async (res) => {
     if (res.mode !== "bind") return;
-    setMihoyoBinding(res.binding);
-    message.success("米游社账号绑定成功");
+    if (res.binding?.zzzUid) {
+      setMihoyoBinding(res.binding);
+      message.success("米游社账号绑定成功");
+      return;
+    }
+    // 后端确认但未返回绑定数据：主动重拉一次
+    try {
+      await ensureMihoyo(true);
+    } catch {
+      /* 静默 */
+    }
+    if (mihoyoBinding.value?.zzzUid) {
+      message.success("米游社账号绑定成功");
+    } else {
+      message.error("扫码已确认，但绑定数据未同步，请刷新重试");
+    }
   },
   onError: (err) => {
     message.error(resolveErrorMessage(err, "获取二维码失败"));
@@ -661,6 +675,9 @@ useHead({ title: "账号中心" });
                 <p class="ik-ac-qr-status" :class="`is-${mihoyoQrStatus}`">
                   {{ mihoyoQrStatusText }}
                 </p>
+                <z-button class="ik-ac-mihoyo-qr-refresh-btn" :disabled="mihoyoQrStatus === 'loading'" @click="startMihoyoQr">
+                  刷新二维码
+                </z-button>
               </template>
             </div>
           </template>
@@ -1163,6 +1180,13 @@ useHead({ title: "账号中心" });
 .ik-ac-qr-status.is-cancelled,
 .ik-ac-qr-status.is-error {
   color: #ff6b6b;
+}
+
+.ik-ac-mihoyo-qr-refresh-btn {
+  margin-top: 4px;
+  align-self: center;
+  min-width: 140px;
+  font-weight: 800;
 }
 
 /* ── 黑名单 ── */
