@@ -79,6 +79,7 @@ export function genId(): string {
 // ── 文档 key ─────────────────────────────────────────
 export const userKey = (id: string) => `users/${id}.json`;
 export const userEmailKey = (email: string) => `users/by-email/${email}.json`;
+export const userUidKey = (uid: number) => `users/by-uid/${uid}.json`;
 export const categoryKey = (id: string) => `categories/${id}.json`;
 export const postKey = (id: string) => `posts/${id}.json`;
 export const commentKey = (postId: string, id: string) => `comments/${postId}/${id}.json`;

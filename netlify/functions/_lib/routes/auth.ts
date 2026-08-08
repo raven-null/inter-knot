@@ -8,9 +8,10 @@
  * 未接入邮件服务时由 BYPASS_EMAIL_CODE 宽松校验（任意 6 位数字即可）。
  */
 
-import { genId, getJson, setJson, del, userKey, userEmailKey, codeKey, KEYS } from "../storage";
+import { genId, getJson, setJson, del, userKey, userEmailKey, userUidKey, codeKey, KEYS } from "../storage";
 import { createHmac, randomInt } from "node:crypto";
 import { bumpStats } from "../feed";
+import { generateUid } from "../uid";
 import { hashPassword, verifyPassword, signToken, verifyToken, getBearerToken, requireAuth } from "../auth";
 import { json, ok, badRequest, unauthorized, error, readJson } from "../http";
 import { toAuthor, type Doc } from "../serialize";
@@ -158,10 +159,12 @@ export async function registerWithCode(req: Request): Promise<Response> {
 
   const username = `用户${genId().slice(0, 6)}`;
   const documentId = genId();
+  const uid = await generateUid();
   const passHash = await hashPassword(password);
   const now = new Date().toISOString();
   const user = {
     document_id: documentId,
+    uid,
     username,
     name: username,
     email: e,
@@ -180,6 +183,7 @@ export async function registerWithCode(req: Request): Promise<Response> {
   };
   await setJson(userKey(documentId), user);
   await setJson(userEmailKey(e), { document_id: documentId });
+  await setJson(userUidKey(uid), { document_id: documentId });
   await bumpStats({ userCount: 1 });
   const token = await signToken({ documentId, username, role: "user" });
   return json({ jwt: token, user: toAuthor(user) });

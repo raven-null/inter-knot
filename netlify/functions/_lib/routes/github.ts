@@ -1,8 +1,9 @@
 /** GitHub OAuth 登录（基于 Blobs）：授权码 → access_token → 用户信息 → 建号/登录 */
 
-import { genId, getJson, setJson, userKey, userEmailKey } from "../storage";
+import { genId, getJson, setJson, userKey, userEmailKey, userUidKey } from "../storage";
 import { bumpStats } from "../feed";
 import { signToken } from "../auth";
+import { generateUid } from "../uid";
 import { json, badRequest, error, readJson } from "../http";
 import { toAuthor, DEFAULT_AVATAR, type Doc } from "../serialize";
 
@@ -71,6 +72,7 @@ export async function callback(req: Request): Promise<Response> {
     user = existing;
   } else {
     const documentId = genId();
+    const uid = await generateUid();
     const now = new Date().toISOString();
     const username = String(gh.login || `gh${gh.id}`).slice(0, 24);
     const email = typeof gh.email === "string" && gh.email ? gh.email.toLowerCase() : null;
@@ -84,6 +86,7 @@ export async function callback(req: Request): Promise<Response> {
     }
     user = {
       document_id: documentId,
+      uid,
       username,
       name: gh.name || gh.login || username,
       email: email && emailIndexed ? email : null,
@@ -103,6 +106,7 @@ export async function callback(req: Request): Promise<Response> {
     };
     await setJson(userKey(documentId), user);
     await setJson(GITHUB_BY_ID(gh.id), { document_id: documentId });
+    await setJson(userUidKey(uid), { document_id: documentId });
     await bumpStats({ userCount: 1 });
   }
 

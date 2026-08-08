@@ -5,10 +5,12 @@
  * - 对早期版本（并发 bug 导致的重复数据）做一次性去重清理（seedVersion 升级触发）
  */
 
-import { genId, getJson, setJson, setJsonOnce, del, listKeys, userKey, userEmailKey, categoryKey, KEYS } from "./storage";
+import { genId, getJson, setJson, setJsonOnce, del, listKeys, userKey, userEmailKey, userUidKey, categoryKey, KEYS } from "./storage";
 import { hashPassword } from "./auth";
+import { generateUid } from "./uid";
+import type { Doc } from "./serialize";
 
-const SEED_VERSION = 2;
+const SEED_VERSION = 3;
 const SEED_META_KEY = "_meta.seed";
 
 const DEFAULT_CATEGORIES = [
@@ -62,9 +64,11 @@ export async function ensureSeed(): Promise<void> {
     const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@example.com").toLowerCase();
     if (!(await getJson<unknown>(userEmailKey(adminEmail)))) {
       const adminDocumentId = genId();
+      const uid = await generateUid();
       const passHash = await hashPassword(process.env.ADMIN_INITIAL_PASSWORD || "admin123456");
       await setJson(userKey(adminDocumentId), {
         document_id: adminDocumentId,
+        uid,
         username: "管理员",
         name: "管理员",
         email: adminEmail,
@@ -82,6 +86,7 @@ export async function ensureSeed(): Promise<void> {
         followingCount: 0,
       });
       await setJson(userEmailKey(adminEmail), { document_id: adminDocumentId });
+      await setJson(userUidKey(uid), { document_id: adminDocumentId });
     }
 
     await setJson(KEYS.stats, { userCount: 1, postCount: 0, commentCount: 0, viewCount: 0 });
@@ -137,5 +142,19 @@ async function cleanupDuplicates(): Promise<void> {
     }
     const kept = await getJson<{ document_id?: string }>(keepKey);
     if (kept?.document_id) await setJson(userEmailKey(email), { document_id: kept.document_id });
+  }
+
+  // UID 回填：为早期创建（无 uid 字段）的用户分配唯一 8 位 UID
+  const uidKeys = (await listKeys("users/")).filter(
+    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+  );
+  for (const key of uidKeys) {
+    const u = await getJson<Doc>(key);
+    if (!u || u.uid != null) continue;
+    const documentId = String(u.document_id || "");
+    if (!documentId) continue;
+    const uid = await generateUid();
+    await setJson(key, { ...u, uid });
+    await setJson(userUidKey(uid), { document_id: documentId });
   }
 }

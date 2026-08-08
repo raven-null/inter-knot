@@ -42,8 +42,8 @@ export async function detail(req: Request): Promise<Response> {
 
   return ok({
     documentId: id,
-    userId: id,
-    uid: id,
+    userId: Number(user.uid || 0),
+    uid: Number(user.uid || 0),
     login: String(user.username || ""),
     name: String(user.name || user.username || ""),
     bio: String(user.bio || ""),
