@@ -1881,6 +1881,22 @@ if (import.meta.client) {
   gap: 8px;
   margin-bottom: 24px;
   max-height: calc(100% - 24px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a transparent;
+}
+
+.ik-create-nav-wrap::-webkit-scrollbar {
+  width: 3px;
+}
+
+.ik-create-nav-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ik-create-nav-wrap::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
 }
 
 .ik-create-menu {
@@ -1986,7 +2002,7 @@ if (import.meta.client) {
   background: #2D2C2D;
   border-radius: 24px 0 24px 24px;
   overflow: hidden;
-  height: 100%;
+  margin-bottom: 24px;
   min-height: 0;
 }
 
@@ -2003,6 +2019,21 @@ if (import.meta.client) {
   border-radius: 22px 0 22px 22px;
   overflow-y: auto;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #3a3a3a transparent;
+}
+
+.ik-create-panel__body::-webkit-scrollbar {
+  width: 3px;
+}
+
+.ik-create-panel__body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ik-create-panel__body::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border-radius: 3px;
 }
 
 /* ── Delete draft button (in footer) ─────────────────── */
