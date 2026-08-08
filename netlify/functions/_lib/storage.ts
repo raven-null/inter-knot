@@ -16,7 +16,7 @@ function data(): ReturnType<typeof getStore> {
 
 export async function getJson<T>(key: string): Promise<T | null> {
   try {
-    const value = await data().get(key, { type: "json" });
+    const value = await data().get(key, { type: "json", consistency: "strong" });
     return (value ?? null) as T | null;
   } catch {
     return null;
@@ -44,7 +44,7 @@ export async function del(key: string): Promise<void> {
 /** key 是否已存在（HEAD 请求，用于批量个性化标记） */
 export async function exists(key: string): Promise<boolean> {
   try {
-    const meta = await data().getMetadata(key);
+    const meta = await data().getMetadata(key, { consistency: "strong" });
     return meta != null;
   } catch {
     return false;
