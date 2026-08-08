@@ -18,6 +18,7 @@ import { json, ok, badRequest, error, readJson } from "../http";
 import { toAuthor, DEFAULT_AVATAR, type Doc } from "../serialize";
 
 const PASSPORT_BASE = "https://passport-api.mihoyo.com/account/ma-cn-passport/web";
+const PASSPORT_LEGACY = "https://passport-api.mihoyo.com/account/auth/api";
 const TAKUMI_BINDING = "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie";
 
 const QR_SESSION = (ticket: string) => `mihoyo/qr-sessions/${ticket}.json`;
@@ -65,6 +66,19 @@ async function post(path: string, body: unknown): Promise<unknown | null> {
       headers: rpcHeaders(),
       body: JSON.stringify(body ?? {}),
     });
+    if (!res.ok) return null;
+    return (await res.json()) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+async function get(path: string, params: Record<string, string>, useLegacy = false): Promise<unknown | null> {
+  const base = useLegacy ? PASSPORT_LEGACY : PASSPORT_BASE;
+  const url = new URL(`${base}/${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  try {
+    const res = await fetch(url.toString(), { headers: rpcHeaders() });
     if (!res.ok) return null;
     return (await res.json()) as unknown;
   } catch {
@@ -133,7 +147,7 @@ export async function qrStatus(req: Request): Promise<Response> {
       user_info?: { uid?: string } | null;
     };
   } | null;
-  const d = data?.data;
+  let d = data?.data;
   const rawStatus = String(d?.status || "");
 
   // 状态枚举：Created(等待扫码) / Scanned(已扫码) / Confirmed(已确认) / Expired / Cancelled
@@ -145,15 +159,27 @@ export async function qrStatus(req: Request): Promise<Response> {
       realname?: string;
       mobile?: string;
     };
-    // 新版接口 confirmed 后 tokens 可能为空，但有 user_info.aid（米游社账号 ID）
     const aid = String(userInfo.aid || "");
-    if (aid) {
-      session.status = "confirmed";
-      await setJson(QR_SESSION(ticket), session);
-      return handleConfirmed(req, session, ticket, aid, aid);
+    if (!aid) {
+      return json({ status: "confirmed", mode: session.mode || "bind", binding: null, debug: d });
     }
-    // 解析不到账号 ID：把原始数据带回前端便于排查
-    return json({ status: "confirmed", mode: session.mode || "bind", binding: null, debug: d });
+
+    // confirmed 后 tokens 可能延迟就绪：等 1.5s 再查一次，争取拿到 stoken 用于角色查询
+    let stoken = d?.tokens?.find((t) => t?.token_type === 2)?.token || d?.tokens?.[0]?.token || "";
+    if (!stoken) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const retry = (await post("queryQRLoginStatus", { ticket })) as {
+        data?: {
+          status?: string;
+          tokens?: Array<{ token?: string; token_type?: number }>;
+        };
+      } | null;
+      stoken = retry?.data?.tokens?.find((t) => t?.token_type === 2)?.token || retry?.data?.tokens?.[0]?.token || "";
+    }
+
+    session.status = "confirmed";
+    await setJson(QR_SESSION(ticket), session);
+    return handleConfirmed(req, session, ticket, aid, stoken);
   }
   if (rawStatus.toLowerCase().includes("scan")) {
     session.status = "scanned";
@@ -174,38 +200,55 @@ export async function qrStatus(req: Request): Promise<Response> {
 
 /** 确认后处理：绑定模式写绑定；登录模式建号/登录
  *
- * 新版 ma-cn-passport 接口 confirmed 后 tokens 为空，改用 user_info.aid
- * （米游社账号 ID）作为唯一标识完成绑定；角色信息尽力获取，失败不影响绑定。
+ * 新版 ma-cn-passport 接口 confirmed 后用 user_info.aid（米游社账号 ID）完成绑定；
+ * 若拿到 stoken 则换 cookie 拉取角色信息，失败不影响绑定。
  */
 async function handleConfirmed(
   req: Request,
   session: { mode?: string; viewerId?: string | null },
   ticket: string,
   accountId: string,
-  _stoken: string,
+  stoken: string,
 ): Promise<Response> {
-  // 尝试用 account_id 直接拉取绝区零角色（部分环境可用 cookie 直查）
+  // 尝试拿角色：有 stoken 则先换 cookie_token，再查角色
+  let cookieHeader = "";
+  if (stoken) {
+    const cookieData = (await get(
+      "getCookieAccountInfoBySToken",
+      { stoken, uid: accountId },
+      true,
+    )) as {
+      data?: { cookie_token?: string; account_id?: string } | null;
+    } | null;
+    const ck = cookieData?.data;
+    if (ck?.cookie_token && ck?.account_id) {
+      cookieHeader = `account_id=${ck.account_id};cookie_token=${ck.cookie_token}`;
+    }
+  }
+
   let zzzNickname: string | null = null;
   let zzzLevel: number | null = null;
   let zzzRegion = "";
   let zzzRegionName = "";
-  try {
-    const roleRes = await fetch(`${TAKUMI_BINDING}?game_biz=zzz_cn`, {
-      headers: { Cookie: `account_id=${accountId}`, "User-Agent": rpcHeaders()["User-Agent"] },
-    });
-    const roleData = (await roleRes.json()) as {
-      retcode?: number;
-      data?: { list?: Array<{ game_biz?: string; nickname?: string; level?: number; region?: string; region_name?: string }> };
-    };
-    const role = (roleData?.data?.list || []).find((r) => r?.game_biz === "zzz_cn");
-    if (role) {
-      zzzNickname = role.nickname || null;
-      zzzLevel = role.level ?? null;
-      zzzRegion = role.region || "";
-      zzzRegionName = role.region_name || "";
+  if (cookieHeader) {
+    try {
+      const roleRes = await fetch(`${TAKUMI_BINDING}?game_biz=zzz_cn`, {
+        headers: { Cookie: cookieHeader, "User-Agent": rpcHeaders()["User-Agent"] },
+      });
+      const roleData = (await roleRes.json()) as {
+        retcode?: number;
+        data?: { list?: Array<{ game_biz?: string; nickname?: string; level?: number; region?: string; region_name?: string }> };
+      };
+      const role = (roleData?.data?.list || []).find((r) => r?.game_biz === "zzz_cn");
+      if (role) {
+        zzzNickname = role.nickname || null;
+        zzzLevel = role.level ?? null;
+        zzzRegion = role.region || "";
+        zzzRegionName = role.region_name || "";
+      }
+    } catch {
+      // 角色拉取失败不影响绑定本身
     }
-  } catch {
-    // 角色拉取失败不影响绑定本身
   }
 
   const binding = {
