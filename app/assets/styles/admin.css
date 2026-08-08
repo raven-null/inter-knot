@@ -212,7 +212,7 @@
 }
 .ik-admin-trend__svg {
   width: 100%;
-  height: 260px;
+  height: 320px;
 }
 .ik-admin-trend__legend {
   display: flex;
@@ -323,19 +323,27 @@
   color: #9a9a9a;
   font-variant-numeric: tabular-nums;
 }
+/* 卡片统一高度等长：由 flex 容器控制（ik-admin-grid--three） */
 .ik-admin-card {
-  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ── 概览三列（最新用户 / 在线人数 / 最新委托） ── */
 .ik-admin-grid--three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.ik-admin-grid--three > * {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
   .ik-admin-grid--three {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 

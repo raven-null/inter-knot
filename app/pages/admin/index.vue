@@ -8,7 +8,7 @@ const openReports = ref(0);
 const { online: presenceOnline, avatars: presenceAvatars } = usePresence();
 
 const KPI_W = 720;
-const KPI_H = 260;
+const KPI_H = 320;
 const KPI_PAD = 28;
 
 const series = computed(() => {

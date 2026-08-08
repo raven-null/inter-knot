@@ -42,7 +42,7 @@ onMounted(load);
       <AdminBackButton />
     </div>
     <div v-if="loading" class="ik-admin-loading">加载中…</div>
-    <div v-else class="ik-admin-card" style="max-width: 560px">
+    <div v-else class="ik-admin-card" style="max-width: 560px; margin: 0 auto">
       <h3 class="ik-admin-card__title">站点设置</h3>
       <div style="display: flex; flex-direction: column; gap: 14px">
         <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--ik-muted)">
