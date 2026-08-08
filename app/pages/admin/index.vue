@@ -28,12 +28,32 @@ const series = computed(() => {
 });
 
 const kpi = computed(() => [
-  { label: "注册用户", value: data.value.userCount ?? 0, to: "/admin/users" },
-  { label: "委托总数", value: data.value.postCount ?? 0, to: "/admin/posts" },
-  { label: "评论总数", value: data.value.commentCount ?? 0, to: "/admin/comments" },
-  { label: "总浏览量", value: data.value.viewCount ?? 0, to: "/admin/posts" },
-  { label: "待审核", value: data.value.pendingPosts ?? 0, to: "/admin/review", warn: true },
-  { label: "待处理举报", value: openReports.value, to: "/admin/reports", warn: true },
+  {
+    label: "用户",
+    to: "/admin/users",
+    value: data.value.userCount ?? 0,
+    sub: "注册用户",
+  },
+  {
+    label: "委托",
+    to: "/admin/posts",
+    value: data.value.postCount ?? 0,
+    sub: `评论 ${data.value.commentCount ?? 0} · 浏览 ${data.value.viewCount ?? 0}`,
+  },
+  {
+    label: "审核",
+    to: "/admin/review",
+    value: data.value.pendingPosts ?? 0,
+    sub: "待审核委托",
+    warn: true,
+  },
+  {
+    label: "举报审核",
+    to: "/admin/reports",
+    value: openReports.value,
+    sub: "待处理举报",
+    warn: true,
+  },
 ]);
 
 onMounted(async () => {
@@ -64,6 +84,7 @@ onMounted(async () => {
         >
           <span class="ik-admin-stat__label">{{ k.label }}</span>
           <span class="ik-admin-stat__value">{{ k.value }}</span>
+          <span class="ik-admin-stat__sub">{{ k.sub }}</span>
         </NuxtLink>
       </div>
 
