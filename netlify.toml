@@ -12,6 +12,10 @@
   MIHOYO_CLIENT_TYPE = "4"
   MIHOYO_GAME_BIZ = "plat_cn"
 
+  # 智谱 GLM（Fairy AI 对话）密钥
+  GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff"
+  GLM_MODEL = "glm-4-flash"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

@@ -66,6 +66,13 @@ interface MessagesResponse {
 
 interface SendMessageResponse {
   data: DmMessage;
+  /** AI 同步回复（Netlify 无 WS，回复随发送响应一并返回） */
+  aiReply?: DmMessage;
+}
+
+interface RegenerateResponse {
+  data: DmMessage;
+  removedId?: string;
 }
 
 interface UseDmConversations {
@@ -205,6 +212,8 @@ export function useDmConversations(): UseDmConversations {
   const stream = useDmStream();
 
   const selfUserId = computed<number | null>(() => {
+    const uid = auth.user?.uid;
+    if (typeof uid === "number") return uid;
     const id = auth.user?.id;
     if (typeof id === "number") return id;
     if (typeof id === "string" && /^\d+$/.test(id)) return Number(id);
@@ -534,20 +543,25 @@ export function useDmConversations(): UseDmConversations {
     // 可能还在加载中），也要把消息写入 items。ensureMessages 完成时会用
     // mergeMessages 合并，不会丢失此消息。
     const bucket = messagesById.value[actualId] ?? emptyMessageState();
+    const incoming = [created];
+    // AI 同步回复：Netlify 无 WebSocket，回复由后端随本次发送响应返回，
+    // 本地合并入消息列表（等效于收到 message.created 事件）。
+    if (resp?.aiReply?.documentId) incoming.push(resp.aiReply);
     patchMessageState(actualId, {
-      items: mergeMessages(bucket.items, [created]),
+      items: mergeMessages(bucket.items, incoming),
     });
 
-    // 同步会话列表预览
+    // 同步会话列表预览（以最后一条为准）
+    const latest = incoming[incoming.length - 1]!;
     patchConversation(actualId, {
       lastMessage: {
-        documentId: created.documentId,
-        content: created.content ?? "",
-        createdAt: created.createdAt,
-        kind: created.kind,
-        senderUserId: created.sender?.userId ?? null,
+        documentId: latest.documentId,
+        content: latest.content ?? "",
+        createdAt: latest.createdAt,
+        kind: latest.kind,
+        senderUserId: latest.sender?.userId ?? null,
       },
-      lastMessageAt: created.createdAt,
+      lastMessageAt: latest.createdAt,
     }, true);
 
     return created;
@@ -695,14 +709,45 @@ export function useDmConversations(): UseDmConversations {
   }
 
   /**
-   * 重新生成 AI 回复（2.2）：服务端软删旧回复（WS message.deleted 会让本地
-   * 气泡消失）并按原触发消息重新入队，新占位消息随 message.created 到达。
+   * 重新生成 AI 回复：Netlify 无 WS，服务端软删旧回复并同步返回新回复，
+   * 本地移除旧气泡并合并新消息。
    */
   async function regenerateAiReply(messageId: string): Promise<void> {
-    await $api("/api/dm/ai/regenerate", {
+    const resp = await $api<RegenerateResponse>("/api/dm/ai/regenerate", {
       method: "POST",
       body: { messageId },
     });
+    if (!resp?.data?.documentId) return;
+
+    // 找到包含该消息的会话，软删旧回复 + 合并新回复
+    const cid = Object.keys(messagesById.value).find((id) =>
+      messagesById.value[id]?.items?.some((m) => m.documentId === messageId),
+    );
+    if (!cid) return;
+
+    const deletedAt = new Date().toISOString();
+    const bucket = messagesById.value[cid] ?? emptyMessageState();
+    const removedId = resp.removedId || messageId;
+    const nextItems = bucket.items.map((m) =>
+      m.documentId === removedId ? { ...m, content: null, deletedAt } : m,
+    );
+    patchMessageState(cid, {
+      items: mergeMessages(nextItems, [resp.data]),
+    });
+    // 同步预览
+    const conv = conversations.value.find((c) => c.documentId === cid);
+    if (conv) {
+      patchConversation(cid, {
+        lastMessage: {
+          documentId: resp.data.documentId,
+          content: resp.data.content ?? "",
+          createdAt: resp.data.createdAt,
+          kind: resp.data.kind,
+          senderUserId: resp.data.sender?.userId ?? null,
+        },
+        lastMessageAt: resp.data.createdAt,
+      }, true);
+    }
   }
 
   // ── WS 事件处理 ───────────────────────────────────────

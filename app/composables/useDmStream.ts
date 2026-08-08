@@ -158,7 +158,10 @@ const doConnect = async (
     const resp = await $api<TicketResponse>(TICKET_PATH, { method: "POST" });
     const ticket = resp?.data?.ticket;
     if (!ticket) {
-      scheduleReconnect(connected);
+      // 部署环境不支持 WebSocket（如 Netlify Functions）：不再重连。
+      // AI 对话改用同步回复（sendMessage 响应携带 aiReply），无需 WS。
+      started = false;
+      reconnectAttempts = 0;
       return;
     }
 

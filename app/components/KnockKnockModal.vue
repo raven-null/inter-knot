@@ -101,6 +101,8 @@ const isOfficialAiPeer = (conv: DmConversationSummary): boolean => {
 
 /** 当前登录用户的 user.id；用于区分消息气泡是「我发的」还是「对方发的」 */
 const selfUserId = computed<number | null>(() => {
+  const uid = auth.user?.uid;
+  if (typeof uid === "number") return uid;
   const id = auth.user?.id;
   if (typeof id === "number") return id;
   if (typeof id === "string" && /^\d+$/.test(id)) return Number(id);

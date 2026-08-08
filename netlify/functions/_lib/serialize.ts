@@ -32,6 +32,7 @@ export function toAuthor(doc: Doc | null | undefined): Doc | null {
   return {
     id: documentId,
     documentId,
+    uid: Number(doc.uid || 0),
     username,
     login: username,
     name: doc.name ? String(doc.name) : username,

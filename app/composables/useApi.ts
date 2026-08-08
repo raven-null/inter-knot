@@ -396,6 +396,7 @@ function toAuthor(raw: unknown, apiBaseUrl: string): Author {
     id: data.id as string | number | undefined,
     documentId: (data.documentId as string | undefined) || (data.id as string | undefined),
     authorId: (data.authorId as string | undefined) || (authorRelation?.documentId as string | undefined) || (data.documentId as string | undefined),
+    uid: typeof data.uid === "number" ? data.uid : undefined,
     username: data.username as string | undefined,
     login: data.login as string | undefined,
     name:

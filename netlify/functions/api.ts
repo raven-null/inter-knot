@@ -21,6 +21,7 @@ import * as adminRoutes from "./_lib/routes/admin";
 import * as emoteRoutes from "./_lib/routes/emotes";
 import * as githubRoutes from "./_lib/routes/github";
 import * as mihoyoRoutes from "./_lib/routes/mihoyo";
+import * as aiRoutes from "./_lib/routes/ai";
 import * as stubRoutes from "./_lib/routes/stubs";
 
 export default async function handler(req: Request): Promise<Response> {
@@ -264,16 +265,21 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
     case "agent": {
-      if (sub === "characters" && isGet(req)) return stubRoutes.agentCharacters();
+      if (sub === "characters" && isGet(req)) return aiRoutes.characters();
       return error(404, "接口不存在");
     }
     case "dm": {
-      if (sub === "conversations" && s.length === 3 && isGet(req)) return stubRoutes.dmConversations();
+      if (sub === "conversations" && s.length === 3 && isGet(req)) return aiRoutes.conversations(req);
       if (sub === "conversations" && sub2 === "direct" && isPost(req)) return stubRoutes.dmDirect();
-      if (sub === "conversations" && sub2 === "ai-session" && isPost(req)) return stubRoutes.dmAiSession();
-      if (sub === "read-all" && isPost(req)) return stubRoutes.dmReadAll();
-      if (sub === "ai" && (sub2 === "stop" || sub2 === "regenerate") && isPost(req)) return stubRoutes.dmAiAction();
-      if (sub === "socket" && sub2 === "ticket" && isPost(req)) return stubRoutes.dmSocketTicket();
+      if (sub === "conversations" && sub2 === "ai-session" && isPost(req)) return aiRoutes.aiSession(req);
+      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isGet(req)) return aiRoutes.messages(req);
+      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isPost(req)) return aiRoutes.sendMessage(req);
+      if (sub === "conversations" && s.length === 5 && s[4] === "read" && isPatch(req)) return aiRoutes.readConversation(req);
+      if (sub === "conversations" && s.length === 5 && s[4] === "leave" && isPost(req)) return aiRoutes.leaveConversation(req);
+      if (sub === "read-all" && isPost(req)) return aiRoutes.readAll();
+      if (sub === "ai" && sub2 === "regenerate" && isPost(req)) return aiRoutes.regenerate(req);
+      if (sub === "ai" && sub2 === "stop" && isPost(req)) return aiRoutes.stop();
+      if (sub === "socket" && sub2 === "ticket" && isPost(req)) return json({ data: { ticket: "", ttlSec: 0 } });
       return error(404, "接口不存在");
     }
     case "knock": {

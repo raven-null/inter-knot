@@ -2,6 +2,7 @@ export interface Author {
   id?: string | number;
   documentId?: string;
   authorId?: string;
+  uid?: number;
   username?: string;
   login?: string;
   name?: string;
