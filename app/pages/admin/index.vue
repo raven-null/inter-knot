@@ -167,23 +167,24 @@ onMounted(async () => {
   <div class="ik-admin-page">
     <div v-if="loading" class="ik-admin-loading">加载中…</div>
     <template v-else>
-      <div class="ik-admin-grid">
-        <NuxtLink
-          v-for="k in kpi"
-          :key="k.label"
-          :to="k.to"
-          class="ik-admin-stat"
-          :class="{ 'ik-admin-stat--warn': k.warn && Number(k.value) > 0 }"
-        >
-          <span class="ik-admin-stat__label">{{ k.label }}</span>
-          <span class="ik-admin-stat__value">{{ k.value }}</span>
-          <span class="ik-admin-stat__sub">{{ k.sub }}</span>
-        </NuxtLink>
-      </div>
+      <div class="ik-admin-kpi-row">
+        <div class="ik-admin-grid">
+          <NuxtLink
+            v-for="k in kpi"
+            :key="k.label"
+            :to="k.to"
+            class="ik-admin-stat"
+            :class="{ 'ik-admin-stat--warn': k.warn && Number(k.value) > 0 }"
+          >
+            <span class="ik-admin-stat__label">{{ k.label }}</span>
+            <span class="ik-admin-stat__value">{{ k.value }}</span>
+            <span class="ik-admin-stat__sub">{{ k.sub }}</span>
+          </NuxtLink>
+        </div>
 
-      <!-- 论坛设置卡片（导航开关 / 标签管理 / 公告） -->
-      <AdminCard class="ik-admin-forum-settings">
-        <template #title>论坛设置</template>
+        <!-- 论坛设置卡片（置于举报审核右侧） -->
+        <AdminCard class="ik-admin-forum-settings">
+          <template #title>论坛设置</template>
         <div class="ik-forum-settings__grid">
           <div class="ik-forum-settings__block">
             <h4 class="ik-forum-settings__block-title">导航栏功能开关</h4>
@@ -232,7 +233,8 @@ onMounted(async () => {
             </div>
           </div>
         </div>
-      </AdminCard>
+        </AdminCard>
+      </div>
 
       <AdminCard>
         <template #title>近 30 天趋势</template>
