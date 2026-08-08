@@ -15,8 +15,10 @@ import { DEFAULT_AVATAR } from "../serialize";
 
 const AI_PREFIX = "dm/ai/";
 
-/** 智谱 GLM 配置（环境变量注入，见 .env / netlify.toml） */
-const GLM_API_KEY = process.env.GLM_API_KEY || "";
+/** 智谱 GLM 配置：优先读环境变量，缺失时用内置默认密钥（与米游社参数同理）。
+ *  内置密钥便于直接部署即可用；如需更换可在 Netlify 后台配 GLM_API_KEY 覆盖。 */
+const GLM_API_KEY =
+  process.env.GLM_API_KEY || "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
 const GLM_MODEL = process.env.GLM_MODEL || "glm-4-flash";
 const GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 
@@ -131,9 +133,6 @@ async function ensureConversation(viewerId: string, aiUid: number): Promise<AiCo
 
 /** 调用智谱 GLM 生成回复（同步，非流式） */
 async function generateReply(aiRole: AiRoleDoc, history: AiConversation["messages"]): Promise<string> {
-  if (!GLM_API_KEY) {
-    return "（未配置智谱 API 密钥，请在环境变量中设置 GLM_API_KEY）";
-  }
   const messages: Array<{ role: string; content: string }> = [
     { role: "system", content: FAIRY_SYSTEM_PROMPT },
     ...history.slice(-16).map((m) => ({
