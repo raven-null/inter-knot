@@ -99,9 +99,19 @@ export async function create(req: Request): Promise<Response> {
   const postId = String(data.article || "");
   const content = String(data.content || "").trim();
   const parentId = data.parent ? String(data.parent) : undefined;
-  const images = Array.isArray(data.images)
+  // 前端上传后传的是上传文件 documentId，需解析为实际 URL
+  const rawImages = Array.isArray(data.images)
     ? data.images.filter((u): u is string => typeof u === "string" && u.length > 0)
     : [];
+  const images: string[] = [];
+  for (const id of rawImages) {
+    if (id.startsWith("/") || id.startsWith("http")) {
+      images.push(id);
+      continue;
+    }
+    const meta = await getJson<{ url?: string }>(`uploads/by-document/${id}.json`);
+    if (meta?.url) images.push(String(meta.url));
+  }
 
   if (!postId) return badRequest("缺少委托 ID");
   if (!content && images.length === 0) return badRequest("评论内容不能为空");
@@ -196,4 +206,30 @@ export async function unpin(req: Request): Promise<Response> {
   if (viewer.role !== "admin" && viewer.role !== "moderator") return badRequest("无权取消置顶");
   await setJson(found.key, { ...found.doc, is_pinned: false });
   return json({ success: true });
+}
+// 临时：修复评论图片（裸 documentId -> URL），验证后移除
+export async function repairCommentImages(req: Request): Promise<Response> {
+  const { requireAdmin } = await import("../auth");
+  await requireAdmin(req);
+  const { listKeys, setJson } = await import("../storage");
+  const keys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
+  let fixed = 0;
+  for (const key of keys) {
+    const c = await getJson<Doc>(key);
+    if (!c || !Array.isArray(c.images)) continue;
+    const next: string[] = [];
+    let changed = false;
+    for (const u of c.images as unknown[]) {
+      const s = String(u);
+      if (s.startsWith("/") || s.startsWith("http")) { next.push(s); continue; }
+      const meta = await getJson<{ url?: string }>(`uploads/by-document/${s}.json`);
+      if (meta?.url) { next.push(String(meta.url)); changed = true; }
+      else next.push(s);
+    }
+    if (changed) {
+      await setJson(key, { ...c, images: next });
+      fixed += 1;
+    }
+  }
+  return json({ success: true, fixed });
 }

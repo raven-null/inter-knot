@@ -231,6 +231,7 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "categories" && s.length === 4 && isDelete(req)) return adminRoutes.deleteCategory(req);
       if (sub === "reports" && s.length === 3 && isGet(req)) return adminRoutes.reports(req);
       if (sub === "reports" && s.length === 4 && isPost(req)) return adminRoutes.processReport(req);
+      if (sub === "repair-comment-images" && isPost(req)) return commentRoutes.repairCommentImages(req);
       if (sub === "settings" && isGet(req)) return adminRoutes.settings(req);
       if (sub === "settings" && isPut(req)) return adminRoutes.updateSettings(req);
       return error(404, "接口不存在");
