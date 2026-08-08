@@ -503,3 +503,104 @@ export const config: Config = {
 - 免费档 Database 存储自 2026-07-01 起按量计费，上线前关注账单；数据量小、额度低即可。
 - JWT 密钥、数据库连接串等敏感信息**绝不提交**到 Git（写进 `.env.example` 占位，真实值只放 Netlify 环境变量）。
 - 若后续用户量大，可平滑迁移到 Supabase 或自建 Postgres，应用层 SQL 保持标准即可。
+
+---
+
+## 十三、米游社扫码登录实现方案
+
+> 现状：本项目米游社登录为"暂未开放"桩接口（`POST /api/auth/mihoyo/qr` 返回 501）。
+> 本节说明若要实现真实扫码登录的完整方案。**注意：以下为基于社区逆向的非官方方案，接入前请先阅读下方「风险与合规」小节。**
+
+### 1. 原理：米游社 Web 扫码登录三步
+
+官方 Web 端（`https://webstatic.mihoyo.com/`）扫码登录流程分三步：
+
+```
+① 生成二维码
+   POST passport-api.mihoyo.com/account/auth/login/qrcode/generate
+   → 返回 { url(渲染成二维码), ticket, app_id, ... }
+
+② 轮询扫码状态（1.5~3s 一次）
+   POST passport-api.mihoyo.com/account/auth/login/qrcode/query
+   body: { app_id, device: <设备ID>, ticket }
+   → status: waiting / scanned / confirmed / expired / cancelled
+   confirmed 时返回可兑换的 loginTicket
+
+③ 兑换登录态
+   POST passport-api.mihoyo.com/account/auth/login  body: { ticket, app_id, device }
+   → 换取 stoken / ltoken / mid 等
+   再用 stoken 调
+   POST passport-api.mihoyo.com/account/auth/api/getUserAccountInfoByToken
+   → 拿到米游社账号信息（mid / 昵称 / 头像）
+```
+
+### 2. 私有请求头（关键，会随版本变动）
+
+米游社接口对请求头校验较严，需模拟 Web 客户端：
+
+| 头 | 说明 |
+|----|------|
+| `x-rpc-app_id` | Web 端固定值（如 `c8b4368fbd084c49b2e02907c214e571`，社区逆向得出） |
+| `x-rpc-client_type` | `2`（Web） |
+| `x-rpc-verify` | 部分接口需要 sign 校验（社区逆向算法，需随版本维护） |
+| `User-Agent` | 用浏览器 UA 或 `mihoyo_bbs/...` |
+| Cookie | 至少携带 `_MHYUUID`；部分场景需先通过 `public-data-api.mihoyo.com/device-fp/api/getFp` 获取设备指纹 `DEVICEFP` |
+
+> 这些值属于"逆向产物"，无官方文档，**随时可能被改动或封堵**，需要定期维护。
+
+### 3. 在本项目（Netlify Functions + Blobs）中的实现设计
+
+前端 `useMihoyoQr` / `LoginDialog` 的二维码 UI 与轮询逻辑**已就绪**，且 `useApi` 里
+`MihoyoQrPollResult` 已支持 login / bind 两种模式，只需把后端桩接口替换为真实实现。
+
+```
+POST /api/auth/mihoyo/qr           → 调 generate，返回 { qrUrl, ticket, expiresIn, mode }
+POST /api/auth/mihoyo/qr/status    → 调 query 轮询；confirmed 后兑换 stoken 并处理登录/绑定
+GET  /api/auth/mihoyo/binding      → 读当前用户绑定
+DELETE /api/auth/mihoyo/binding    → 解绑
+```
+
+**会话与用户映射（用 Blobs 存）：**
+
+| key | 内容 |
+|-----|------|
+| `mihoyo/sessions/<ticket>.json` | `{ ticket, deviceId, mode(login/bind), userId?, status, createdAt }`，轮询/兑换状态机 |
+| `users/by-mihoyo/<mid>.json` | 米游社 mid → 本站用户 documentId（登录建号/绑定查重） |
+| `users/<docId>.json` | 用户文档中追加 `mihoyo: { mid, nickname, uid, region, lastSyncedAt }` |
+
+**登录模式流程：**
+1. `qr`：生成 `deviceId`（可用 `crypto.randomUUID()`），调 miHoYo generate，把会话写入 Blobs，返回 `{ qrUrl, ticket, mode:"login" }`。
+2. `qr/status`（带 token = 未登录）：按 ticket 读会话 → 调 miHoYo query → 非 confirmed 直接透传状态；
+   confirmed 后调登录/换 token 接口拿 `mid` 与账号信息。
+3. 查 `users/by-mihoyo/<mid>.json`：命中则直接签发本站 JWT；未命中则按"新用户"建号
+   （默认用户名 `绳网用户XXXX`，角色 user），写入 by-mihoyo 索引，签发 JWT。
+4. 返回 `{ status:"confirmed", mode:"login", isNewUser, auth:{ token, user } }`，前端复用现有 `setSession`。
+
+**绑定模式流程：**（已登录，`qr` 带 token）
+1. 同上生成二维码，`mode:"bind"`，会话记录 `userId`。
+2. confirmed 后拿到 mid/账号信息，校验该 mid 是否已被别的本站账号绑定（查 by-mihoyo 索引）。
+3. 未占用 → 写回当前用户文档 `mihoyo` 字段 + by-mihoyo 索引，返回 `{ status:"confirmed", mode:"bind", binding }`。
+4. 已占用 → 返回业务错误，提示换绑需先解绑。
+
+**环境变量开关（建议默认关闭）：**
+
+| 变量 | 说明 | 默认 |
+|------|------|------|
+| `MIHOYO_LOGIN_ENABLED` | 是否启用米游社登录（关闭时 qr 接口返回"暂未开放"） | `false` |
+| `MIHOYO_APP_ID` / `MIHOYO_CLIENT_TYPE` | 覆盖默认私有参数（便于版本失效时快速维护） | 默认值 |
+
+### 4. 前端配合（已具备，无需大改）
+
+- `useMihoyoQr`：`createMihoyoQr` → `qrUrl` 渲染二维码；`pollMihoyoQr(ticket)` 轮询；
+  `onConfirmed` 回调中按 `mode` 分发：login → `auth.setSession(token, user)` 并关闭弹窗；bind → 刷新绑定态。
+- 登录弹窗 / 账号中心的米游社 Tab 保持不变。
+
+### 5. 风险与合规（重要）
+
+- **违反米游社服务条款**：使用其官方扫码接口为第三方站点提供登录属于未经授权的用途，可能导致相关账号被封禁。**商用/公开站点不建议接入。**
+- **Serverless IP 风险**：Netlify Functions 出口为数据中心 IP，米游社反爬可能限流或要求验证码；实测不稳定，必要时改为自建 VPS 或边缘节点转发。
+- **接口不稳定**：私有参数（app_id / verify 签名 / UA / DEVICEFP）属逆向产物，官方一改就失效，需持续维护。
+- **无官方文档**：以上流程基于社区经验，可能存在错误；上线前必须实测 generate→query→confirm 全链路。
+- 若仅需"游戏绑定展示"而非第三方登录，可跳过扫码，改为让用户在米游社网页登录后手动提交 `stoken`（同样有合规风险，谨慎评估）。
+
+> 建议：优先保持现状（"暂未开放"提示 + 邮箱注册登录）。除非有明确的合规授权需求，否则不建议为公开论坛接入米游社登录。
