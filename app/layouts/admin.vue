@@ -104,7 +104,22 @@ onMounted(async () => {
         <slot />
       </div>
       <footer class="ik-admin__footer">
-        绳网后台 · InterKnot Forum · © {{ new Date().getFullYear() }}
+        <div class="ik-admin__footer-inner">
+          <span class="ik-admin__footer-brand">
+            <span class="ik-admin__footer-dot" />
+            绳网后台
+          </span>
+          <span class="ik-admin__footer-links">
+            <NuxtLink to="/" class="ik-admin__footer-link">返回前台</NuxtLink>
+            <a
+              href="https://github.com/raven-null/inter-knot/blob/main/docs/更新日志.md"
+              target="_blank"
+              rel="noopener"
+              class="ik-admin__footer-link"
+            >更新日志</a>
+          </span>
+          <span class="ik-admin__footer-copy">InterKnot Forum · © {{ new Date().getFullYear() }}</span>
+        </div>
       </footer>
     </main>
   </div>
@@ -218,9 +233,12 @@ onMounted(async () => {
 .ik-admin__main {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .ik-admin__topbar {
+  flex-shrink: 0;
   position: sticky;
   top: 60px;
   z-index: 5;
@@ -246,16 +264,61 @@ onMounted(async () => {
 }
 
 .ik-admin__content {
+  flex: 1 1 auto;
   padding: 28px 32px 20px;
 }
 
 .ik-admin__footer {
-  padding: 20px 24px 30px;
-  text-align: center;
+  flex-shrink: 0;
+  margin: 8px 32px 0;
+  padding: 16px 24px 24px;
+  border-top: 1px solid #1e1e1e;
+}
+
+.ik-admin__footer-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ik-admin__footer-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ik-primary, #bfff09);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ik-admin__footer-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--ik-primary, #bfff09);
+  box-shadow: 0 0 8px var(--ik-primary, #bfff09);
+}
+
+.ik-admin__footer-links {
+  display: inline-flex;
+  gap: 16px;
+}
+
+.ik-admin__footer-link {
+  color: #8a8a8a;
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.ik-admin__footer-link:hover {
+  color: var(--ik-primary, #bfff09);
+}
+
+.ik-admin__footer-copy {
   color: #666;
   font-size: 12px;
-  border-top: 1px solid #1e1e1e;
-  margin: 8px 32px 0;
 }
 
 @media (max-width: 768px) {
