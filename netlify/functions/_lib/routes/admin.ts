@@ -1,102 +1,120 @@
-﻿/** 后台管理路由：统计 / 用户 / 帖子 / 评论 / 版块 / 设置 */
+﻿/** 后台管理路由：统计 / 用户 / 帖子 / 评论 / 版块 / 设置（基于 Netlify Blobs） */
 
-import { db, genId } from "../db";
+import { genId, getJson, setJson, del, listKeys, KEYS, categoryKey } from "../storage";
+import { getFeed, feedUpsert, feedRemove, feedUpdate, getStats, bumpStats, getUser, updateUserStats } from "../feed";
 import { requireAdmin } from "../auth";
 import { json, badRequest, notFound, int, readJson, queryParams } from "../http";
-import { toCategory, toPost, toComment, DEFAULT_AVATAR } from "../serialize";
+import { toCategory, toPost, toComment, DEFAULT_AVATAR, type Doc } from "../serialize";
 
 const PAGE_SIZE = 20;
 
-export async function stats(req: Request): Promise<Response> {
-  await requireAdmin(req);
-  const d = db();
-  const [userCount, postCount, commentCount, viewCount, todayPosts, todayComments, pendingPosts, categoryCount] = await Promise.all([
-    d.sql`SELECT count(*)::int AS n FROM users`,
-    d.sql`SELECT count(*)::int AS n FROM posts WHERE status = 'published'`,
-    d.sql`SELECT count(*)::int AS n FROM comments`,
-    d.sql`SELECT COALESCE(sum(views), 0)::int AS n FROM posts`,
-    d.sql`SELECT count(*)::int AS n FROM posts WHERE status = 'published' AND created_at >= now() - interval '24 hours'`,
-    d.sql`SELECT count(*)::int AS n FROM comments WHERE created_at >= now() - interval '24 hours'`,
-    d.sql`SELECT count(*)::int AS n FROM posts WHERE status = 'pending'`,
-    d.sql`SELECT count(*)::int AS n FROM categories`,
-  ]);
-  const recentUsers = await d.sql`SELECT document_id, username, name, level, avatar_url, created_at FROM users ORDER BY created_at DESC LIMIT 5`;
-  const recentPosts = await d.sql`SELECT document_id, title, views, likes_count, comments_count, created_at FROM posts WHERE status = 'published' ORDER BY created_at DESC LIMIT 5`;
-  const n = (arr: unknown[], key = "n") => Number((arr[0] as Record<string, number> | undefined)?.[key] || 0);
-  return json({
-    userCount: n(userCount),
-    postCount: n(postCount),
-    commentCount: n(commentCount),
-    viewCount: n(viewCount),
-    todayPosts: n(todayPosts),
-    todayComments: n(todayComments),
-    pendingPosts: n(pendingPosts),
-    categoryCount: n(categoryCount),
-    recentUsers: recentUsers.map((r) => {
-      const row = r as Record<string, unknown>;
-      return {
-        documentId: String(row.document_id),
-        username: String(row.username),
-        name: String(row.name || row.username),
-        level: Number(row.level || 1),
-        avatar: String(row.avatar_url || DEFAULT_AVATAR),
-        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-      };
-    }),
-    recentPosts: recentPosts.map((r) => {
-      const row = r as Record<string, unknown>;
-      return {
-        documentId: String(row.document_id),
-        title: String(row.title),
-        views: Number(row.views || 0),
-        likesCount: Number(row.likes_count || 0),
-        commentsCount: Number(row.comments_count || 0),
-        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-      };
-    }),
-  });
+async function allPostDocs(): Promise<Doc[]> {
+  const keys = (await listKeys("posts/")).filter((k) => !k.includes("/_lookup/"));
+  const docs: Doc[] = [];
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d) docs.push(d);
+  }
+  docs.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  return docs;
 }
 
-function pageParams(req: Request): { start: number; limit: number; q: string; status: string } {
-  const qp = queryParams(req);
+function pageSlice<T>(items: T[], page: number, pageSize: number): { data: T[]; total: number; pageCount: number } {
+  const start = (page - 1) * pageSize;
   return {
-    start: Math.max(0, int(qp.get("page") ? (int(qp.get("page")) - 1) * PAGE_SIZE : int(qp.get("start")))),
-    limit: Math.min(50, Math.max(1, int(qp.get("pageSize") || qp.get("limit"), PAGE_SIZE))),
-    q: qp.get("q") || "",
-    status: qp.get("status") || "",
+    data: items.slice(start, start + pageSize),
+    total: items.length,
+    pageCount: Math.ceil(items.length / pageSize),
   };
+}
+
+export async function stats(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const s = await getStats();
+  const keys = (await listKeys("users/")).filter((k) => !k.includes("/by-email/"));
+  const recentUsers: Doc[] = [];
+  for (const key of keys) {
+    const u = await getJson<Doc>(key);
+    if (u) recentUsers.push(u);
+  }
+  recentUsers.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+
+  const feed = await getFeed();
+  const allPosts = await allPostDocs();
+  const pendingPosts = allPosts.filter((p) => p.status === "pending").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayPosts = feed.filter((p) => String(p.created_at || "").startsWith(today)).length;
+  const commentKeys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
+  let todayComments = 0;
+  for (const key of commentKeys) {
+    const c = await getJson<Doc>(key);
+    if (c && String(c.created_at || "").startsWith(today)) todayComments += 1;
+  }
+
+  return json({
+    userCount: Number(s.userCount || 0),
+    postCount: Number(s.postCount || 0),
+    commentCount: Number(s.commentCount || 0),
+    viewCount: Number(s.viewCount || 0),
+    todayPosts,
+    todayComments,
+    pendingPosts,
+    categoryCount: (await listKeys("categories/")).length,
+    recentUsers: recentUsers.slice(0, 5).map((u) => ({
+      documentId: String(u.document_id),
+      username: String(u.username || ""),
+      name: String(u.name || u.username || ""),
+      level: Number(u.level || 1),
+      avatar: String(u.avatar_url || DEFAULT_AVATAR),
+      createdAt: String(u.created_at || ""),
+    })),
+    recentPosts: feed.slice(0, 5).map((p) => ({
+      documentId: String(p.document_id),
+      title: String(p.title || ""),
+      views: Number(p.views || 0),
+      likesCount: Number(p.likes_count || 0),
+      commentsCount: Number(p.comments_count || 0),
+      createdAt: String(p.created_at || ""),
+    })),
+  });
 }
 
 export async function users(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const { start, limit, q } = pageParams(req);
-  const d = db();
-  const where = q ? `WHERE username ILIKE $1 OR name ILIKE $1 OR email ILIKE $1` : "";
-  const params = q ? [`%${q}%`] : [];
-  const total = await d.sql.unsafe(`SELECT count(*)::int AS n FROM users ${where}`, params);
-  const rows = await d.sql.unsafe(
-    `SELECT id, document_id, username, name, email, avatar_url, level, exp, role, status, created_at
-     FROM users ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, start],
-  );
-  const totalCount = Number((total[0] as { n: number }).n);
+  const qp = queryParams(req);
+  const page = Math.max(1, int(qp.get("page"), 1));
+  const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
+  const q = (qp.get("q") || "").toLowerCase();
+
+  const keys = (await listKeys("users/")).filter((k) => !k.includes("/by-email/"));
+  const all: Doc[] = [];
+  for (const key of keys) {
+    const u = await getJson<Doc>(key);
+    if (u) all.push(u);
+  }
+  all.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+
+  const filtered = q
+    ? all.filter((u) => {
+        const hay = `${u.username || ""} ${u.name || ""} ${u.email || ""}`.toLowerCase();
+        return hay.includes(q);
+      })
+    : all;
+  const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
   return json({
-    data: rows.map((r) => {
-      const row = r as Record<string, unknown>;
-      return {
-        documentId: String(row.document_id),
-        username: String(row.username),
-        name: String(row.name || row.username),
-        email: row.email ? String(row.email) : "",
-        avatar: String(row.avatar_url || DEFAULT_AVATAR),
-        level: Number(row.level || 1),
-        exp: Number(row.exp || 0),
-        role: String(row.role),
-        status: String(row.status),
-        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-      };
-    }),
-    meta: { pagination: { page: Math.floor(start / limit) + 1, pageSize: limit, total: totalCount, pageCount: Math.ceil(totalCount / limit) } },
+    data: data.map((u) => ({
+      documentId: String(u.document_id),
+      username: String(u.username || ""),
+      name: String(u.name || u.username || ""),
+      email: u.email ? String(u.email) : "",
+      avatar: String(u.avatar_url || DEFAULT_AVATAR),
+      level: Number(u.level || 1),
+      exp: Number(u.exp || 0),
+      role: String(u.role || "user"),
+      status: String(u.status || "active"),
+      createdAt: String(u.created_at || ""),
+    })),
+    meta: { pagination: { page, pageSize, total, pageCount } },
   });
 }
 
@@ -104,53 +122,36 @@ export async function updateUser(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const { role, status } = await readJson<{ role?: string; status?: string }>(req);
-  const d = db();
-  const rows = await d.sql`SELECT id FROM users WHERE document_id = ${id}`;
-  if (rows.length === 0) return notFound("用户不存在");
+  const u = await getUser(id);
+  if (!u) return notFound("用户不存在");
   if (role && !["user", "moderator", "admin"].includes(role)) return badRequest("角色不合法");
   if (status && !["active", "banned"].includes(status)) return badRequest("状态不合法");
-  await d.sql`
-    UPDATE users SET
-      role = COALESCE(${role}, role),
-      status = COALESCE(${status}, status)
-    WHERE id = ${Number((rows[0] as { id: number }).id)}
-  `;
+  await setJson(`users/${id}.json`, {
+    ...u,
+    role: role ?? u.role,
+    status: status ?? u.status,
+  });
   return json({ success: true });
 }
 
 export async function posts(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const { start, limit, q, status } = pageParams(req);
-  const d = db();
-  const where: string[] = [];
-  const params: unknown[] = [];
-  if (q) {
-    params.push(`%${q}%`);
-    where.push(`(p.title ILIKE $${params.length} OR p.text ILIKE $${params.length})`);
-  }
-  if (status) {
-    params.push(status);
-    where.push(`p.status = $${params.length}`);
-  }
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const total = await d.sql.unsafe(`SELECT count(*)::int AS n FROM posts p ${whereSql}`, params);
-  const rows = await d.sql.unsafe(
-    `SELECT p.id, p.document_id, p.title, p.text, p.cover_width, p.cover_height, p.covers,
-            p.status, p.is_pinned, p.is_hidden, p.views, p.likes_count, p.comments_count,
-            p.created_at, p.updated_at,
-            c.name AS category_name, c.slug AS category_slug,
-            u.document_id AS author_document_id, u.username AS author_username, u.name AS author_name,
-            u.avatar_url AS author_avatar_url, u.level AS author_level, u.exp AS author_exp
-     FROM posts p
-     LEFT JOIN categories c ON c.id = p.category_id
-     LEFT JOIN users u ON u.id = p.author_id
-     ${whereSql} ORDER BY p.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, start],
-  );
-  const totalCount = Number((total[0] as { n: number }).n);
+  const qp = queryParams(req);
+  const page = Math.max(1, int(qp.get("page"), 1));
+  const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
+  const q = (qp.get("q") || "").toLowerCase();
+  const status = qp.get("status") || "";
+
+  const all = await allPostDocs();
+  const filtered = all.filter((p) => {
+    if (status && p.status !== status) return false;
+    if (q && !`${p.title || ""} ${p.text || ""}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
   return json({
-    data: rows.map((r) => toPost(r as never)),
-    meta: { pagination: { page: Math.floor(start / limit) + 1, pageSize: limit, total: totalCount, pageCount: Math.ceil(totalCount / limit) } },
+    data: data.map((p) => toPost(p)).filter(Boolean),
+    meta: { pagination: { page, pageSize, total, pageCount } },
   });
 }
 
@@ -158,62 +159,83 @@ export async function updatePost(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const body = await readJson<{ status?: string; isPinned?: boolean; isHidden?: boolean }>(req);
-  const d = db();
-  const rows = await d.sql`SELECT id FROM posts WHERE document_id = ${id}`;
-  if (rows.length === 0) return notFound("帖子不存在");
+  const doc = await getJson<Doc>(`posts/${id}.json`);
+  if (!doc) return notFound("帖子不存在");
   if (body.status && !["published", "pending", "deleted", "draft"].includes(body.status)) return badRequest("状态不合法");
-  await d.sql`
-    UPDATE posts SET
-      status = COALESCE(${body.status}, status),
-      is_pinned = COALESCE(${body.isPinned}, is_pinned),
-      is_hidden = COALESCE(${body.isHidden}, is_hidden),
-      updated_at = now()
-    WHERE id = ${Number((rows[0] as { id: number }).id)}
-  `;
+
+  const next: Doc = {
+    ...doc,
+    status: body.status ?? doc.status,
+    is_pinned: body.isPinned ?? doc.is_pinned,
+    is_hidden: body.isHidden ?? doc.is_hidden,
+    updated_at: new Date().toISOString(),
+  };
+  await setJson(`posts/${id}.json`, next);
+
+  // 同步信息流索引
+  if (next.status === "published" && !next.is_hidden) {
+    await feedUpsert(next);
+  } else {
+    await feedRemove(id);
+  }
   return json({ success: true });
 }
 
 export async function comments(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const { start, limit, q } = pageParams(req);
-  const d = db();
-  const where = q ? `WHERE c.content ILIKE $1` : "";
-  const params = q ? [`%${q}%`] : [];
-  const total = await d.sql.unsafe(`SELECT count(*)::int AS n FROM comments c ${where}`, params);
-  const rows = await d.sql.unsafe(
-    `SELECT c.id, c.document_id, c.post_id, c.author_id, c.parent_id, c.content, c.images,
-            c.is_pinned, c.likes_count, c.floor, c.created_at,
-            u.document_id AS author_document_id, u.username AS author_username, u.name AS author_name,
-            u.avatar_url AS author_avatar_url, u.level AS author_level
-     FROM comments c LEFT JOIN users u ON u.id = c.author_id
-     ${where} ORDER BY c.created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, start],
-  );
-  const totalCount = Number((total[0] as { n: number }).n);
+  const qp = queryParams(req);
+  const page = Math.max(1, int(qp.get("page"), 1));
+  const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
+  const q = (qp.get("q") || "").toLowerCase();
+
+  const keys = (await listKeys("comments/")).filter((k) => !k.includes("/_lookup/"));
+  const all: Doc[] = [];
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d) all.push(d);
+  }
+  all.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  const filtered = q ? all.filter((c) => String(c.content || "").toLowerCase().includes(q)) : all;
+  const { data, total, pageCount } = pageSlice(filtered, page, pageSize);
   return json({
-    data: rows.map((r) => toComment(r as never)),
-    meta: { pagination: { page: Math.floor(start / limit) + 1, pageSize: limit, total: totalCount, pageCount: Math.ceil(totalCount / limit) } },
+    data: data.map((c) => toComment(c)).filter(Boolean),
+    meta: { pagination: { page, pageSize, total, pageCount } },
   });
 }
 
 export async function deleteComment(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
-  const rows = await db().sql`SELECT id, post_id FROM comments WHERE document_id = ${id}`;
-  if (rows.length === 0) return notFound("评论不存在");
-  const row = rows[0] as { id: number; post_id: number };
-  await db().sql`DELETE FROM comments WHERE id = ${Number(row.id)}`;
-  await db().sql`UPDATE posts SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = ${Number(row.post_id)}`;
+  const lookup = await getJson<{ post_id: string; key: string }>(KEYS.commentLookup(id));
+  if (!lookup) return notFound("评论不存在");
+  const doc = await getJson<Doc>(lookup.key);
+  if (!doc) return notFound("评论不存在");
+
+  await del(lookup.key);
+  await del(KEYS.commentLookup(id));
+  await setJson(KEYS.userComments(String(doc.author_document_id || "")), []);
+
+  const post = await getJson<Doc>(`posts/${lookup.post_id}.json`);
+  if (post) {
+    const updated = { ...post, comments_count: Math.max(0, Number(post.comments_count || 0) - 1) };
+    await setJson(`posts/${lookup.post_id}.json`, updated);
+    await feedUpdate(lookup.post_id, { comments_count: updated.comments_count });
+  }
+  await updateUserStats(String(doc.author_document_id), { commentCount: -1 });
+  await bumpStats({ commentCount: -1 });
   return json({ success: true });
 }
 
 export async function categories(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const rows = await db().sql`
-    SELECT document_id, name, slug, description, icon, sort_order, is_hidden, is_admin_only, created_at
-    FROM categories ORDER BY sort_order ASC, created_at ASC
-  `;
-  return json({ data: rows.map((r) => toCategory(r as never)) });
+  const keys = await listKeys("categories/");
+  const all: Doc[] = [];
+  for (const key of keys) {
+    const c = await getJson<Doc>(key);
+    if (c) all.push(c);
+  }
+  all.sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+  return json({ data: all.map((c) => toCategory(c)) });
 }
 
 export async function createCategory(req: Request): Promise<Response> {
@@ -222,10 +244,17 @@ export async function createCategory(req: Request): Promise<Response> {
   const cleanName = String(name || "").trim();
   const cleanSlug = String(slug || "").trim().toLowerCase().replace(/\s+/g, "-");
   if (!cleanName || !cleanSlug) return badRequest("名称与标识不能为空");
-  await db().sql`
-    INSERT INTO categories (document_id, name, slug, description, sort_order)
-    VALUES (${genId()}, ${cleanName}, ${cleanSlug}, ${String(description || "")}, ${int(sortOrder)})
-  `;
+  await setJson(categoryKey(genId()), {
+    document_id: genId(),
+    name: cleanName,
+    slug: cleanSlug,
+    description: String(description || ""),
+    icon: "",
+    sort_order: int(sortOrder),
+    is_hidden: false,
+    is_admin_only: false,
+    created_at: new Date().toISOString(),
+  });
   return json({ success: true });
 }
 
@@ -233,55 +262,47 @@ export async function updateCategory(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
   const { name, slug, description, sortOrder, isHidden } = await readJson<{ name?: string; slug?: string; description?: string; sortOrder?: number; isHidden?: boolean }>(req);
-  await db().sql`
-    UPDATE categories SET
-      name = COALESCE(${name}, name),
-      slug = COALESCE(${slug}, slug),
-      description = COALESCE(${description}, description),
-      sort_order = COALESCE(${int(sortOrder)}, sort_order),
-      is_hidden = COALESCE(${isHidden}, is_hidden)
-    WHERE document_id = ${id}
-  `;
+  const c = await getJson<Doc>(categoryKey(id));
+  if (!c) return notFound("版块不存在");
+  await setJson(categoryKey(id), {
+    ...c,
+    name: name ?? c.name,
+    slug: slug ?? c.slug,
+    description: description ?? c.description,
+    sort_order: sortOrder != null ? int(sortOrder) : c.sort_order,
+    is_hidden: isHidden ?? c.is_hidden,
+  });
   return json({ success: true });
 }
 
 export async function deleteCategory(req: Request): Promise<Response> {
   await requireAdmin(req);
   const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
-  await db().sql`DELETE FROM categories WHERE document_id = ${id}`;
+  await del(categoryKey(id));
   return json({ success: true });
 }
 
 export async function settings(req: Request): Promise<Response> {
   await requireAdmin(req);
-  const rows = await db().sql`SELECT key, value FROM settings WHERE key LIKE 'site.%'`;
-  const map: Record<string, string> = {};
-  for (const r of rows) {
-    const row = r as { key: string; value: string };
-    map[row.key.replace(/^site\./, "")] = row.value;
-  }
+  const s = (await getJson<Doc>(KEYS.settings)) || {};
   return json({
-    siteName: map.siteName || "绳网",
-    announcement: map.announcement || "",
-    allowRegister: map.allowRegister !== "false",
-    needAudit: map.needAudit === "true",
+    siteName: String(s.siteName || "绳网"),
+    announcement: String(s.announcement || ""),
+    allowRegister: s.allowRegister !== false,
+    needAudit: s.needAudit === true,
   });
 }
 
 export async function updateSettings(req: Request): Promise<Response> {
   await requireAdmin(req);
   const { siteName, announcement, allowRegister, needAudit } = await readJson<{ siteName?: string; announcement?: string; allowRegister?: boolean; needAudit?: boolean }>(req);
-  const d = db();
-  const entries: Array<[string, string]> = [];
-  if (siteName !== undefined) entries.push(["siteName", String(siteName)]);
-  if (announcement !== undefined) entries.push(["announcement", String(announcement)]);
-  if (allowRegister !== undefined) entries.push(["allowRegister", String(allowRegister)]);
-  if (needAudit !== undefined) entries.push(["needAudit", String(needAudit)]);
-  for (const [k, v] of entries) {
-    await d.sql`
-      INSERT INTO settings (key, value) VALUES (${`site.${k}`}, ${v})
-      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-    `;
-  }
+  const s = (await getJson<Doc>(KEYS.settings)) || {};
+  await setJson(KEYS.settings, {
+    ...s,
+    siteName: siteName ?? s.siteName,
+    announcement: announcement ?? s.announcement,
+    allowRegister: allowRegister ?? s.allowRegister,
+    needAudit: needAudit ?? s.needAudit,
+  });
   return json({ success: true });
 }

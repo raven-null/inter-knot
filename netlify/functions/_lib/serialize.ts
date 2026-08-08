@@ -1,70 +1,29 @@
-/** 数据库行 → 前端 useApi 期望的响应结构（兼容模板数据层） */
+/** Blob 文档 → 前端 useApi 期望的响应结构（兼容模板数据层） */
 
 import type { AuthUser } from "./auth";
 
 export const DEFAULT_AVATAR = "/images/default-avatar.webp";
 
-interface UserRow {
-  id: number | string;
-  document_id: string;
-  username: string;
-  name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  level: number | string;
-  exp: number | string;
-  role: string;
-  status: string;
-}
+export type Doc = Record<string, unknown>;
 
-export function toAuthor(row: UserRow | null | undefined): Record<string, unknown> | null {
-  if (!row) return null;
+export function toAuthor(doc: Doc | null | undefined): Doc | null {
+  if (!doc) return null;
+  const documentId = String(doc.document_id || "");
+  const username = String(doc.username || "");
+  if (!documentId && !username) return null;
   return {
-    id: Number(row.id),
-    documentId: row.document_id,
-    username: row.username,
-    login: row.username,
-    name: row.name || row.username,
-    email: row.email,
-    avatar: row.avatar_url || DEFAULT_AVATAR,
-    level: Number(row.level),
-    exp: Number(row.exp),
+    id: documentId,
+    documentId,
+    username,
+    login: username,
+    name: doc.name ? String(doc.name) : username,
+    email: doc.email ? String(doc.email) : undefined,
+    avatar: doc.avatar_url ? String(doc.avatar_url) : DEFAULT_AVATAR,
+    level: Number(doc.level || 1),
+    exp: Number(doc.exp || 0),
     isAiAgent: false,
-    isAdmin: row.role === "admin",
+    isAdmin: doc.role === "admin",
   };
-}
-
-export interface PostRow {
-  id: number | string;
-  document_id: string;
-  category_id: number | string | null;
-  category_name: string | null;
-  category_slug: string | null;
-  author_id: number | string | null;
-  title: string;
-  text: string;
-  body: string;
-  covers: string[] | null;
-  cover_width: number | string | null;
-  cover_height: number | string | null;
-  external_videos: unknown;
-  status: string;
-  is_pinned: boolean;
-  is_anonymous: boolean;
-  is_hidden: boolean;
-  views: number | string;
-  likes_count: number | string;
-  comments_count: number | string;
-  favorites_count: number | string;
-  created_at: Date | string;
-  updated_at: Date | string;
-  published_at: Date | string | null;
-  author_document_id?: string | null;
-  author_username?: string | null;
-  author_name?: string | null;
-  author_avatar_url?: string | null;
-  author_level?: number | string | null;
-  author_exp?: number | string | null;
 }
 
 export interface ViewerState {
@@ -74,181 +33,144 @@ export interface ViewerState {
   readIds?: Set<string>;
 }
 
-export function toPost(row: PostRow | null | undefined, state: ViewerState = {}): Record<string, unknown> | null {
-  if (!row) return null;
-  const id = row.document_id;
-  const covers = Array.isArray(row.covers)
-    ? row.covers.filter((u): u is string => typeof u === "string" && u.length > 0)
-    : [];
+export function toPost(doc: Doc | null | undefined, state: ViewerState = {}): Doc | null {
+  if (!doc) return null;
+  const documentId = String(doc.document_id || "");
+  if (!documentId) return null;
+  const covers = (Array.isArray(doc.covers) ? (doc.covers as unknown[]) : []).map((u) => {
+    if (typeof u === "string") return { url: u };
+    const c = (u || {}) as Doc;
+    return {
+      documentId: c.document_id ? String(c.document_id) : c.documentId ? String(c.documentId) : undefined,
+      url: String(c.url || ""),
+      width: c.width != null ? Number(c.width) : undefined,
+      height: c.height != null ? Number(c.height) : undefined,
+    };
+  });
   const viewerId = state.viewer?.userId;
-  const isOwner = viewerId != null && row.author_id != null && Number(viewerId) === Number(row.author_id);
-
-  const authorRow: UserRow | null = row.author_document_id
-    ? {
-        id: row.author_id!,
-        document_id: row.author_document_id,
-        username: row.author_username!,
-        name: row.author_name,
-        email: null,
-        avatar_url: row.author_avatar_url,
-        level: row.author_level ?? 1,
-        exp: row.author_exp ?? 0,
-        role: "user",
-        status: "active",
-      }
-    : null;
+  const isOwner = viewerId != null && doc.author_document_id != null && String(viewerId) === String(doc.author_document_id);
 
   return {
-    id,
-    documentId: id,
-    title: row.title,
-    body: row.body || "",
-    text: row.text || "",
-    rawBodyText: row.text || "",
-    externalVideos: row.external_videos || [],
-    covers: covers.map((url) => ({ url })),
-    cover: covers[0] || "",
-    coverWidth: row.cover_width != null ? Number(row.cover_width) : undefined,
-    coverHeight: row.cover_height != null ? Number(row.cover_height) : undefined,
-    views: Number(row.views || 0),
-    likesCount: Number(row.likes_count || 0),
-    commentsCount: Number(row.comments_count || 0),
-    favoritesCount: Number(row.favorites_count || 0),
+    id: documentId,
+    documentId,
+    title: String(doc.title || "无标题"),
+    body: doc.body ? String(doc.body) : "",
+    text: doc.text ? String(doc.text) : "",
+    rawBodyText: doc.text ? String(doc.text) : "",
+    externalVideos: Array.isArray(doc.external_videos) ? doc.external_videos : [],
+    covers,
+    cover: covers[0]?.url || "",
+    coverWidth: doc.cover_width != null ? Number(doc.cover_width) : undefined,
+    coverHeight: doc.cover_height != null ? Number(doc.cover_height) : undefined,
+    views: Number(doc.views || 0),
+    likesCount: Number(doc.likes_count || 0),
+    commentsCount: Number(doc.comments_count || 0),
+    favoritesCount: Number(doc.favorites_count || 0),
     dennyCount: 0,
     hasGivenDenny: false,
-    isRead: state.readIds ? state.readIds.has(id) : false,
-    liked: state.likedIds ? state.likedIds.has(id) : false,
-    favorited: state.favoritedIds ? state.favoritedIds.has(id) : false,
-    isAnonymous: !!row.is_anonymous,
-    isHidden: !!row.is_hidden,
+    isRead: state.readIds ? state.readIds.has(documentId) : false,
+    liked: state.likedIds ? state.likedIds.has(documentId) : false,
+    favorited: state.favoritedIds ? state.favoritedIds.has(documentId) : false,
+    isAnonymous: doc.is_anonymous === true,
+    isHidden: doc.is_hidden === true,
     isOwner,
     category:
-      row.category_slug && row.category_name
-        ? { name: row.category_name, slug: row.category_slug }
+      doc.category_slug && doc.category_name
+        ? { name: String(doc.category_name), slug: String(doc.category_slug) }
         : null,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+    createdAt: String(doc.created_at || ""),
+    updatedAt: String(doc.updated_at || ""),
     editedAt: undefined,
-    author: toAuthor(authorRow) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+    author:
+      toAuthor({
+        document_id: doc.author_document_id,
+        username: doc.author_username,
+        name: doc.author_name,
+        avatar_url: doc.author_avatar_url,
+        level: doc.author_level,
+        exp: doc.author_exp,
+      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
   };
 }
 
-export interface CommentRow {
-  id: number | string;
-  document_id: string;
-  post_id: number | string | null;
-  author_id: number | string | null;
-  parent_id: number | string | null;
-  content: string;
-  images: string[] | null;
-  is_pinned: boolean;
-  likes_count: number | string;
-  floor: number | string | null;
-  created_at: Date | string;
-  author_document_id?: string | null;
-  author_username?: string | null;
-  author_name?: string | null;
-  author_avatar_url?: string | null;
-  author_level?: number | string | null;
-}
-
-export function toComment(row: CommentRow | null | undefined, likedIds?: Set<string>): Record<string, unknown> | null {
-  if (!row) return null;
-  const authorRow: UserRow | null = row.author_document_id
-    ? {
-        id: row.author_id!,
-        document_id: row.author_document_id,
-        username: row.author_username!,
-        name: row.author_name,
-        email: null,
-        avatar_url: row.author_avatar_url,
-        level: row.author_level ?? 1,
-        exp: 0,
-        role: "user",
-        status: "active",
-      }
-    : null;
+export function toComment(doc: Doc | null | undefined, likedIds?: Set<string>): Doc | null {
+  if (!doc) return null;
+  const documentId = String(doc.document_id || "");
+  if (!documentId) return null;
+  const images = Array.isArray(doc.images)
+    ? (doc.images as unknown[]).map((u) => (typeof u === "string" ? u : String((u as Doc)?.url || ""))).filter(Boolean)
+    : [];
   return {
-    id: row.document_id,
-    documentId: row.document_id,
-    content: row.content,
-    images: Array.isArray(row.images) ? row.images.filter(Boolean).map((url) => ({ url })) : [],
-    liked: likedIds ? likedIds.has(row.document_id) : false,
-    likesCount: Number(row.likes_count || 0),
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    isPinned: !!row.is_pinned,
+    id: documentId,
+    documentId,
+    content: String(doc.content || ""),
+    images: images.map((url) => ({ url })),
+    liked: likedIds ? likedIds.has(documentId) : false,
+    likesCount: Number(doc.likes_count || 0),
+    createdAt: String(doc.created_at || ""),
+    isPinned: doc.is_pinned === true,
     pinnedAt: undefined,
-    floor: row.floor != null ? Number(row.floor) : undefined,
-    author: toAuthor(authorRow) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+    floor: doc.floor != null ? Number(doc.floor) : undefined,
+    author:
+      toAuthor({
+        document_id: doc.author_document_id,
+        username: doc.author_username,
+        name: doc.author_name,
+        avatar_url: doc.author_avatar_url,
+        level: doc.author_level,
+        exp: doc.author_exp,
+      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
   };
 }
 
-export function toCategory(row: {
-  document_id: string;
-  name: string;
-  slug: string;
-  sort_order?: number | string;
-  is_admin_only?: boolean;
-}): Record<string, unknown> {
+export function toCategory(doc: Doc): Doc {
   return {
-    documentId: row.document_id,
-    name: row.name,
-    slug: row.slug,
-    order: row.sort_order != null ? Number(row.sort_order) : undefined,
-    adminOnly: !!row.is_admin_only,
+    documentId: String(doc.document_id || ""),
+    name: String(doc.name || ""),
+    slug: String(doc.slug || ""),
+    order: doc.sort_order != null ? Number(doc.sort_order) : undefined,
+    adminOnly: doc.is_admin_only === true,
   };
 }
 
-export function toDraft(row: {
-  document_id: string;
-  title: string;
-  text: string;
-  external_videos?: unknown;
-  covers?: string[] | null;
-  editor_state?: unknown;
-  category_name?: string | null;
-  category_slug?: string | null;
-  created_at: Date | string;
-  updated_at: Date | string;
-}): Record<string, unknown> {
-  const covers = Array.isArray(row.covers) ? row.covers.filter(Boolean).map((url) => ({ url })) : [];
+export function toDraft(doc: Doc): Doc {
+  const covers = (Array.isArray(doc.covers) ? (doc.covers as unknown[]) : []).map((u) => {
+    if (typeof u === "string") return { url: u };
+    const c = (u || {}) as Doc;
+    return {
+      documentId: c.document_id ? String(c.document_id) : c.documentId ? String(c.documentId) : undefined,
+      url: String(c.url || ""),
+      width: c.width != null ? Number(c.width) : undefined,
+      height: c.height != null ? Number(c.height) : undefined,
+    };
+  });
   return {
-    documentId: row.document_id,
-    id: row.document_id,
-    title: row.title,
-    text: row.text,
-    editorState: row.editor_state ?? undefined,
-    externalVideos: row.external_videos ?? [],
+    documentId: String(doc.document_id || ""),
+    id: String(doc.document_id || ""),
+    title: String(doc.title || ""),
+    text: String(doc.text || ""),
+    editorState: Array.isArray(doc.editor_state) ? doc.editor_state : undefined,
+    externalVideos: Array.isArray(doc.external_videos) ? doc.external_videos : [],
     cover: covers,
     hasPublishedVersion: false,
     category:
-      row.category_slug && row.category_name ? { name: row.category_name, slug: row.category_slug } : null,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
-    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+      doc.category_slug && doc.category_name ? { name: String(doc.category_name), slug: String(doc.category_slug) } : null,
+    createdAt: String(doc.created_at || ""),
+    updatedAt: String(doc.updated_at || ""),
   };
 }
 
-export function toUploadedFile(row: {
-  id: number | string;
-  document_id: string;
-  object_key?: string;
-  name?: string | null;
-  mime?: string | null;
-  size?: number | string | null;
-  width?: number | string | null;
-  height?: number | string | null;
-  url: string;
-  created_at: Date | string;
-}): Record<string, unknown> {
+export function toUploadedFile(doc: Doc): Doc {
+  const documentId = String(doc.document_id || "");
   return {
-    id: Number(row.id),
-    documentId: row.document_id,
-    name: row.name || undefined,
-    url: row.url,
-    mime: row.mime || "image/webp",
-    size: row.size != null ? Number(row.size) : undefined,
-    width: row.width != null ? Number(row.width) : undefined,
-    height: row.height != null ? Number(row.height) : undefined,
-    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    id: documentId,
+    documentId,
+    name: doc.name ? String(doc.name) : undefined,
+    url: String(doc.url || ""),
+    mime: doc.mime ? String(doc.mime) : "image/webp",
+    size: doc.size != null ? Number(doc.size) : undefined,
+    width: doc.width != null ? Number(doc.width) : undefined,
+    height: doc.height != null ? Number(doc.height) : undefined,
+    createdAt: String(doc.created_at || ""),
   };
 }

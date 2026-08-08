@@ -1,14 +1,15 @@
 /** 上传路由：签名 → 原图 PUT（服务端转 WebP 存 Blobs）→ 完成 */
 
-import { db, genId } from "../db";
+import { genId, getJson, setJson, uploadKey } from "../storage";
 import { requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, readJson } from "../http";
-import { toUploadedFile } from "../serialize";
+import { toUploadedFile, type Doc } from "../serialize";
 import sharp from "sharp";
 
 const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_EDGE = 2048;
 const WEBP_QUALITY = 80;
+const UPLOAD_BY_DOC = (id: string) => `uploads/by-document/${id}.json`;
 
 async function uploadsStore() {
   const { getStore } = await import("@netlify/blobs");
@@ -32,17 +33,11 @@ export async function sign(req: Request): Promise<Response> {
     return badRequest("仅支持 jpeg/png/webp 图片", "UNSUPPORTED_TYPE");
   }
 
-  // 客户端随后用 signed.headers 直接 PUT 原始文件到 /api/direct-upload/raw/:key，
-  // 该路由需要鉴权，因此把请求头中的 Authorization 原样回传。
-  const authHeader = req.headers.get("authorization");
-  const headers = authHeader ? { Authorization: authHeader } : {};
-
   const objectKey = contentHash && /^[a-f0-9]{64}$/i.test(contentHash) ? contentHash.toLowerCase() : genId();
 
   // 内容级去重：命中已有文件直接复用
-  const existing = await db().sql`SELECT * FROM uploads WHERE object_key = ${objectKey}`;
-  if (existing.length > 0) {
-    const row = existing[0] as Record<string, unknown>;
+  const existing = await getJson<Doc>(uploadKey(objectKey));
+  if (existing) {
     return ok({
       uploadUrl: "",
       uploadToken: objectKey,
@@ -51,9 +46,14 @@ export async function sign(req: Request): Promise<Response> {
       publicUrl: `/api/uploads/${objectKey}.webp`,
       headers: {},
       expiresAt: "",
-      existing: toUploadedFile(row as never),
+      existing: toUploadedFile(existing),
     });
   }
+
+  // 客户端随后用 signed.headers 直接 PUT 原始文件到 /api/direct-upload/raw/:key，
+  // 该路由需要鉴权，因此把请求头中的 Authorization 原样回传。
+  const authHeader = req.headers.get("authorization");
+  const headers = authHeader ? { Authorization: authHeader } : {};
 
   return ok({
     uploadUrl: `/api/direct-upload/raw/${objectKey}`,
@@ -99,12 +99,24 @@ export async function rawUpload(req: Request): Promise<Response> {
     metadata: { contentType: "image/webp" },
   });
 
-  // 记录到 uploads 表
-  await db().sql`
-    INSERT INTO uploads (document_id, owner_id, object_key, name, mime, size, width, height, url)
-    VALUES (${genId()}, ${viewer.userId}, ${key}, ${"image.webp"}, 'image/webp', ${webp.byteLength}, ${width ?? null}, ${height ?? null}, ${`/api/uploads/${blobKey}`})
-    ON CONFLICT (object_key) DO UPDATE SET owner_id = EXCLUDED.owner_id
-  `;
+  // 记录到 data store（keyed by objectKey = contentHash 便于去重）
+  const documentId = genId();
+  const now = new Date().toISOString();
+  const doc: Doc = {
+    id: documentId,
+    document_id: documentId,
+    owner_id: viewer.userId,
+    object_key: key,
+    name: "image.webp",
+    mime: "image/webp",
+    size: webp.byteLength,
+    width: width ?? null,
+    height: height ?? null,
+    url: `/api/uploads/${blobKey}`,
+    created_at: now,
+  };
+  await setJson(uploadKey(key), doc);
+  await setJson(UPLOAD_BY_DOC(documentId), { document_id: documentId, url: doc.url, width, height });
   return json({ ok: true });
 }
 
@@ -112,14 +124,16 @@ export async function complete(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const { uploadToken, width, height } = await readJson<{ uploadToken?: string; width?: number; height?: number }>(req);
   if (!uploadToken) return badRequest("缺少 uploadToken");
-  const rows = await db().sql`SELECT * FROM uploads WHERE object_key = ${uploadToken} AND owner_id = ${viewer.userId}`;
-  if (rows.length === 0) return notFound("上传记录不存在");
-  const id = Number((rows[0] as { id: number }).id);
+  const doc = await getJson<Doc>(uploadKey(uploadToken));
+  if (!doc) return notFound("上传记录不存在");
+  if (String(doc.owner_id) !== viewer.userId) return notFound("上传记录不存在");
   if (width != null && height != null) {
-    await db().sql`UPDATE uploads SET width = ${Number(width)}, height = ${Number(height)} WHERE id = ${id}`;
+    const updated = { ...doc, width: Number(width), height: Number(height) };
+    await setJson(uploadKey(uploadToken), updated);
+    await setJson(UPLOAD_BY_DOC(String(doc.document_id)), { document_id: doc.document_id, url: doc.url, width, height });
+    return ok(toUploadedFile(updated));
   }
-  const updated = await db().sql`SELECT * FROM uploads WHERE id = ${id}`;
-  return ok(toUploadedFile(updated[0] as never));
+  return ok(toUploadedFile(doc));
 }
 
 /** GET /api/uploads/:key —— 返回 Blob 图片字节 */

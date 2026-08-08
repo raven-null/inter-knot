@@ -1,16 +1,23 @@
-﻿/** 「我的」个人设置 / 上传库 / 邮箱 / 安全等路由 */
+﻿/** 「我的」个人设置 / 上传库 / 邮箱 / 安全等路由（基于 Netlify Blobs） */
 
-import { db } from "../db";
+import { getJson, setJson, del, listKeys, userKey, userEmailKey } from "../storage";
 import { requireAuth } from "../auth";
 import { ok, json, badRequest, readJson, int } from "../http";
-import { toUploadedFile } from "../serialize";
+import { toUploadedFile, type Doc } from "../serialize";
+
+async function userDoc(userId: string): Promise<Doc> {
+  const u = await getJson<Doc>(userKey(userId));
+  if (!u) throw { __api: true, status: 404, message: "用户不存在", code: "NOT_FOUND" } as never;
+  return u;
+}
 
 export async function updateName(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const { name } = await readJson<{ name?: string }>(req);
   const clean = String(name || "").trim().slice(0, 24);
   if (!clean) return badRequest("昵称不能为空");
-  await db().sql`UPDATE users SET name = ${clean} WHERE id = ${viewer.userId}`;
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, name: clean });
   return json({ name: clean });
 }
 
@@ -18,26 +25,27 @@ export async function updateBio(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const { bio } = await readJson<{ bio?: string }>(req);
   const clean = String(bio || "").trim().slice(0, 300);
-  await db().sql`UPDATE users SET bio = ${clean} WHERE id = ${viewer.userId}`;
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, bio: clean });
   return json({ bio: clean });
 }
 
 export async function updateVisibility(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const { profileHidden } = await readJson<{ profileHidden?: boolean }>(req);
-  await db().sql`UPDATE users SET profile_hidden = ${profileHidden === true} WHERE id = ${viewer.userId}`;
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, profile_hidden: profileHidden === true });
   return json({ profileHidden: profileHidden === true });
 }
 
 export async function security(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const rows = await db().sql`SELECT email, password_hash FROM users WHERE id = ${viewer.userId}`;
-  const row = rows[0] as Record<string, unknown> | undefined;
+  const u = await userDoc(viewer.userId);
   return json({
-    email: row?.email ? String(row.email) : "",
-    provider: row?.email ? "local" : "mihoyo",
-    hasBoundEmail: Boolean(row?.email),
-    hasPassword: Boolean(row?.password_hash),
+    email: u.email ? String(u.email) : "",
+    provider: u.email ? "local" : "mihoyo",
+    hasBoundEmail: Boolean(u.email),
+    hasPassword: Boolean(u.password_hash),
   });
 }
 
@@ -53,7 +61,9 @@ export async function bindEmail(req: Request): Promise<Response> {
   const { email } = await readJson<{ email?: string }>(req);
   const e = String(email || "").trim().toLowerCase();
   if (!e) return badRequest("请输入邮箱");
-  await db().sql`UPDATE users SET email = ${e} WHERE id = ${viewer.userId}`;
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, email: e });
+  await setJson(userEmailKey(e), { document_id: viewer.userId });
   return json({ email: e, provider: "local", hasBoundEmail: true, hasPassword: true });
 }
 
@@ -62,37 +72,43 @@ export async function uploads(req: Request): Promise<Response> {
   const u = new URL(req.url);
   const page = Math.max(1, int(u.searchParams.get("page"), 1));
   const pageSize = Math.min(60, Math.max(1, int(u.searchParams.get("pageSize"), 24)));
+  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
+  const mine: Doc[] = [];
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d && String(d.owner_id) === viewer.userId) mine.push(d);
+  }
+  mine.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  const total = mine.length;
   const offset = (page - 1) * pageSize;
-  const total = await db().sql`SELECT count(*)::int AS total FROM uploads WHERE owner_id = ${viewer.userId}`;
-  const rows = await db().sql`
-    SELECT * FROM uploads WHERE owner_id = ${viewer.userId}
-    ORDER BY created_at DESC LIMIT ${pageSize} OFFSET ${offset}
-  `;
-  const totalCount = Number((total[0] as { total: number }).total);
+  const slice = mine.slice(offset, offset + pageSize);
   return json({
-    data: rows.map((r) => toUploadedFile(r as never)),
-    meta: {
-      pagination: { page, pageSize, total: totalCount, pageCount: Math.ceil(totalCount / pageSize) },
-    },
+    data: slice.map((d) => toUploadedFile(d)),
+    meta: { pagination: { page, pageSize, total, pageCount: Math.ceil(total / pageSize) } },
   });
 }
 
 export async function deleteUpload(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const documentId = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
-  const rows = await db().sql`SELECT id, url FROM uploads WHERE document_id = ${documentId} AND owner_id = ${viewer.userId}`;
-  if (rows.length === 0) return ok({ deleted: false, inUse: false });
-  const url = String((rows[0] as { url: string }).url);
-  await db().sql`DELETE FROM uploads WHERE id = ${Number((rows[0] as { id: number }).id)}`;
-  try {
-    const { getStore } = await import("@netlify/blobs");
-    const store = getStore("uploads");
-    const key = url.split("/").pop();
-    if (key) await store.delete(key);
-  } catch {
-    // 忽略清理失败
+  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d && String(d.document_id) === documentId && String(d.owner_id) === viewer.userId) {
+      await del(key);
+      await del(`uploads/by-document/${documentId}.json`);
+      try {
+        const { getStore } = await import("@netlify/blobs");
+        const store = getStore("uploads");
+        const blobKey = String(d.url).split("/").pop();
+        if (blobKey) await store.delete(blobKey);
+      } catch {
+        // 忽略清理失败
+      }
+      return ok({ deleted: true, inUse: false });
+    }
   }
-  return ok({ deleted: true, inUse: false });
+  return ok({ deleted: false, inUse: false });
 }
 
 // ── 名片 / 头像（简化实现） ──────────────────────────
@@ -114,12 +130,21 @@ export async function equipAvatar(): Promise<Response> {
 
 export async function uploadCustomAvatar(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const { fileId } = await readJson<{ fileId?: number }>(req);
+  const { fileId } = await readJson<{ fileId?: string | number }>(req);
   if (!fileId) return badRequest("缺少文件");
-  const rows = await db().sql`SELECT url FROM uploads WHERE id = ${Number(fileId)} AND owner_id = ${viewer.userId}`;
-  if (rows.length === 0) return badRequest("文件不存在");
-  const url = String((rows[0] as { url: string }).url);
-  await db().sql`UPDATE users SET avatar_url = ${url} WHERE id = ${viewer.userId}`;
+  const documentId = String(fileId);
+  const keys = (await listKeys("uploads/")).filter((k) => !k.includes("/by-document/"));
+  let url = "";
+  for (const key of keys) {
+    const d = await getJson<Doc>(key);
+    if (d && String(d.document_id) === documentId && String(d.owner_id) === viewer.userId) {
+      url = String(d.url || "");
+      break;
+    }
+  }
+  if (!url) return badRequest("文件不存在");
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, avatar_url: url });
   return json({ avatar: { url } });
 }
 

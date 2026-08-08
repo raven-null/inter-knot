@@ -2,7 +2,7 @@
  * 论坛后端 API 入口（Netlify Functions v2）
  *
  * - 单入口 catch-all 路由到 /api/*
- * - getDatabase() / getStore() 均在 handler 内部调用
+ * - getStore()（Netlify Blobs）在 handler 内部调用
  */
 
 import type { Config } from "@netlify/functions";
@@ -117,12 +117,16 @@ async function dispatch(req: Request): Promise<Response> {
     // ── 版块 ─────────────────────────────────────────
     case "categories": {
       if (sub === "list" && isGet(req)) {
-        const rows = await (await import("./_lib/db")).db().sql`
-          SELECT document_id, name, slug, sort_order, is_admin_only FROM categories
-          WHERE is_hidden = false ORDER BY sort_order ASC, created_at ASC
-        `;
+        const { listKeys, getJson, categoryKey } = await import("./_lib/storage");
         const { toCategory } = await import("./_lib/serialize");
-        return json({ data: rows.map((r) => toCategory(r as never)) });
+        const keys = (await listKeys("categories/")).filter((k) => !k.includes("/_lookup/"));
+        const rows: unknown[] = [];
+        for (const key of keys) {
+          const c = await getJson<Record<string, unknown>>(key);
+          if (c && c.is_hidden !== true) rows.push(toCategory(c));
+        }
+        rows.sort((a, b) => Number((a as { order?: number }).order || 0) - Number((b as { order?: number }).order || 0));
+        return json({ data: rows });
       }
       return error(404, "接口不存在");
     }

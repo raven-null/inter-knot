@@ -3,8 +3,9 @@
 一个可部署到 Netlify 的论坛网站：**前台用户论坛 + 后台管理端 + 前后端分离**。
 
 - **前端**：Nuxt 4（Vue 3）+ Pinia + TanStack Vue Query，UI 复刻《绝区零》绳网风格（模板来自 [InterKnot-Web](https://github.com/yinengbei/InterKnot-Web)）。
-- **后端**：Netlify Functions（v2 语法，`export default async (req, context) => {}`）+ Netlify Database（Postgres）。
-- **图片**：上传时服务端用 sharp 自动转 WebP、限尺寸、剥 EXIF，存 Netlify Blobs。
+- **后端**：Netlify Functions（v2 语法，`export default async (req, context) => {}`）。
+- **存储**：全部使用 **Netlify Blobs**——结构化数据（用户/帖子/评论/点赞等）以 JSON 文档存于 `data` store，上传图片字节存于 `uploads` store；信息流用 `_indexes/feed.json` 索引文档，无需数据库与迁移。
+- **图片**：上传时服务端用 sharp 自动转 WebP、限尺寸、剥 EXIF。
 - **后台**：`/admin` 独立管理面板（数据概览 / 用户 / 版块 / 帖子 / 评论 / 设置），仅管理员可访问。
 
 ## 功能范围（首期）
@@ -30,8 +31,8 @@
 ├─ netlify/
 │  ├─ functions/             # 后端（Netlify Functions）
 │  │  ├─ api.ts              # 单入口 catch-all 路由 /api/*
-│  │  └─ _lib/               # db / auth / serialize / routes
-│  └─ database/migrations/   # Postgres 迁移（随部署自动应用）
+│  │  └─ _lib/               # storage(auth,feed) / serialize / routes
+│  └─ (无 database 目录)      # 存储全部走 Netlify Blobs，无需迁移
 ├─ zzzui/                    # 本地 zenless-ui 组件库
 ├─ netlify.toml              # 部署配置
 └─ docs/ai设计建议.md         # 设计文档

@@ -1,14 +1,8 @@
-﻿/** 认证相关路由：登录 / 注册 / 找回 / 续期 / 当前用户 */
+﻿/** 认证相关路由：登录 / 注册 / 找回 / 续期 / 当前用户（基于 Blobs） */
 
-import { db, genId } from "../db";
-import {
-  hashPassword,
-  verifyPassword,
-  signToken,
-  verifyToken,
-  getBearerToken,
-  requireAuth,
-} from "../auth";
+import { genId, getJson, setJson, userKey, userEmailKey, codeKey } from "../storage";
+import { bumpStats } from "../feed";
+import { hashPassword, verifyPassword, signToken, verifyToken, getBearerToken, requireAuth } from "../auth";
 import { json, ok, badRequest, unauthorized, error, readJson } from "../http";
 import { toAuthor } from "../serialize";
 import { ensureSeed } from "../seed";
@@ -23,50 +17,41 @@ function emailOf(input: unknown): string {
   return String(input || "").trim().toLowerCase();
 }
 
+async function findUserByEmail(email: string): Promise<Record<string, unknown> | null> {
+  const idx = await getJson<{ document_id: string }>(userEmailKey(email));
+  if (!idx) return null;
+  return getJson<Record<string, unknown>>(userKey(idx.document_id));
+}
+
 export async function login(req: Request): Promise<Response> {
   const { identifier, password } = await readJson<{ identifier?: string; password?: string }>(req);
   const email = emailOf(identifier);
   if (!email || !password) return badRequest("请输入邮箱和密码");
-  const rows = await db().sql<Record<string, unknown>>`SELECT * FROM users WHERE email = ${email}`;
-  const row = rows[0];
-  if (!row || !row.password_hash) return unauthorized("邮箱或密码错误");
-  const okPass = await verifyPassword(password, String(row.password_hash));
+  const user = await findUserByEmail(email);
+  if (!user || !user.password_hash) return unauthorized("邮箱或密码错误");
+  const okPass = await verifyPassword(password, String(user.password_hash));
   if (!okPass) return unauthorized("邮箱或密码错误");
-  if (String(row.status) !== "active") return error(403, "账号已被禁用", "USER_BLOCKED");
-  const user = {
-    id: Number(row.id),
-    documentId: String(row.document_id),
-    username: String(row.username),
-    role: String(row.role),
-  };
-  const token = await signToken(user);
-  return json({
-    jwt: token,
-    user: toAuthor(row as never),
+  if (user.status !== "active") return error(403, "账号已被禁用", "USER_BLOCKED");
+  const token = await signToken({
+    documentId: String(user.document_id),
+    username: String(user.username),
+    role: String(user.role || "user"),
   });
+  return json({ jwt: token, user: toAuthor(user) });
 }
 
 async function issueVerificationCode(email: string, purpose: string): Promise<void> {
-  const d = db();
-  const code = makeCode();
-  await d.sql`
-    INSERT INTO verification_codes (email, purpose, code, expires_at)
-    VALUES (${email}, ${purpose}, ${code}, now() + interval '10 minutes')
-  `;
+  await setJson(codeKey(purpose, email), {
+    code: makeCode(),
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    created_at: new Date().toISOString(),
+  });
 }
 
 async function verifyVerificationCode(email: string, purpose: string, code: string): Promise<boolean> {
   if (BYPASS_CODE) return code.trim().length >= 4;
-  const d = db();
-  const rows = await d.sql`
-    SELECT id FROM verification_codes
-    WHERE email = ${email} AND purpose = ${purpose} AND code = ${code}
-      AND used = false AND expires_at > now()
-    ORDER BY created_at DESC LIMIT 1
-  `;
-  const row = rows[0];
-  if (!row) return false;
-  await d.sql`UPDATE verification_codes SET used = true WHERE id = ${Number(row.id)}`;
+  const rec = await getJson<{ code: string; expires_at: string }>(codeKey(purpose, email));
+  if (!rec || rec.code !== code || new Date(rec.expires_at).getTime() < Date.now()) return false;
   return true;
 }
 
@@ -86,34 +71,41 @@ export async function registerWithCode(req: Request): Promise<Response> {
   if (!(await verifyVerificationCode(e, "register", String(code)))) {
     return badRequest("验证码错误或已过期", "REGISTER_CODE_INVALID");
   }
-  const d = db();
-  const exists = await d.sql`SELECT id FROM users WHERE email = ${e}`;
-  if (exists.length > 0) return badRequest("该邮箱已注册", "EMAIL_TAKEN");
+  if (await findUserByEmail(e)) return badRequest("该邮箱已注册", "EMAIL_TAKEN");
   const username = `用户${genId().slice(0, 6)}`;
   const documentId = genId();
   const passHash = await hashPassword(password);
-  const inserted = await d.sql`
-    INSERT INTO users (document_id, username, email, password_hash, name)
-    VALUES (${documentId}, ${username}, ${e}, ${passHash}, ${username})
-    RETURNING id, document_id, username, role
-  `;
-  const user = inserted[0] as { id: number; document_id: string; username: string; role: string };
-  await d.sql`UPDATE verification_codes SET used = true WHERE email = ${e} AND purpose = 'register'`;
-  const token = await signToken({
-    id: Number(user.id),
-    documentId: user.document_id,
-    username: user.username,
-    role: user.role,
-  });
-  return json({ jwt: token, user: { documentId: user.document_id, username: user.username, name: user.username, avatar: "/images/default-avatar.webp", level: 1, exp: 0 } });
+  const now = new Date().toISOString();
+  const user = {
+    document_id: documentId,
+    username,
+    name: username,
+    email: e,
+    password_hash: passHash,
+    avatar_url: "/images/default-avatar.webp",
+    bio: "",
+    level: 1,
+    exp: 0,
+    role: "user",
+    status: "active",
+    profile_hidden: false,
+    created_at: now,
+    stats: { articleCount: 0, commentCount: 0, totalViews: 0, totalLikes: 0, totalComments: 0 },
+    followersCount: 0,
+    followingCount: 0,
+  };
+  await setJson(userKey(documentId), user);
+  await setJson(userEmailKey(e), { document_id: documentId });
+  await bumpStats({ userCount: 1 });
+  const token = await signToken({ documentId, username, role: "user" });
+  return json({ jwt: token, user: toAuthor(user) });
 }
 
 export async function sendResetCode(req: Request): Promise<Response> {
   const { email } = await readJson<{ email?: string }>(req);
   const e = emailOf(email);
   if (!e) return badRequest("请输入邮箱");
-  const exists = await db().sql`SELECT id FROM users WHERE email = ${e}`;
-  if (exists.length === 0) return badRequest("该邮箱未注册", "EMAIL_NOT_FOUND");
+  if (!(await findUserByEmail(e))) return badRequest("该邮箱未注册", "EMAIL_NOT_FOUND");
   await issueVerificationCode(e, "reset");
   return json({ email: e, sent: true, expiresIn: 600, cooldown: 0 });
 }
@@ -126,8 +118,10 @@ export async function resetPassword(req: Request): Promise<Response> {
   if (!(await verifyVerificationCode(e, "reset", String(code)))) {
     return badRequest("验证码错误或已过期", "REGISTER_CODE_INVALID");
   }
+  const user = await findUserByEmail(e);
+  if (!user) return badRequest("该邮箱未注册", "EMAIL_NOT_FOUND");
   const passHash = await hashPassword(password);
-  await db().sql`UPDATE users SET password_hash = ${passHash} WHERE email = ${e}`;
+  await setJson(userKey(String(user.document_id)), { ...user, password_hash: passHash });
   return json({ success: true });
 }
 
@@ -136,26 +130,26 @@ export async function renew(req: Request): Promise<Response> {
   if (!token) return unauthorized();
   const payload = await verifyToken(token);
   if (!payload) return unauthorized();
-  const rows = await db().sql<{ id: number; document_id: string; username: string; role: string; status: string }>`
-    SELECT id, document_id, username, role, status FROM users WHERE document_id = ${payload.documentId}
-  `;
-  const row = rows[0];
-  if (!row || row.status !== "active") return unauthorized();
-  const jwt = await signToken({ id: Number(row.id), documentId: row.document_id, username: row.username, role: row.role });
+  const user = await getJson<Record<string, unknown>>(userKey(payload.documentId));
+  if (!user || user.status !== "active") return unauthorized();
+  const jwt = await signToken({
+    documentId: String(user.document_id),
+    username: String(user.username),
+    role: String(user.role || "user"),
+  });
   return json({ jwt });
 }
 
 export async function meProfile(req: Request): Promise<Response> {
-  const user = await requireAuth(req);
-  const rows = await db().sql`SELECT * FROM users WHERE id = ${user.userId}`;
-  const row = rows[0] as Record<string, unknown> | undefined;
-  if (!row) return unauthorized();
-  const author = toAuthor(row as never) || {};
+  const viewer = await requireAuth(req);
+  const user = await getJson<Record<string, unknown>>(userKey(viewer.userId));
+  if (!user) return unauthorized();
+  const author = toAuthor(user) || {};
   return json({
     ...author,
-    profileHidden: row.profile_hidden === true,
+    profileHidden: user.profile_hidden === true,
     examPassed: true,
-    isAdmin: user.isAdmin,
+    isAdmin: viewer.isAdmin,
   });
 }
 
