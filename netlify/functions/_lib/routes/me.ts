@@ -240,14 +240,57 @@ export async function uploadCustomAvatar(req: Request): Promise<Response> {
   return json({ avatar: { url: upload.url } });
 }
 
-// ── 精选帖子（简化：返回空） ─────────────────────────
-export async function pinnedArticles(): Promise<Response> {
-  return json({ pinned: null, candidates: [], max: 6 });
+// ── 精选帖子（个人主页展示定制） ─────────────
+const PINNED_MAX = 6;
+
+/** 列出该用户已发布、且当前登录者可见的帖子作为候选 */
+async function pinnedCandidates(
+  userId: string,
+  viewerId: string | null,
+): Promise<Array<{ documentId: string; title: string; cover: unknown; updatedAt: string }>> {
+  const { getFeed } = await import("../feed");
+  const feed = await getFeed();
+  let mine = feed.filter((p) => String(p.author_document_id) === userId);
+  if (viewerId) {
+    const blocked = new Set((await listKeys(`user_blocks/${viewerId}/`)).map((k) => k.split("/")[2]));
+    mine = mine.filter((p) => !blocked.has(String(p.author_document_id)));
+  }
+  mine.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  return mine.map((p) => {
+    const covers = Array.isArray(p.covers) ? (p.covers as unknown[]) : [];
+    const first = (covers[0] as Record<string, unknown> | undefined) || null;
+    return {
+      documentId: String(p.document_id || ""),
+      title: String(p.title || ""),
+      cover: first?.url ? { url: String(first.url), width: first.width, height: first.height } : null,
+      updatedAt: String(p.updated_at || p.created_at || ""),
+    };
+  });
+}
+
+export async function pinnedArticles(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const qp = new URL(req.url).searchParams;
+  const limit = Math.min(100, Math.max(1, int(qp.get("limit"), 50)));
+  const u = await userDoc(viewer.userId);
+  const pinnedRaw = u.pinned_articles;
+  const pinned = Array.isArray(pinnedRaw)
+    ? (pinnedRaw as unknown[]).filter((id): id is string => typeof id === "string")
+    : null;
+  const candidates = await pinnedCandidates(viewer.userId, viewer.userId);
+  return json({ pinned, candidates: candidates.slice(0, limit), max: PINNED_MAX });
 }
 
 export async function updatePinnedArticles(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
   const { pinned } = await readJson<{ pinned?: string[] | null }>(req);
-  return json({ pinned: Array.isArray(pinned) ? pinned : null });
+  // 校验为字符串数组，且数量不超过上限
+  const next: string[] | null = Array.isArray(pinned)
+    ? pinned.filter((id): id is string => typeof id === "string").slice(0, PINNED_MAX)
+    : null;
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, pinned_articles: next });
+  return json({ pinned: next });
 }
 
 // ── 每日经验（简化） ─────────────────────────────────

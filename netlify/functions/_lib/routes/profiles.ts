@@ -158,6 +158,20 @@ export async function articles(req: Request): Promise<Response> {
     mine = mine.filter((p) => !blocked.has(String(p.author_document_id)));
   }
 
+  // 精选展示：作者配置了 pinned_articles 时，按配置顺序把精选帖子排到最前
+  const pinnedRaw = user.pinned_articles;
+  if (Array.isArray(pinnedRaw)) {
+    const pinnedIds = (pinnedRaw as unknown[]).filter((x): x is string => typeof x === "string");
+    const byId = new Map(mine.map((p) => [String(p.document_id), p]));
+    const pinnedDocs: Doc[] = [];
+    for (const pid of pinnedIds) {
+      const doc = byId.get(pid);
+      if (doc) pinnedDocs.push(doc);
+    }
+    const pinnedSet = new Set(pinnedDocs.map((p) => String(p.document_id)));
+    mine = [...pinnedDocs, ...mine.filter((p) => !pinnedSet.has(String(p.document_id)))];
+  }
+
   const total = mine.length;
   const page = mine.slice(start, start + limit);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
