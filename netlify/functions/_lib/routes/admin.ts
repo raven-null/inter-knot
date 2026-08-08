@@ -302,8 +302,9 @@ export async function createCategory(req: Request): Promise<Response> {
   const cleanName = String(name || "").trim();
   const cleanSlug = String(slug || "").trim().toLowerCase().replace(/\s+/g, "-");
   if (!cleanName || !cleanSlug) return badRequest("名称与标识不能为空");
-  await setJson(categoryKey(genId()), {
-    document_id: genId(),
+  const id = genId();
+  await setJson(categoryKey(id), {
+    document_id: id,
     name: cleanName,
     slug: cleanSlug,
     description: String(description || ""),

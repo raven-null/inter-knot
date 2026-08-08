@@ -10,7 +10,7 @@ import { hashPassword } from "./auth";
 import { generateUid } from "./uid";
 import type { Doc } from "./serialize";
 
-const SEED_VERSION = 3;
+const SEED_VERSION = 4;
 const SEED_META_KEY = "_meta.seed";
 
 const DEFAULT_CATEGORIES = [
@@ -97,7 +97,26 @@ export async function ensureSeed(): Promise<void> {
   const meta = (await getJson<{ seedVersion?: number }>(SEED_META_KEY)) ?? {};
   if (Number(meta.seedVersion || 0) < SEED_VERSION) {
     await cleanupDuplicates();
+    await fixCategoryIds();
     await setJson(SEED_META_KEY, { seedVersion: SEED_VERSION });
+  }
+}
+
+/**
+ * 修复历史 bug：`createCategory` 曾用两个不同的 genId() 分别作为 blob key 与
+ * document_id，导致前端拿 documentId 删除/更新时定位到不存在的 key（删除静默失败、
+ * 标签删不掉）。此函数把所有版块文档的 document_id 对齐为 blob key 中的 id。
+ */
+async function fixCategoryIds(): Promise<void> {
+  const catKeys = await listKeys("categories/");
+  for (const key of catKeys) {
+    const c = await getJson<Doc>(key);
+    if (!c) continue;
+    const idFromKey = key.slice("categories/".length, -".json".length);
+    const currentDocId = String(c.document_id || "");
+    if (currentDocId && currentDocId !== idFromKey) {
+      await setJson(key, { ...c, document_id: idFromKey });
+    }
   }
 }
 
