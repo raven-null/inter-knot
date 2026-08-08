@@ -405,6 +405,8 @@ function toAuthor(raw: unknown, apiBaseUrl: string): Author {
       "Unknown",
     email: data.email as string | undefined,
     avatar,
+    exp: (data.exp as number | undefined) || 0,
+    level: (data.level as number | undefined) || 1,
     isAiAgent: data.isAiAgent === true,
     isAdmin: data.isAdmin === true,
   };
@@ -1349,6 +1351,8 @@ export function useApi() {
       name: data.name as string | undefined,
       bio: bioText,
       avatar: equippedAvatar?.image || avatarUrl,
+      level: Number(userRaw?.level ?? data.level ?? 1),
+      exp: Number(userRaw?.exp ?? data.exp ?? 0),
       isSelf: data.isSelf === true,
       isHidden: data.isHidden === true,
       profileHidden: data.profileHidden === true,

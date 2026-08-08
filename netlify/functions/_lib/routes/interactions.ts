@@ -5,6 +5,7 @@ import { feedUpdate, getUser, updateUserCounts } from "../feed";
 import { requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, readJson, queryParams } from "../http";
 import { DEFAULT_AVATAR, type Doc } from "../serialize";
+import { awardExp } from "../exp";
 
 async function touchArticleCount(postId: string, patch: Doc): Promise<void> {
   const doc = await getJson<Doc>(postKey(postId));
@@ -46,6 +47,10 @@ export async function toggleLike(req: Request): Promise<Response> {
     const doc = await getJson<Doc>(postKey(targetId));
     await touchArticleCount(targetId, { likes_count: Number(doc?.likes_count || 0) + 1 });
     const fresh = await getJson<Doc>(postKey(targetId));
+    // 等级体系：收到点赞 +1 绳网信用
+    if (doc && String(doc.author_document_id) !== viewer.userId) {
+      await awardExp(String(doc.author_document_id), 1);
+    }
     return json({ liked: true, likesCount: Number(fresh?.likes_count || 0) });
   }
   await touchCommentCount(targetId, 1);

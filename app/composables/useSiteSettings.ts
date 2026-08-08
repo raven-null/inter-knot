@@ -12,6 +12,7 @@ export interface SiteSettings {
   showKnock: boolean;
   showCreate: boolean;
   showAdmin: boolean;
+  showLevel: boolean;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -22,6 +23,7 @@ const DEFAULTS: SiteSettings = {
   showKnock: true,
   showCreate: true,
   showAdmin: true,
+  showLevel: false,
 };
 
 let loaded = false;

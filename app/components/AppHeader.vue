@@ -1,6 +1,7 @@
 ﻿<script setup lang="ts">
 import { useEventListener } from "@vueuse/core";
 import { BellIcon } from "@heroicons/vue/24/solid";
+import { levelView } from "~/utils/level";
 
 const route = useRoute();
 const router = useRouter();
@@ -93,6 +94,11 @@ const mineTabText = computed(() => {
 const userName = computed(() => auth.user?.name || "用户");
 const userAvatar = computed(() => auth.user?.avatar || "/images/default-avatar.webp");
 
+// 等级进度（仅等级体系开启时展示）
+const { settings: siteSettingsRef } = useSiteSettings();
+const showLevel = computed(() => siteSettingsRef.value.showLevel === true);
+const userLevelView = computed(() => levelView(auth.user?.exp ?? 0));
+
 const resolveActiveTab = (path: string): HeaderTabName => {
   if (path.startsWith("/profile")) {
     return "mine";
@@ -171,16 +177,41 @@ watch(
           <strong class="ik-brand__title">INTER-KNOT</strong>
         </NuxtLink>
 
-        <!-- 桌面端登录后显示头像 + 用户名 -->
+        <!-- 桌面端登录后显示头像 + 用户名 + 等级进度（等级体系开启时） -->
         <button
           v-if="auth.isLogin"
           type="button"
           class="ik-header-user"
+          :class="{ 'has-level': showLevel }"
           aria-label="个人资料"
           @click="navigateTo(auth.profilePath || '/profile')"
         >
           <img :src="userAvatar" alt="avatar" class="ik-header-user__avatar" />
-          <span class="ik-header-user__name">{{ userName }}</span>
+          <span class="ik-header-user__body">
+            <span class="ik-header-user__name">{{ userName }}</span>
+            <span v-if="showLevel" class="ik-header-user__level">
+              <span class="ik-header-user__level-bar">
+                <span
+                  class="ik-header-user__level-fill"
+                  :style="{ width: `${userLevelView.progressPercent}%` }"
+                ></span>
+              </span>
+              <span class="ik-header-user__level-num">Lv.{{ userLevelView.level }}</span>
+            </span>
+          </span>
+        </button>
+
+        <!-- 桌面端等级入口（等级体系开启时） -->
+        <button
+          v-if="auth.isLogin && showLevel"
+          type="button"
+          class="ik-header-level-link"
+          aria-label="等级详情"
+          @click="navigateTo('/level')"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </button>
 
         <!-- 移动端登录后显示头像（替代 logo） -->
@@ -955,7 +986,7 @@ watch(
   }
 }
 
-/* 桌面端登录后用户信息（头像 + 用户名） */
+/* 桌面端登录后用户信息（头像 + 用户名 + 等级进度） */
 .ik-header-user {
   display: flex;
   align-items: center;
@@ -983,6 +1014,14 @@ watch(
   flex-shrink: 0;
 }
 
+.ik-header-user__body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
 .ik-header-user__name {
   font-size: 13px;
   font-weight: 700;
@@ -991,6 +1030,64 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 160px;
+  line-height: 1.1;
+}
+
+/* 等级进度行：进度条 + Lv 数字 */
+.ik-header-user__level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ik-header-user__level-bar {
+  position: relative;
+  width: 92px;
+  height: 6px;
+  border-radius: 999px;
+  background: #2a2a2a;
+  overflow: hidden;
+}
+
+.ik-header-user__level-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4661fd 0%, #10bff0 100%);
+  transition: width 0.3s ease;
+}
+
+.ik-header-user__level-num {
+  font-size: 11px;
+  font-weight: 800;
+  font-style: italic;
+  color: #BFFF09;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* 桌面端等级入口小按钮 */
+.ik-header-level-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ik-header-level-link:hover {
+  background: rgba(191, 255, 9, 0.15);
+  color: #BFFF09;
 }
 
 /* 移动端登录后头像（替代 logo） */

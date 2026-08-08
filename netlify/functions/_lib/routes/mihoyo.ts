@@ -351,6 +351,8 @@ async function handleConfirmed(
       password_hash: null,
       avatar_url: DEFAULT_AVATAR,
       bio: "",
+      level: 1,
+      exp: 0,
       role: "user",
       status: "active",
       profile_hidden: false,

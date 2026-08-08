@@ -108,6 +108,7 @@ onMounted(load);
             <th>用户</th>
             <th>UID</th>
             <th>邮箱</th>
+            <th>等级</th>
             <th>角色</th>
             <th>状态</th>
             <th>注册时间</th>
@@ -124,6 +125,7 @@ onMounted(load);
             </td>
             <td style="font-variant-numeric: tabular-nums; color: var(--ik-primary, #bfff09)">{{ u.uid || "-" }}</td>
             <td>{{ u.email }}</td>
+            <td style="font-variant-numeric: tabular-nums">Lv.{{ u.level }}</td>
             <td>
               <select
                 class="ik-admin-input"
@@ -181,6 +183,7 @@ onMounted(load);
         </div>
         <dl style="margin: 0 0 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px">
           <dt style="color: #9a9a9a">邮箱</dt><dd style="margin: 0">{{ current.email || "-" }}</dd>
+          <dt style="color: #9a9a9a">等级</dt><dd style="margin: 0">Lv.{{ current.level }}（经验 {{ current.exp }}）</dd>
           <dt style="color: #9a9a9a">注册时间</dt><dd style="margin: 0">{{ new Date(current.createdAt).toLocaleString() }}</dd>
         </dl>
         <h4 style="margin: 0 0 8px; font-size: 13px">最近帖子</h4>

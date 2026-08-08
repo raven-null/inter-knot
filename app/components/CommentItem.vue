@@ -15,6 +15,9 @@ import CommentBody from "./CommentBody.vue";
 
 const { openGallery } = useLightGallery();
 
+const { settings: siteSettings } = useSiteSettings();
+const showLevel = computed(() => siteSettings.value.showLevel === true);
+
 const props = defineProps<{
   comment: Comment;
   index?: number;
@@ -108,6 +111,9 @@ const openCommentImages = (images?: Comment["images"], index = 0) => {
               {{ comment.author?.name || "匿名用户" }}
             </span>
           </UserHoverCard>
+          <span v-if="showLevel && comment.author?.level && comment.author?.documentId" class="ik-comment__level">
+            Lv.{{ comment.author.level }}
+          </span>
           <span v-if="comment.author?.isAiAgent" class="ik-comment__ai-badge">AI</span>
           <span v-if="comment.isPinned" class="ik-comment__pinned-badge">
             <ArrowUpCircleIcon class="ik-comment__pinned-icon" />
@@ -215,6 +221,9 @@ const openCommentImages = (images?: Comment["images"], index = 0) => {
                   {{ reply.author?.name || "匿名用户" }}
                 </span>
               </UserHoverCard>
+              <span v-if="showLevel && reply.author?.level && reply.author?.documentId" class="ik-comment__level">
+                Lv.{{ reply.author.level }}
+              </span>
               <span v-if="reply.author?.isAiAgent" class="ik-comment__ai-badge">AI</span>
             </div>
             <div class="ik-comment__body ik-comment__body--reply">
@@ -385,6 +394,14 @@ const openCommentImages = (images?: Comment["images"], index = 0) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ik-comment__level {
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+  color: var(--ik-primary);
+  flex-shrink: 0;
 }
 
 .ik-comment__ai-badge {

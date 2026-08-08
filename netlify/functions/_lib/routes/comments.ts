@@ -5,6 +5,7 @@ import { feedUpdate, getUser, updateUserStats } from "../feed";
 import { resolveUser, requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
 import { toComment, type Doc } from "../serialize";
+import { awardExp } from "../exp";
 
 async function getPostDoc(id: string): Promise<Doc | null> {
   return getJson<Doc>(postKey(id));
@@ -146,6 +147,8 @@ export async function create(req: Request): Promise<Response> {
     author_username: author?.username || "",
     author_name: author?.name || author?.username || "",
     author_avatar_url: author?.avatar_url || "/images/default-avatar.webp",
+    author_level: author?.level ?? 1,
+    author_exp: author?.exp ?? 0,
   };
 
   const key = commentKey(postId, commentId);
@@ -155,6 +158,8 @@ export async function create(req: Request): Promise<Response> {
   await feedUpdate(postId, { comments_count: Number(post.comments_count || 0) + 1 });
   await updateUserStats(String(post.author_document_id), { totalComments: 1 });
   await updateUserStats(viewer.userId, { commentCount: 1 });
+  // 等级体系：发表评论 +3 绳网信用
+  await awardExp(viewer.userId, 3);
 
   const node = toComment(doc, new Set());
   node!.replies = [];

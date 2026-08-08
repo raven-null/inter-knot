@@ -28,6 +28,9 @@ const isHome = computed(() => route.path === "/");
 const isMine = computed(
   () => !!auth.profilePath && route.path === auth.profilePath,
 );
+const { settings: siteSettings } = useSiteSettings();
+const showLevel = computed(() => siteSettings.value.showLevel === true);
+const isLevel = computed(() => route.path === "/level");
 
 // Double-tap on the active "推送" entry refreshes the home feed,
 // matching the Flutter app's behaviour.
@@ -73,6 +76,14 @@ const handleKnockClick = () => {
     return;
   }
   knockKnockModal.open();
+};
+
+const handleLevelClick = () => {
+  if (!auth.isLogin) {
+    loginDialog.open();
+    return;
+  }
+  navigateTo("/level");
 };
 </script>
 
@@ -125,6 +136,21 @@ const handleKnockClick = () => {
         <PlusIcon class="ik-mobile-nav__create-icon" aria-hidden="true" />
       </button>
     </div>
+
+    <button
+      v-if="showLevel"
+      type="button"
+      class="ik-mobile-nav__item"
+      :class="{ 'is-active': isLevel }"
+      :aria-current="isLevel ? 'page' : undefined"
+      aria-label="绳网等级"
+      @click="handleLevelClick"
+    >
+      <span class="ik-mobile-nav__inner">
+        <span class="ik-mobile-nav__lv-icon" aria-hidden="true">LV</span>
+        <span class="ik-mobile-nav__label">等级</span>
+      </span>
+    </button>
 
     <button
       type="button"
@@ -329,6 +355,20 @@ const handleKnockClick = () => {
   line-height: 16px;
   text-align: center;
   pointer-events: none;
+}
+
+/* ── Level icon ────────────────────────────────── */
+.ik-mobile-nav__lv-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.5px;
+  color: #fff;
 }
 
 @media (prefers-reduced-motion: reduce) {

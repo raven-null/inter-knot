@@ -75,6 +75,8 @@ export async function ensureSeed(): Promise<void> {
         password_hash: passHash,
         avatar_url: "/images/default-avatar.webp",
         bio: "",
+        level: 1,
+        exp: 0,
         role: "admin",
         status: "active",
         profile_hidden: false,

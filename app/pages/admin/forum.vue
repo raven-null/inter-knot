@@ -15,6 +15,7 @@ const forumSettings = ref({
   showKnock: true,
   showCreate: true,
   showAdmin: true,
+  showLevel: false,
   announcement: "",
 });
 const tags = ref<any[]>([]);
@@ -180,6 +181,7 @@ const NAV_SWITCHES: Array<{ key: keyof typeof forumSettings.value; label: string
   { key: "showKnock", label: "敲敲", desc: "顶部导航敲敲图标入口" },
   { key: "showCreate", label: "发布导航", desc: "顶部导航「发布」标签" },
   { key: "showAdmin", label: "后台导航", desc: "顶部导航「后台」标签" },
+  { key: "showLevel", label: "等级体系", desc: "开启后显示绳网等级（经验/徽章/等级页）" },
 ];
 
 const toggleNav = async (key: keyof typeof forumSettings.value) => {
@@ -219,6 +221,7 @@ const loadData = async () => {
       showKnock: s.showKnock ?? true,
       showCreate: s.showCreate ?? true,
       showAdmin: s.showAdmin ?? true,
+      showLevel: s.showLevel ?? false,
       announcement: s.announcement ?? "",
     };
     tags.value = cats;

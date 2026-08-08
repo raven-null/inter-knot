@@ -157,6 +157,8 @@ export async function users(req: Request): Promise<Response> {
       name: String(u.name || u.username || ""),
       email: u.email ? String(u.email) : "",
       avatar: String(u.avatar_url || DEFAULT_AVATAR),
+      level: Number(u.level || 1),
+      exp: Number(u.exp || 0),
       role: String(u.role || "user"),
       status: String(u.status || "active"),
       createdAt: String(u.created_at || ""),
@@ -416,6 +418,7 @@ export async function settings(req: Request): Promise<Response> {
     showKnock: s.showKnock !== false,
     showCreate: s.showCreate !== false,
     showAdmin: s.showAdmin !== false,
+    showLevel: s.showLevel === true,
   });
 }
 
@@ -430,6 +433,7 @@ export async function publicSettings(): Promise<Response> {
     showKnock: s.showKnock !== false,
     showCreate: s.showCreate !== false,
     showAdmin: s.showAdmin !== false,
+    showLevel: s.showLevel === true,
   });
 }
 
@@ -445,6 +449,7 @@ export async function updateSettings(req: Request): Promise<Response> {
     showKnock?: boolean;
     showCreate?: boolean;
     showAdmin?: boolean;
+    showLevel?: boolean;
   }>(req);
   const s = (await getJson<Doc>(KEYS.settings)) || {};
   await setJson(KEYS.settings, {
@@ -458,6 +463,7 @@ export async function updateSettings(req: Request): Promise<Response> {
     showKnock: body.showKnock ?? s.showKnock,
     showCreate: body.showCreate ?? s.showCreate,
     showAdmin: body.showAdmin ?? s.showAdmin,
+    showLevel: body.showLevel ?? s.showLevel,
   });
   return json({ success: true });
 }

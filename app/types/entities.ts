@@ -7,6 +7,8 @@ export interface Author {
   name?: string;
   email?: string;
   avatar?: string;
+  level?: number;
+  exp?: number;
   isAiAgent?: boolean;
   /** 是否为管理员（仅 /api/me/profile 自身资料返回）。 */
   isAdmin?: boolean;
@@ -199,6 +201,8 @@ export interface Profile {
   name?: string;
   bio?: string;
   avatar?: string;
+  level?: number;
+  exp?: number;
   isSelf?: boolean;
   isHidden?: boolean;
   profileHidden?: boolean;

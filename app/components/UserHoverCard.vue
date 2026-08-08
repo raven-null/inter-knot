@@ -3,6 +3,9 @@ import type { Profile } from "~/types/entities";
 import type { ComponentPublicInstance } from "vue";
 import { useHoverCapable } from "~/composables/useHoverCapable";
 
+const { settings: siteSettings } = useSiteSettings();
+const showLevel = computed(() => siteSettings.value.showLevel === true);
+
 const props = withDefaults(defineProps<{
   authorId?: string;
   clickable?: boolean;
@@ -239,6 +242,9 @@ onBeforeUnmount(() => {
                 class="ik-hovercard__avatar"
                 @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
               />
+              <span v-if="showLevel && profile.level" class="ik-hovercard__level">
+                {{ profile.level }}
+              </span>
             </div>
           </div>
 
@@ -369,6 +375,25 @@ onBeforeUnmount(() => {
   object-fit: cover;
   background: #1b1b1b;
   border: 3px solid #141414;
+}
+
+.ik-hovercard__level {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #BFFF09;
+  color: #000;
+  font-size: 10px;
+  font-weight: 900;
+  font-style: italic;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 /* ── Body (name + bio) ────────────────────────── */

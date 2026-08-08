@@ -5,6 +5,7 @@ import { getFeed, feedAdd, feedRemove, feedUpdate, bumpStats, getUser, updateUse
 import { resolveUser, requireAuth } from "../auth";
 import { ok, paginated, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
 import { toPost, toDraft, DEFAULT_AVATAR, type Doc, type ViewerState } from "../serialize";
+import { awardExp } from "../exp";
 
 const PAGE_SIZE = 20;
 const UPLOAD_BY_DOC = (id: string) => `uploads/by-document/${id}.json`;
@@ -44,6 +45,8 @@ async function authorFields(userId: string): Promise<Doc> {
     author_username: u?.username || "",
     author_name: u?.name || u?.username || "",
     author_avatar_url: u?.avatar_url || DEFAULT_AVATAR,
+    author_level: u?.level ?? 1,
+    author_exp: u?.exp ?? 0,
   };
 }
 
@@ -346,6 +349,8 @@ export async function publishDraft(req: Request): Promise<Response> {
     await feedAdd(published);
     await bumpStats({ postCount: 1 });
     await updateUserStats(String(doc.author_document_id), { articleCount: 1 });
+    // 等级体系：首次发布帖子 +4 绳网信用
+    await awardExp(String(doc.author_document_id), 4);
   }
   return json({ success: true, status: newStatus });
 }

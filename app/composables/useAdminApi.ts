@@ -8,6 +8,8 @@ interface AdminUser {
   name: string;
   email: string;
   avatar: string;
+  level: number;
+  exp: number;
   role: string;
   status: string;
   createdAt: string;
@@ -207,6 +209,7 @@ export interface AdminSettings {
   showKnock?: boolean;
   showCreate?: boolean;
   showAdmin?: boolean;
+  showLevel?: boolean;
 }
 
 export interface EmoteManifest {

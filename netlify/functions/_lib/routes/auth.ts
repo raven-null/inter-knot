@@ -171,6 +171,8 @@ export async function registerWithCode(req: Request): Promise<Response> {
     password_hash: passHash,
     avatar_url: "/images/default-avatar.webp",
     bio: "",
+    level: 1,
+    exp: 0,
     role: "user",
     status: "active",
     profile_hidden: false,

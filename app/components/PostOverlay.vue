@@ -52,6 +52,8 @@ const loginDialog = useLoginDialog();
 const confirmDialog = useConfirmDialog();
 const reportDialog = useReportDialog();
 const message = useMessage();
+const { settings: siteSettings } = useSiteSettings();
+const showLevel = computed(() => siteSettings.value.showLevel === true);
 const initialWidth = typeof window !== "undefined" ? window.innerWidth : 0;
 const isMobile = useMediaQuery("(max-width: 768px)", { ssrWidth: initialWidth });
 const isCompact = useMediaQuery("(max-width: 1024px)", { ssrWidth: initialWidth });
@@ -1107,6 +1109,9 @@ onBeforeUnmount(() => {
                         {{ headerAuthor.name || "匿名用户" }}
                       </span>
                     </UserHoverCard>
+                    <span v-if="showLevel && headerAuthor.level && headerAuthor.documentId" class="ik-dialog__level">
+                      Lv.{{ headerAuthor.level }}
+                    </span>
                   </div>
                   <span v-if="headerCreatedAt || post?.editedAt" class="ik-dialog__time">
                     <template v-if="headerCreatedAt">{{ formatTime(headerCreatedAt) }}</template>
@@ -1825,6 +1830,15 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ik-dialog__level {
+  font-size: 12px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 20px;
+  color: #BFFF09;
+  flex-shrink: 0;
 }
 
 .ik-dialog__time {

@@ -26,6 +26,8 @@ const confirmDialog = useConfirmDialog();
 const reportDialog = useReportDialog();
 const pageDataLoading = usePageDataLoading();
 const message = useMessage();
+const { settings: siteSettings } = useSiteSettings();
+const showLevel = computed(() => siteSettings.value.showLevel === true);
 
 const post = ref<Post | null>(null);
 const loading = ref(true);
@@ -926,6 +928,9 @@ onBeforeUnmount(() => {
                     {{ post.author.name || "匿名用户" }}
                   </span>
                 </UserHoverCard>
+                <span v-if="showLevel && post.author.level && post.author.documentId" class="ik-page__level">
+                  Lv.{{ post.author.level }}
+                </span>
               </div>
               <span class="ik-page__time">
                 {{ formatTime(post.createdAt) }}
@@ -1447,6 +1452,15 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ik-page__level {
+  font-size: 12px;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 20px;
+  color: #BFFF09;
+  flex-shrink: 0;
 }
 
 .ik-page__time {
