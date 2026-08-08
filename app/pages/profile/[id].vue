@@ -1034,7 +1034,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 .ik-article-grid__item :deep(.ik-card__cover-frame) {
-  max-height: 245px;
+  aspect-ratio: 1 / 1 !important;
+  max-height: none;
   overflow: hidden;
 }
 
