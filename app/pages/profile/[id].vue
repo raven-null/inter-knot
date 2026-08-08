@@ -501,7 +501,10 @@ onBeforeUnmount(() => {
 
             <div class="ik-banner__info">
               <h1 class="ik-banner__name">{{ profile.name || profile.login || "匿名用户" }}</h1>
-              <span v-if="showLevel && profileLevelView" class="ik-banner__lv-chip">Lv.{{ profileLevelView.level }}</span>
+              <div v-if="showLevel && profileLevelView" class="ik-banner__lv-row">
+                <span class="ik-banner__lv-chip">Lv.{{ profileLevelView.level }}</span>
+                <span class="ik-banner__lv-title">{{ profileLevelView.title }}</span>
+              </div>
               <span v-if="profile.zzz?.nickname" class="ik-banner__zzz-badge" :title="`绝区零 UID ${profile.zzz.uid}`">
                 {{ profile.zzz.regionName || "绝区零" }}
               </span>
@@ -921,9 +924,14 @@ onBeforeUnmount(() => {
   text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
   letter-spacing: 0.5px;
 }
-/* 等级徽章（等级体系开启时） */
-.ik-banner__lv-chip {
+/* 等级徽章 + 称号（等级体系开启时） */
+.ik-banner__lv-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   align-self: flex-start;
+}
+.ik-banner__lv-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -938,6 +946,13 @@ onBeforeUnmount(() => {
   font-style: italic;
   line-height: 1;
   box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+.ik-banner__lv-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+  white-space: nowrap;
 }
 .ik-banner__title-tag {
   display: inline-block;
