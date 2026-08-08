@@ -493,13 +493,12 @@ onBeforeUnmount(() => {
                   @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
                 />
               </div>
-              <span class="ik-banner__level">{{ profile.level || 1 }}</span>
             </div>
 
             <div class="ik-banner__info">
               <h1 class="ik-banner__name">{{ profile.name || profile.login || "匿名用户" }}</h1>
               <span v-if="profile.zzz?.nickname" class="ik-banner__zzz-badge" :title="`绝区零 UID ${profile.zzz.uid}`">
-                {{ profile.zzz.regionName || "绝区零" }}<template v-if="profile.zzz.level != null"> · Lv.{{ profile.zzz.level }}</template>
+                {{ profile.zzz.regionName || "绝区零" }}
               </span>
             </div>
           </div>
@@ -901,22 +900,6 @@ onBeforeUnmount(() => {
   object-fit: cover;
   display: block;
 }
-.ik-banner__level {
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  min-width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: #000;
-  border: 2px solid #000;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 900;
-  line-height: 28px;
-  text-align: center;
-  padding: 0 6px;
-}
 
 .ik-banner__info {
   display: flex;
@@ -1214,7 +1197,6 @@ onBeforeUnmount(() => {
   .ik-tab-bar { padding: 8px 14px; min-height: 44px; }
   .ik-banner { min-height: 240px; padding: 22px 18px; }
   .ik-banner__avatar { width: 68px; height: 68px; border-width: 3px; }
-  .ik-banner__level { min-width: 28px; height: 28px; font-size: 12px; line-height: 24px; }
   .ik-banner__name { font-size: 22px; }
   .ik-banner__title-tag { font-size: 13px; padding: 4px 12px; }
   .ik-banner__stats { font-size: 13px; gap: 8px; }

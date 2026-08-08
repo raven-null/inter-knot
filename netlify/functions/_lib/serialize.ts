@@ -19,8 +19,6 @@ export function toAuthor(doc: Doc | null | undefined): Doc | null {
     name: doc.name ? String(doc.name) : username,
     email: doc.email ? String(doc.email) : undefined,
     avatar: doc.avatar_url ? String(doc.avatar_url) : DEFAULT_AVATAR,
-    level: Number(doc.level || 1),
-    exp: Number(doc.exp || 0),
     isAiAgent: false,
     isAdmin: doc.role === "admin",
   };
@@ -87,9 +85,7 @@ export function toPost(doc: Doc | null | undefined, state: ViewerState = {}): Do
         username: doc.author_username,
         name: doc.author_name,
         avatar_url: doc.author_avatar_url,
-        level: doc.author_level,
-        exp: doc.author_exp,
-      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR },
   };
 }
 
@@ -117,9 +113,7 @@ export function toComment(doc: Doc | null | undefined, likedIds?: Set<string>): 
         username: doc.author_username,
         name: doc.author_name,
         avatar_url: doc.author_avatar_url,
-        level: doc.author_level,
-        exp: doc.author_exp,
-      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR },
   };
 }
 

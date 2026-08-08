@@ -219,15 +219,13 @@ admin 页面的 `AdminCard` 统一继承此基础样式，再叠加 admin 专属
 
 ### 5.1 问题
 
-- 等级进度条在桌面端占据 header 左侧，但 `@media (max-width: 1100px)` 直接隐藏，无过渡
-- 品牌 Logo 与等级条在登录/未登录态切换时有布局跳动
+- 品牌 Logo 在登录/未登录态切换时有布局跳动
 - 移动端 header 内边距 `6px 16px` 与桌面 `8px 32px` 差异大
 
 ### 5.2 建议
 
-1. **等级条渐进隐藏**：在 1024px~1280px 区间，等级条折叠为仅显示头像 + 等级数字（隐藏进度条），1280px+ 完整显示
-2. **Logo 与等级条过渡**：使用 `opacity` + `width` 过渡，避免 `display:none` 切换造成的跳动
-3. **移动端 header**：统一内边距为 `var(--ik-space-sm) var(--ik-space-lg)`
+1. **Logo 与登录态过渡**：使用 `opacity` + `width` 过渡，避免 `display:none` 切换造成的跳动
+2. **移动端 header**：统一内边距为 `var(--ik-space-sm) var(--ik-space-lg)`
 
 ---
 

@@ -7,8 +7,6 @@ export interface Author {
   name?: string;
   email?: string;
   avatar?: string;
-  exp?: number;
-  level?: number;
   isAiAgent?: boolean;
   /** 是否为管理员（仅 /api/me/profile 自身资料返回）。 */
   isAdmin?: boolean;
@@ -20,22 +18,6 @@ export interface AccountSecurity {
   provider: "mihoyo" | "local";
   hasBoundEmail: boolean;
   hasPassword: boolean;
-}
-
-export interface DailyExpSource {
-  done: boolean;
-  exp: number;
-}
-
-export interface DailyExpStatus {
-  todaySelfGained: number;
-  todaySelfCap: number;
-  sources: {
-    checkIn: DailyExpSource;
-    createArticle: DailyExpSource;
-    createComment: DailyExpSource;
-    likeGive: DailyExpSource;
-  };
 }
 
 /** 平台 AI 角色卡（GET /api/agent/characters） */
@@ -217,8 +199,6 @@ export interface Profile {
   name?: string;
   bio?: string;
   avatar?: string;
-  level?: number;
-  exp?: number;
   isSelf?: boolean;
   isHidden?: boolean;
   profileHidden?: boolean;
@@ -239,7 +219,6 @@ export interface Profile {
 export interface ZzzRoleBadge {
   uid: string;
   nickname?: string;
-  level?: number;
   regionName?: string;
 }
 
@@ -248,7 +227,6 @@ export interface MihoyoBinding {
   aid: string;
   zzzUid: string | null;
   zzzNickname: string | null;
-  zzzLevel: number | null;
   zzzRegion: string | null;
   zzzRegionName: string | null;
   lastSyncedAt: string | null;
@@ -278,7 +256,6 @@ export interface BlockedUser {
   documentId: string;
   name?: string;
   username?: string;
-  level?: number;
   avatar?: string;
   createdAt?: string;
 }
@@ -372,7 +349,6 @@ export interface NotificationSenderAuthor {
 export interface NotificationSender {
   id: number | null;
   username: string | null;
-  level: number | null;
   author: NotificationSenderAuthor | null;
 }
 
@@ -486,7 +462,6 @@ export interface DmPeer {
   authorDocumentId: string | null;
   name: string;
   avatar: string | null;
-  level: number | null;
   /** 对端为平台 AI 用户（如 fairy）时为 true，私聊 Tab 不展示 */
   isAiAgent?: boolean;
 }
@@ -539,7 +514,6 @@ export interface DmMessageSender {
   authorDocumentId: string | null;
   name: string;
   avatar: string | null;
-  level: number | null;
   isAiAgent?: boolean;
 }
 

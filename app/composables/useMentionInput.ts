@@ -28,7 +28,6 @@ export interface MentionCandidate {
   documentId: string;
   name: string;
   username: string | null;
-  level: number | null;
   avatar: string | null;
 }
 

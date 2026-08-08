@@ -1,7 +1,6 @@
 ﻿<script setup lang="ts">
 import { useEventListener } from "@vueuse/core";
 import { BellIcon } from "@heroicons/vue/24/solid";
-import { LEVEL_THRESHOLDS, MAX_LEVEL } from "~/utils/level";
 
 const route = useRoute();
 const router = useRouter();
@@ -90,46 +89,8 @@ const mineTabText = computed(() => {
   return label.length > 3 ? `${label.slice(0, 4)}...` : label;
 });
 
-// 等级进度条数据
-const userLevel = computed(() => auth.user?.level ?? 1);
-const userExp = computed(() => auth.user?.exp ?? 0);
-const userName = computed(() => auth.user?.name || "用户");
+// 用户信息
 const userAvatar = computed(() => auth.user?.avatar || "/images/default-avatar.webp");
-
-// 等级阈值表 - 与后端 server/src/utils/level.ts 保持一致
-
-// 计算下一级所需的总绳网信用值
-const expForNextLevel = computed(() => {
-  const level = userLevel.value;
-  if (level >= MAX_LEVEL) return LEVEL_THRESHOLDS[MAX_LEVEL - 1];
-  return LEVEL_THRESHOLDS[level] || 0;
-});
-
-// 计算当前等级已积累的绳网信用（当前总绳网信用 - 当前等级所需的总绳网信用）
-const currentLevelExp = computed(() => {
-  const totalExp = userExp.value;
-  const currentLevelThreshold = LEVEL_THRESHOLDS[userLevel.value - 1] || 0;
-  return totalExp - currentLevelThreshold;
-});
-
-// 计算当前等级升到下一级还需要的绳网信用
-const expNeededToNext = computed(() => {
-  const level = userLevel.value;
-  if (level >= MAX_LEVEL) return 0;
-  const nextThreshold = LEVEL_THRESHOLDS[level] || 0;
-  const currentThreshold = LEVEL_THRESHOLDS[level - 1] || 0;
-  return nextThreshold - currentThreshold;
-});
-
-// 进度条百分比
-const expProgressPercent = computed(() => {
-  const level = userLevel.value;
-  if (level >= MAX_LEVEL) return 100;
-  const current = Math.max(0, currentLevelExp.value);
-  const needed = expNeededToNext.value;
-  if (needed <= 0) return 100;
-  return Math.min(100, (current / needed) * 100);
-});
 
 const resolveActiveTab = (path: string): HeaderTabName => {
   if (path.startsWith("/profile")) {
@@ -203,24 +164,6 @@ watch(
   <header class="ik-header" :class="{ 'is-hidden': isHeaderHidden, 'is-login': auth.isLogin }">
     <div class="ik-header__inner">
       <div class="ik-header__left">
-        <!-- 等级进度条（登录后显示） -->
-        <div v-if="auth.isLogin" class="ik-level-display" @click="navigateTo(auth.profilePath || '/profile')">
-          <img :src="userAvatar" alt="avatar" class="ik-level-avatar" />
-          <div class="ik-level-middle">
-            <span class="ik-level-username">{{ userName }}</span>
-            <div class="ik-level-progress-wrap">
-              <div class="ik-level-progress-bg">
-                <div class="ik-level-progress-fill" :style="{ width: `${expProgressPercent}%` }"></div>
-                <span class="ik-level-progress-text">{{ Math.max(0, currentLevelExp) }}/{{ expNeededToNext }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="ik-level-right">
-            <span class="ik-level-number">{{ userLevel }}</span>
-            <span class="ik-level-label">LEVEL</span>
-          </div>
-        </div>
-
         <!-- 品牌 Logo：桌面端仅未登录显示；移动端未登录显示 logo，登录后显示头像 -->
         <NuxtLink to="/" class="ik-brand" aria-label="Inter Knot 首页">
           <img src="/images/zzzicon.png" alt="Inter Knot" class="ik-brand__icon" draggable="false" />
@@ -1136,136 +1079,6 @@ watch(
   .ik-search-clear {
     width: 26px;
     height: 26px;
-  }
-
-  /* 移动端隐藏等级显示 */
-  .ik-level-display {
-    display: none;
-  }
-}
-
-/* 等级进度条样式 */
-.ik-level-display {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 3px 12px;
-  background: linear-gradient(135deg, #212121 0%, #141414 50%, #181818 100%);
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: background 0.2s ease;
-  user-select: none;
-  height: 42px;
-  box-sizing: border-box;
-}
-
-.ik-level-display:hover {
-  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #202020 100%);
-}
-
-.ik-level-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex-shrink: 0;
-  margin-left: -7px;
-}
-
-.ik-level-middle {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ik-level-username {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-}
-
-.ik-level-progress-wrap {
-  width: 140px;
-}
-
-.ik-level-progress-bg {
-  position: relative;
-  width: 100%;
-  height: 16px;
-  background: #222222;
-  border-radius: 9999px;
-  overflow: hidden;
-}
-
-.ik-level-progress-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(90deg, #4661fd 0%, #10bff0 100%);
-  border-radius: 9999px;
-  transition: width 0.3s ease;
-}
-
-.ik-level-progress-text {
-  position: absolute;
-  top: 50%;
-  left: 8px;
-  transform: translateY(-50%);
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
-  z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-}
-
-.ik-level-right {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-left: 6px;
-}
-
-.ik-level-number {
-  font-size: 24px;
-  font-weight: 800;
-  color: #fff;
-  line-height: 1;
-}
-
-.ik-level-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1;
-}
-
-/* 响应式断点隐藏 */
-@media (max-width: 1280px) {
-  .ik-level-display {
-    display: none;
-  }
-}
-
-/* 中屏：等级条折叠为仅头像+等级 */
-@media (min-width: 1025px) and (max-width: 1280px) {
-  .ik-level-display {
-    display: flex;
-    padding: 3px 8px;
-    gap: 6px;
-  }
-  .ik-level-middle {
-    display: none;
-  }
-  .ik-level-right {
-    margin-left: 0;
   }
 }
 

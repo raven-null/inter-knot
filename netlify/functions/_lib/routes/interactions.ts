@@ -169,7 +169,6 @@ export async function myBlockedList(req: Request): Promise<Response> {
       documentId: String(u.document_id),
       name: String(u.name || u.username || ""),
       username: String(u.username || ""),
-      level: Number(u.level || 1),
       avatar: String(u.avatar_url || DEFAULT_AVATAR),
       createdAt: String(u.created_at || ""),
     })),
@@ -224,7 +223,6 @@ export async function searchAuthors(req: Request): Promise<Response> {
         documentId: String(u.document_id),
         name,
         username: String(u.username || ""),
-        level: Number(u.level || 1),
         avatar: String(u.avatar_url || DEFAULT_AVATAR),
       });
     }

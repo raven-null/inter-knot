@@ -1,33 +1,7 @@
 /** 外围功能桩接口：丁尼 / 签到 / 考试 / 私信 / 在线状态等。
  *  首期论坛核心未实现的功能返回安全的空值，保证前端 UI 不崩溃。 */
 
-import { ok, json, error, readJson } from "../http";
-
-// ── 签到（桩） ──────────────────────────────────────
-export function checkInStatus(): Response {
-  return json({ canCheckIn: false, totalDays: 0, consecutiveDays: 0, rank: 0, nextEligibleAt: null });
-}
-export function checkIn(): Response {
-  return json({
-    message: "签到功能暂未开放",
-    reward: 0,
-    dennyAdded: 0,
-    currentDenny: 0,
-    consecutiveDays: 0,
-    totalDays: 0,
-    rank: 0,
-  });
-}
-
-// ── 等级权益（桩） ──────────────────────────────────
-export function benefitsMe(): Response {
-  return json({
-    level: 1,
-    maxLevel: 60,
-    benefits: { articleMaxImages: 9, commentMaxImages: 9, articleMaxBody: 100000 },
-    nextLevel: undefined,
-  });
-}
+import { ok, json, readJson } from "../http";
 
 // ── 私信 / 敲敲（桩） ───────────────────────────────
 export function dmConversations(): Response {
@@ -71,7 +45,7 @@ export function knockStream(): Response {
 
 // ── 在线状态 / 表情 / AI 角色（桩） ─────────────────
 /** 在线状态（真实会话追踪）：按 presenceId 记录心跳会话，
- *  登录用户携带用户名/等级/头像与首见时间；超时自动清理。 */
+ *  登录用户携带用户名/头像与首见时间；超时自动清理。 */
 export async function presencePing(req: Request): Promise<Response> {
   const { getJson, setJson, del, listKeys } = await import("../storage");
   const { resolveUser } = await import("../auth");
@@ -106,7 +80,6 @@ export async function presencePing(req: Request): Promise<Response> {
         userId: viewer.userId,
         username: viewer.username,
         name: u?.name || viewer.username,
-        level: u?.level ?? 1,
         avatar: u?.avatar_url || DEFAULT_AVATAR,
       };
     }
@@ -125,7 +98,6 @@ export async function presencePing(req: Request): Promise<Response> {
     .map((s) => ({
       username: String(s.username),
       name: String(s.name || s.username),
-      level: Number(s.level ?? 1),
       avatar: String(s.avatar || DEFAULT_AVATAR),
       joinedAt: String(s.joinedAt || ""),
       durationSeconds: Math.max(

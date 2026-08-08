@@ -44,8 +44,6 @@ async function authorFields(userId: string): Promise<Doc> {
     author_username: u?.username || "",
     author_name: u?.name || u?.username || "",
     author_avatar_url: u?.avatar_url || DEFAULT_AVATAR,
-    author_level: u?.level ?? 1,
-    author_exp: u?.exp ?? 0,
   };
 }
 

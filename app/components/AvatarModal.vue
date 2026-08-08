@@ -224,7 +224,7 @@ onBeforeUnmount(() => {
                       <div class="ik-av-preview__info">
                         <h2 class="ik-av-preview__name">{{ profile.name || profile.login || "匿名用户" }}</h2>
                         <span v-if="profile.bio" class="ik-av-preview__tag">{{ profile.bio }}</span>
-                        <span v-else class="ik-av-preview__tag ik-av-preview__tag--empty"><span class="ik-av-preview__lv">Lv.</span>{{ profile.level || 1 }}</span>
+                        <span v-else class="ik-av-preview__tag ik-av-preview__tag--empty">暂无简介</span>
                       </div>
                     </div>
                   </div>
@@ -531,7 +531,6 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 .ik-av-preview__tag--empty { color: rgba(255,255,255,0.85); }
-.ik-av-preview__lv { color: rgba(255,255,255,0.45); }
 
 /* ── Upload box (自定义头像上传) ── */
 .ik-av-upload-box {

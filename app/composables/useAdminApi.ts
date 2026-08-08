@@ -8,8 +8,6 @@ interface AdminUser {
   name: string;
   email: string;
   avatar: string;
-  level: number;
-  exp: number;
   role: string;
   status: string;
   createdAt: string;

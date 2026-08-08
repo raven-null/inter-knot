@@ -246,7 +246,6 @@ async function handleConfirmed(
   }
 
   let zzzNickname: string | null = null;
-  let zzzLevel: number | null = null;
   let zzzRegion = "";
   let zzzRegionName = "";
   let roleDebug = "no-cookie";
@@ -258,13 +257,12 @@ async function handleConfirmed(
       const roleData = (await roleRes.json()) as {
         retcode?: number;
         message?: string;
-        data?: { list?: Array<{ game_biz?: string; nickname?: string; level?: number; region?: string; region_name?: string }> };
+        data?: { list?: Array<{ game_biz?: string; nickname?: string; region?: string; region_name?: string }> };
       };
       roleDebug = `retcode=${roleData?.retcode ?? "null"} ${roleData?.message || ""}`;
       const role = (roleData?.data?.list || []).find((r) => r?.game_biz === "zzz_cn");
       if (role) {
         zzzNickname = role.nickname || null;
-        zzzLevel = role.level ?? null;
         zzzRegion = role.region || "";
         zzzRegionName = role.region_name || "";
       }
@@ -277,7 +275,6 @@ async function handleConfirmed(
     aid: accountId,
     zzzUid: accountId,
     zzzNickname,
-    zzzLevel,
     zzzRegion,
     zzzRegionName,
     lastSyncedAt: new Date().toISOString(),
@@ -354,8 +351,6 @@ async function handleConfirmed(
       password_hash: null,
       avatar_url: DEFAULT_AVATAR,
       bio: "",
-      level: 1,
-      exp: 0,
       role: "user",
       status: "active",
       profile_hidden: false,

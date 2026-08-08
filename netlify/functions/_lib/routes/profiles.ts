@@ -55,8 +55,6 @@ export async function detail(req: Request): Promise<Response> {
     name: String(user.name || user.username || ""),
     bio: String(user.bio || ""),
     avatar: String(user.avatar_url || DEFAULT_AVATAR),
-    level: Number(user.level || 1),
-    exp: Number(user.exp || 0),
     isSelf,
     isHidden: false,
     profileHidden: user.profile_hidden === true,

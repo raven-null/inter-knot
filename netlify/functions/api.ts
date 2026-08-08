@@ -207,7 +207,6 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "avatars" && sub2 === "equip" && isPut(req)) return meRoutes.equipAvatar();
       if (sub === "avatars" && sub2 === "upload-custom" && isPut(req)) return meRoutes.uploadCustomAvatar(req);
       if (sub === "avatars" && s.length === 3 && isGet(req)) return meRoutes.avatars();
-      if (sub === "exp" && sub2 === "daily" && isGet(req)) return meRoutes.dailyExp();
       return error(404, "接口不存在");
     }
 
@@ -256,15 +255,6 @@ async function dispatch(req: Request): Promise<Response> {
     }
 
     // ── 外围功能（桩） ───────────────────────────────
-    case "check-in": {
-      if (sub === "status" && isGet(req)) return stubRoutes.checkInStatus();
-      if (s.length === 2 && isPost(req)) return stubRoutes.checkIn();
-      return error(404, "接口不存在");
-    }
-    case "benefits": {
-      if (sub === "me" && isGet(req)) return stubRoutes.benefitsMe();
-      return error(404, "接口不存在");
-    }
     case "presence": {
       if (sub === "ping" && isPost(req)) return stubRoutes.presencePing(req);
       return error(404, "接口不存在");

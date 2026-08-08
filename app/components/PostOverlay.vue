@@ -530,7 +530,6 @@ const sendComment = async () => {
           documentId: auth.user?.authorId || auth.user?.documentId,
           name: auth.user?.name || auth.user?.username || "我",
           avatar: auth.user?.avatar,
-          level: auth.user?.level,
         };
     const localImages = commentImages.uploadTasks.value
       .filter((task) => task.status === "done" && task.serverUrl)
@@ -718,7 +717,6 @@ const startReplyToReply = (reply: Comment["replies"][number], parentComment: Com
       name: replyAuthor.name,
       username: null,
       avatar: replyAuthor.avatar ?? null,
-      level: replyAuthor.level ?? null,
     });
   }
   focusCommentInput();
@@ -1109,9 +1107,6 @@ onBeforeUnmount(() => {
                         {{ headerAuthor.name || "匿名用户" }}
                       </span>
                     </UserHoverCard>
-                    <span v-if="headerAuthor.level && headerAuthor.documentId" class="ik-dialog__level">
-                      Lv.{{ headerAuthor.level }}
-                    </span>
                   </div>
                   <span v-if="headerCreatedAt || post?.editedAt" class="ik-dialog__time">
                     <template v-if="headerCreatedAt">{{ formatTime(headerCreatedAt) }}</template>
@@ -1830,15 +1825,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.ik-dialog__level {
-  font-size: 12px;
-  font-weight: 700;
-  font-style: italic;
-  line-height: 20px;
-  color: #BFFF09;
-  flex-shrink: 0;
 }
 
 .ik-dialog__time {

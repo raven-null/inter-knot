@@ -147,7 +147,6 @@ onMounted(async () => {
                 class="ik-admin-online__row-name"
                 style="color: inherit; text-decoration: none"
               >{{ u.name }}</NuxtLink>
-              <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
               <span class="ik-admin-online__row-duration"><RelativeTime :time="u.createdAt" /></span>
             </li>
           </ul>
@@ -166,7 +165,6 @@ onMounted(async () => {
             <li v-for="u in presenceUsers" :key="u.username" class="ik-admin-online__row">
               <img :src="u.avatar" class="ik-admin-online__row-avatar" alt="" loading="lazy" />
               <span class="ik-admin-online__row-name">{{ u.name }}</span>
-              <AdminBadge tone="blue">Lv.{{ u.level }}</AdminBadge>
               <span class="ik-admin-online__row-duration">{{ formatDuration(u.durationSeconds) }}</span>
             </li>
           </ul>

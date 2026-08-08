@@ -200,9 +200,6 @@ const onItemMouseDown = (e: MouseEvent, candidate: MentionCandidate) => {
               @{{ item.username }}
             </span>
           </span>
-          <span v-if="item.level != null" class="ik-mention-picker__level">
-            Lv.{{ item.level }}
-          </span>
         </button>
       </div>
     </div>
@@ -299,11 +296,6 @@ const onItemMouseDown = (e: MouseEvent, candidate: MentionCandidate) => {
   color: rgba(0, 0, 0, 0.55);
 }
 
-.ik-mention-picker__item:hover .ik-mention-picker__level,
-.ik-mention-picker__item.is-active .ik-mention-picker__level {
-  color: #000;
-}
-
 .ik-mention-picker__avatar {
   width: 28px;
   height: 28px;
@@ -352,13 +344,5 @@ const onItemMouseDown = (e: MouseEvent, candidate: MentionCandidate) => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.ik-mention-picker__level {
-  font-size: 11px;
-  font-weight: 700;
-  font-style: italic;
-  color: #BFFF09;
-  flex-shrink: 0;
 }
 </style>

@@ -651,10 +651,6 @@ useHead({ title: "账号中心" });
                     <span class="ik-ac-mihoyo-label">UID</span>
                     <span class="ik-ac-mihoyo-value">{{ mihoyoBinding.zzzUid }}</span>
                   </div>
-                  <div v-if="mihoyoBinding.zzzLevel != null" class="ik-ac-mihoyo-row">
-                    <span class="ik-ac-mihoyo-label">等级</span>
-                    <span class="ik-ac-mihoyo-value">Lv.{{ mihoyoBinding.zzzLevel }}</span>
-                  </div>
                   <div v-if="mihoyoBinding.zzzRegionName" class="ik-ac-mihoyo-row">
                     <span class="ik-ac-mihoyo-label">服务器</span>
                     <span class="ik-ac-mihoyo-value">{{ mihoyoBinding.zzzRegionName }}</span>
@@ -733,7 +729,6 @@ useHead({ title: "账号中心" });
                   />
                   <div class="ik-ac-blocked-info">
                     <span class="ik-ac-blocked-name">{{ user.name || user.username || '匿名用户' }}</span>
-                    <span v-if="user.level" class="ik-ac-blocked-level">Lv.{{ user.level }}</span>
                   </div>
                   <button class="ik-ac-btn ik-ac-btn--small" @click="unblockUserAction(user)">
                     取消拉黑
@@ -1279,13 +1274,6 @@ useHead({ title: "账号中心" });
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ik-ac-blocked-level {
-  color: #bfff09;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 /* ── Buttons ── */

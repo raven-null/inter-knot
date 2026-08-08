@@ -146,7 +146,6 @@ export async function create(req: Request): Promise<Response> {
     author_username: author?.username || "",
     author_name: author?.name || author?.username || "",
     author_avatar_url: author?.avatar_url || "/images/default-avatar.webp",
-    author_level: author?.level ?? 1,
   };
 
   const key = commentKey(postId, commentId);

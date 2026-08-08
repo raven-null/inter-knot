@@ -292,17 +292,3 @@ export async function updatePinnedArticles(req: Request): Promise<Response> {
   await setJson(userKey(viewer.userId), { ...u, pinned_articles: next });
   return json({ pinned: next });
 }
-
-// ── 每日经验（简化） ─────────────────────────────────
-export async function dailyExp(): Promise<Response> {
-  return json({
-    todaySelfGained: 0,
-    todaySelfCap: 50,
-    sources: {
-      checkIn: { done: false, exp: 10 },
-      createArticle: { done: false, exp: 20 },
-      createComment: { done: false, exp: 10 },
-      likeGive: { done: false, exp: 5 },
-    },
-  });
-}

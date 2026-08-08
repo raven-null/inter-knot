@@ -84,7 +84,7 @@ export const useAuthStore = defineStore("auth", {
       }
     },
     /**
-     * 乐观更新用户部分字段（如签到后的绳网信用/等级/丁尼）
+     * 乐观更新用户部分字段（如丁尼余额）
      */
     updateUserPartial(updates: Partial<Author>) {
       if (this.user) {

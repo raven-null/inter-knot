@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
                       <div class="ik-bc-preview__info">
                         <h2 class="ik-bc-preview__name">{{ profile.name || profile.login || "匿名用户" }}</h2>
                         <span v-if="profile.bio" class="ik-bc-preview__tag">{{ profile.bio }}</span>
-                        <span v-else class="ik-bc-preview__tag ik-bc-preview__tag--empty"><span class="ik-bc-preview__lv">Lv.</span>{{ profile.level || 1 }}</span>
+                        <span v-else class="ik-bc-preview__tag ik-bc-preview__tag--empty">暂无简介</span>
                       </div>
                     </div>
                   </div>
@@ -473,22 +473,6 @@ onBeforeUnmount(() => {
   background: #000;
 }
 .ik-bc-preview__avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ik-bc-preview__level {
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  min-width: 26px;
-  height: 26px;
-  border-radius: 999px;
-  background: #000;
-  border: 2px solid #000;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 22px;
-  text-align: center;
-  padding: 0 5px;
-}
 .ik-bc-preview__info { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 .ik-bc-preview__name {
   margin: 0;
@@ -513,7 +497,6 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 .ik-bc-preview__tag--empty { color: rgba(255,255,255,0.85); }
-.ik-bc-preview__lv { color: rgba(255,255,255,0.45); }
 .ik-bc-preview__footer {
   padding: 6px 14px;
   border-bottom: 2px solid #000;

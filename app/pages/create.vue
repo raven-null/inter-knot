@@ -40,8 +40,9 @@ const loginDialog = useLoginDialog();
 const confirmDialog = useConfirmDialog();
 const message = useMessage();
 const pendingPost = usePendingPost();
-// 等级权益：发帖图片数与正文字数上限随等级变化
-const { articleMaxImages: maxCoverImages, articleMaxBody: maxBodyChars } = useBenefits();
+// 发帖图片数与正文字数上限（固定值）
+const maxCoverImages = 9;
+const maxBodyChars = 16000;
 
 useSeoMeta({
   title: "发布帖子 - 绳网",
@@ -138,11 +139,11 @@ const isCoverUploading = computed(() =>
 );
 
 const remainingCoverSlots = computed(() =>
-  Math.max(0, maxCoverImages.value - uploadTasks.value.length),
+  Math.max(0, maxCoverImages - uploadTasks.value.length),
 );
 
 const bodyCharCount = computed(() => body.value.length);
-const isBodyOverLimit = computed(() => bodyCharCount.value > maxBodyChars.value);
+const isBodyOverLimit = computed(() => bodyCharCount.value > maxBodyChars);
 
 const existingUploadIds = computed(() =>
   uploadTasks.value
@@ -456,7 +457,7 @@ function openImagePicker() {
     return;
   }
   if (remainingCoverSlots.value <= 0) {
-    message.error(`当前等级最多上传 ${maxCoverImages.value} 张图片，升级可提升上限`);
+    message.error(`帖子最多上传 ${maxCoverImages} 张图片`);
     return;
   }
   showImagePickerModal.value = true;
@@ -525,10 +526,10 @@ function handleFileSelect(files: FileList | File[]) {
     return;
   }
   const fileArray = Array.from(files);
-  const remaining = maxCoverImages.value - uploadTasks.value.length;
+  const remaining = maxCoverImages - uploadTasks.value.length;
 
   if (remaining <= 0) {
-    message.error(`当前等级最多上传 ${maxCoverImages.value} 张图片，升级可提升上限`);
+    message.error(`帖子最多上传 ${maxCoverImages} 张图片`);
     return;
   }
 
@@ -595,7 +596,7 @@ async function publish() {
   }
 
   if (isBodyOverLimit.value) {
-    message.error(`当前等级正文最多 ${maxBodyChars.value} 字，升级可提升上限`);
+    message.error(`正文最多 ${maxBodyChars} 字`);
     return;
   }
 

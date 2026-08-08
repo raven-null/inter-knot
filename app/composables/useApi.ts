@@ -12,7 +12,6 @@ import type {
   Category,
   Comment,
   CoverImage,
-  DailyExpStatus,
   DraftArticle,
   ExternalVideo,
   MihoyoBinding,
@@ -37,12 +36,6 @@ import {
 } from "~/utils/pagination";
 import type { MentionCandidate } from "~/composables/useMentionInput";
 import { toMediaUrl } from "~/utils/image";
-import {
-  BENEFIT_MAX_LEVEL,
-  benefitsForLevel,
-  clampBenefitLevel,
-} from "~/utils/benefits";
-import type { BenefitKey, BenefitValues } from "~/utils/benefits";
 
 // ── 集中定义 queryKey，便于写接口精准 invalidate ─────────────
 const qk = {
@@ -412,8 +405,6 @@ function toAuthor(raw: unknown, apiBaseUrl: string): Author {
       "Unknown",
     email: data.email as string | undefined,
     avatar,
-    exp: (data.exp as number | undefined) || 0,
-    level: (data.level as number | undefined) || 1,
     isAiAgent: data.isAiAgent === true,
     isAdmin: data.isAdmin === true,
   };
@@ -1223,7 +1214,6 @@ export function useApi() {
           documentId: String(u.documentId || ""),
           name: typeof u.name === "string" ? u.name : undefined,
           username: typeof u.username === "string" ? u.username : undefined,
-          level: typeof u.level === "number" ? u.level : undefined,
           avatar: typeof avatarUrl === "string" && avatarUrl
             ? normalizeMediaUrl(avatarUrl, apiBaseUrl)
             : undefined,
@@ -1342,7 +1332,6 @@ export function useApi() {
       ? {
           uid: String(zzzRaw.uid),
           nickname: (zzzRaw.nickname as string | undefined) || undefined,
-          level: zzzRaw.level != null ? Number(zzzRaw.level) : undefined,
           regionName: (zzzRaw.regionName as string | undefined) || undefined,
         }
       : null;
@@ -1360,8 +1349,6 @@ export function useApi() {
       name: data.name as string | undefined,
       bio: bioText,
       avatar: equippedAvatar?.image || avatarUrl,
-      level: Number(userRaw?.level ?? data.level ?? 1),
-      exp: Number(userRaw?.exp ?? data.exp ?? 0),
       isSelf: data.isSelf === true,
       isHidden: data.isHidden === true,
       profileHidden: data.profileHidden === true,
@@ -2073,7 +2060,6 @@ export function useApi() {
         documentId: String(item.documentId || ""),
         name: String(item.name || ""),
         username: typeof item.username === "string" ? item.username : null,
-        level: typeof item.level === "number" ? item.level : null,
         avatar: typeof avatarUrl === "string" && avatarUrl
           ? normalizeMediaUrl(avatarUrl, apiBaseUrl)
           : null,
@@ -2136,136 +2122,7 @@ export function useApi() {
     };
   };
 
-  // ── 签到系统 ──────────────────────────────────────────
-
-  /**
-   * 获取签到状态
-   */
-  const getCheckInStatus = async (): Promise<{
-    canCheckIn: boolean;
-    totalDays: number;
-    consecutiveDays: number;
-    rank: number;
-    nextEligibleAt: string | null;
-  }> => {
-    const response = await $api("/api/check-in/status", {
-      method: "GET",
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      canCheckIn: Boolean(data.canCheckIn),
-      totalDays: Number(data.totalDays) || 0,
-      consecutiveDays: Number(data.consecutiveDays) || 0,
-      rank: Number(data.rank) || 0,
-      nextEligibleAt: typeof data.nextEligibleAt === "string" ? data.nextEligibleAt : null,
-    };
-  };
-
-  /**
-   * 执行签到
-   */
-  const checkIn = async (): Promise<{
-    message: string;
-    reward: number;
-    dennyAdded: number;
-    currentDenny: number;
-    consecutiveDays: number;
-    totalDays: number;
-    rank: number;
-    currentExp?: number;
-    currentLevel?: number;
-    nextEligibleAt?: string;
-  }> => {
-    const response = await $api("/api/check-in", {
-      method: "POST",
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      message: typeof data.message === "string" ? data.message : "签到成功",
-      reward: Number(data.reward) || 0,
-      dennyAdded: Number(data.dennyAdded) || 0,
-      currentDenny: Number(data.currentDenny) || 0,
-      consecutiveDays: Number(data.consecutiveDays) || 0,
-      totalDays: Number(data.totalDays) || 0,
-      rank: Number(data.rank) || 0,
-      currentExp: typeof data.currentExp === "number" ? data.currentExp : undefined,
-      currentLevel: typeof data.currentLevel === "number" ? data.currentLevel : undefined,
-      nextEligibleAt:
-        typeof data.nextEligibleAt === "string" ? data.nextEligibleAt : undefined,
-    };
-  };
-
-  /**
-   * 获取每日主动行为经验获取状态
-   */
-  const getDailyExpStatus = async (): Promise<DailyExpStatus> => {
-    const response = await $api("/api/me/exp/daily", {
-      method: "GET",
-    });
-    const data = response as Record<string, unknown>;
-    const sources = data.sources as
-      | Record<string, { done?: boolean; exp?: number } | undefined>
-      | undefined;
-
-    const source = (
-      key: "checkIn" | "createArticle" | "createComment" | "likeGive",
-    ) => {
-      const s = sources?.[key];
-      return {
-        done: s?.done === true,
-        exp: typeof s?.exp === "number" ? s.exp : 0,
-      };
-    };
-
-    return {
-      todaySelfGained: typeof data.todaySelfGained === "number" ? data.todaySelfGained : 0,
-      todaySelfCap: typeof data.todaySelfCap === "number" ? data.todaySelfCap : 50,
-      sources: {
-        checkIn: source("checkIn"),
-        createArticle: source("createArticle"),
-        createComment: source("createComment"),
-        likeGive: source("likeGive"),
-      },
-    };
-  };
-
-  // ── 等级权益 ──────────────────────────────────────────────
-  /**
-   * 获取当前用户的等级权益（未登录按 Lv.0）
-   */
-  const getMyBenefits = async (): Promise<{
-    level: number;
-    maxLevel: number;
-    benefits: BenefitValues;
-    nextLevel?: number;
-    nextBenefits?: BenefitValues;
-  }> => {
-    const response = await $api("/api/benefits/me", { method: "GET" });
-    const data = response as Record<string, unknown>;
-    const level = clampBenefitLevel(data.level);
-    const parse = (raw: unknown, fallbackLevel: number): BenefitValues => {
-      const obj = (raw ?? {}) as Record<string, unknown>;
-      const fallback = benefitsForLevel(fallbackLevel);
-      const num = (key: BenefitKey) =>
-        typeof obj[key] === "number" ? (obj[key] as number) : fallback[key];
-      return {
-        articleMaxImages: num("articleMaxImages"),
-        commentMaxImages: num("commentMaxImages"),
-        articleMaxBody: num("articleMaxBody"),
-      };
-    };
-    const nextLevel =
-      typeof data.nextLevel === "number" ? clampBenefitLevel(data.nextLevel) : undefined;
-    return {
-      level,
-      maxLevel:
-        typeof data.maxLevel === "number" ? data.maxLevel : BENEFIT_MAX_LEVEL,
-      benefits: parse(data.benefits, level),
-      ...(nextLevel != null
-        ? { nextLevel, nextBenefits: parse(data.nextBenefits, nextLevel) }
-        : {}),
-    };
-  };
+  // 米游社登录 / 绑定接口 --------------------------------------------------------
 
   return {
     clearAllCache,
@@ -2338,12 +2195,6 @@ export function useApi() {
     updatePinnedArticles,
     searchAuthors,
     tripleAction,
-    // 签到系统
-    getCheckInStatus,
-    checkIn,
-    getDailyExpStatus,
-    // 等级权益
-    getMyBenefits,
     // 米游社登录 / 绑定
     createMihoyoQr,
     pollMihoyoQr,

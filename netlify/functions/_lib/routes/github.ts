@@ -94,8 +94,6 @@ export async function callback(req: Request): Promise<Response> {
       password_hash: null,
       avatar_url: gh.avatar_url || DEFAULT_AVATAR,
       bio: "",
-      level: 1,
-      exp: 0,
       role: "user",
       status: "active",
       profile_hidden: false,
