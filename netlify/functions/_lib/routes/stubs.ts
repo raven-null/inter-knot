@@ -29,50 +29,6 @@ export function benefitsMe(): Response {
   });
 }
 
-// ── 入站考试（桩：默认已通过） ──────────────────────
-const EXAM_CONFIG = {
-  questionCount: 10,
-  passScorePercent: 60,
-  timeLimitSeconds: 600,
-  maxFailsBeforeCooldown: 3,
-  failCooldownSeconds: 3600,
-  rewardDenny: 0,
-  rewardExp: 0,
-};
-export function examStatus(): Response {
-  return json({ passed: true, passedAt: new Date().toISOString(), config: EXAM_CONFIG });
-}
-export function examStart(): Response {
-  return json({ attemptId: "", resumed: false, startedAt: "", expiresAt: "", questions: [], config: EXAM_CONFIG });
-}
-export function examSubmit(): Response {
-  return json({
-    passed: true,
-    score: 100,
-    totalScore: 100,
-    scorePercent: 100,
-    correctCount: 10,
-    questionCount: 10,
-    passScorePercent: 60,
-    cooldownRemaining: 0,
-    reward: null,
-  });
-}
-export function examReview(): Response {
-  return json({
-    attemptId: "",
-    passed: true,
-    score: 100,
-    totalScore: 100,
-    scorePercent: 100,
-    correctCount: 10,
-    questionCount: 10,
-    submittedAt: new Date().toISOString(),
-    config: EXAM_CONFIG,
-    questions: [],
-  });
-}
-
 // ── 私信 / 敲敲（桩） ───────────────────────────────
 export function dmConversations(): Response {
   return ok([]);

@@ -40,12 +40,7 @@ const mihoyo = useMihoyoQr({
   onConfirmed: async (res) => {
     if (res.mode !== "login") return;
     if (!res.auth.token) throw new Error("登录失败：未获取到 Token");
-    const isNewUser = res.isNewUser;
     await onLoginSuccess(res.auth.token, res.auth.user);
-    if (isNewUser) {
-      message.success("完成入站考试后即可解锁发布帖子、评论等功能");
-      await navigateTo("/exam");
-    }
   },
   onError: (err) => {
     message.error(resolveErrorMessage(err, "获取二维码失败"));
@@ -234,9 +229,6 @@ const submit = async () => {
       throw new Error("注册失败：未获取到 Token");
     }
     await onLoginSuccess(registerRes.token, registerRes.user);
-    // 新注册用户需通过入站考试才能发布帖子/评论，注册成功后直接引导去考试页
-    message.success("完成入站考试后即可解锁发布帖子、评论等功能");
-    await navigateTo("/exam");
   } catch (err) {
     const label = isReset.value ? "重置失败" : isRegister.value ? "注册失败" : "登录失败";
     message.error(resolveErrorMessage(err, label));

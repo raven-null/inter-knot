@@ -248,7 +248,6 @@ export async function meProfile(req: Request): Promise<Response> {
   return json({
     ...author,
     profileHidden: user.profile_hidden === true,
-    examPassed: true,
     isAdmin: viewer.isAdmin,
   });
 }

@@ -1053,17 +1053,6 @@ if (import.meta.client) {
 
 <template>
   <section class="ik-create-page" @dragenter="onDragEnter" @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop">
-    <!-- 未通过入站考试 -->
-    <div v-if="auth.needExam" class="ik-create-exam-gate">
-      <div class="ik-create-exam-gate__panel">
-        <div class="ik-create-exam-gate__card">
-          <h2>需要先通过入站考试</h2>
-          <p>通过入站考试后即可解锁发布帖子、评论等功能。</p>
-          <NuxtLink to="/exam" class="ik-create-exam-gate__btn">前往考试</NuxtLink>
-        </div>
-      </div>
-    </div>
-
     <!-- Drag overlay -->
     <Transition name="ik-fade">
       <div v-if="isDragging" class="ik-create-drop-overlay">
@@ -1782,56 +1771,6 @@ if (import.meta.client) {
 .ik-create-page > .ik-create-columns {
   position: relative;
   z-index: 1;
-}
-
-/* ── Exam gate ─────────────────────────────── */
-.ik-create-exam-gate {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(8px);
-}
-
-.ik-create-exam-gate__panel {
-  padding: 4px;
-  background: #2D2C2D;
-  border-radius: var(--ik-radius-xl) 0 var(--ik-radius-xl) var(--ik-radius-xl);
-  overflow: hidden;
-}
-
-.ik-create-exam-gate__card {
-  text-align: center;
-  padding: 40px 56px;
-  background:
-    url("/images/tab-bg-point.webp") repeat,
-    linear-gradient(180deg, #0a0a0a 0%, #070707 100%);
-  border: 4px solid #000;
-  border-radius: 22px 0 22px 22px;
-  color: #eee;
-}
-
-.ik-create-exam-gate__card h2 {
-  margin: 0 0 var(--ik-space-md);
-  font-size: 22px;
-}
-
-.ik-create-exam-gate__card p {
-  margin: 0 0 var(--ik-space-xl);
-  color: #aaa;
-}
-
-.ik-create-exam-gate__btn {
-  display: inline-block;
-  background: var(--ik-primary);
-  color: #111;
-  font-weight: 700;
-  border-radius: var(--ik-radius-pill);
-  padding: var(--ik-space-sm) 28px;
-  text-decoration: none;
 }
 
 /* ── Drag overlay ──────────────────────────── */

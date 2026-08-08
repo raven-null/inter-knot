@@ -264,13 +264,6 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "me" && isGet(req)) return stubRoutes.benefitsMe();
       return error(404, "接口不存在");
     }
-    case "exam": {
-      if (sub === "status" && isGet(req)) return stubRoutes.examStatus();
-      if (sub === "start" && isPost(req)) return stubRoutes.examStart();
-      if (sub === "submit" && isPost(req)) return stubRoutes.examSubmit();
-      if (sub === "review" && isGet(req)) return stubRoutes.examReview();
-      return error(404, "接口不存在");
-    }
     case "presence": {
       if (sub === "ping" && isPost(req)) return stubRoutes.presencePing(req);
       return error(404, "接口不存在");

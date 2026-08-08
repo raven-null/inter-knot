@@ -19,7 +19,7 @@ const benefitRows = Array.from({ length: BENEFIT_MAX_LEVEL }, (_, i) => {
 });
 
 const levelTitle = computed(() =>
-  level.value > 0 ? LEVEL_TITLES[level.value] ?? "" : "待通过入站考试",
+  level.value > 0 ? LEVEL_TITLES[level.value] ?? "" : "待解锁权益",
 );
 
 const handleOverlayClick = (e: MouseEvent) => {
@@ -71,7 +71,7 @@ onBeforeUnmount(() => {
           <div class="ik-dialog__body">
             <div class="ik-benefits__panel">
               <p class="ik-benefits__lead">
-                当前 <strong>Lv.{{ level }}</strong> · {{ levelTitle }}。等级越高，可发布的<strong>图片数量</strong>与<strong>正文字数</strong>上限越高；未通过入站考试（<strong>Lv.0</strong>）暂无法发布帖子与评论。
+                当前 <strong>Lv.{{ level }}</strong> · {{ levelTitle }}。等级越高，可发布的<strong>图片数量</strong>与<strong>正文字数</strong>上限越高。
               </p>
 
               <div class="ik-benefits__table">

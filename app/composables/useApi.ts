@@ -15,10 +15,6 @@ import type {
   DailyExpStatus,
   DraftArticle,
   ExternalVideo,
-  ExamAttemptReview,
-  ExamStartResult,
-  ExamStatus,
-  ExamSubmitResult,
   MihoyoBinding,
   NsfwStatus,
   Post,
@@ -420,7 +416,6 @@ function toAuthor(raw: unknown, apiBaseUrl: string): Author {
     level: (data.level as number | undefined) || 1,
     isAiAgent: data.isAiAgent === true,
     isAdmin: data.isAdmin === true,
-    examPassed: typeof data.examPassed === "boolean" ? data.examPassed : undefined,
   };
 }
 
@@ -2234,7 +2229,7 @@ export function useApi() {
     };
   };
 
-  // ── 入站考试 ──────────────────────────────────────────────
+  // ── 等级权益 ──────────────────────────────────────────────
   /**
    * 获取当前用户的等级权益（未登录按 Lv.0）
    */
@@ -2270,35 +2265,6 @@ export function useApi() {
         ? { nextLevel, nextBenefits: parse(data.nextBenefits, nextLevel) }
         : {}),
     };
-  };
-
-  const getExamStatus = async (): Promise<ExamStatus> => {
-    const response = await $api("/api/exam/status");
-    return response as ExamStatus;
-  };
-
-  const startExam = async (): Promise<ExamStartResult> => {
-    const response = await $api("/api/exam/start", { method: "POST" });
-    return response as ExamStartResult;
-  };
-
-  const submitExam = async (
-    attemptId: string,
-    answers: Record<string, string[]>,
-  ): Promise<ExamSubmitResult> => {
-    const response = await $api("/api/exam/submit", {
-      method: "POST",
-      body: { attemptId, answers },
-    });
-    return response as ExamSubmitResult;
-  };
-
-  const getExamReview = async (attemptId?: string): Promise<ExamAttemptReview> => {
-    const response = await $api("/api/exam/review", {
-      method: "GET",
-      query: attemptId ? { attemptId } : {},
-    });
-    return response as ExamAttemptReview;
   };
 
   return {
@@ -2378,11 +2344,6 @@ export function useApi() {
     getDailyExpStatus,
     // 等级权益
     getMyBenefits,
-    // 入站考试
-    getExamStatus,
-    startExam,
-    submitExam,
-    getExamReview,
     // 米游社登录 / 绑定
     createMihoyoQr,
     pollMihoyoQr,
