@@ -1,6 +1,6 @@
-﻿/** 「我的」个人设置 / 上传库 / 邮箱 / 安全等路由（基于 Netlify Blobs） */
+﻿/** 「我的」个人设置 / 上传库 / 安全等路由（基于 Netlify Blobs） */
 
-import { getJson, setJson, del, listKeys, userKey, userEmailKey, KEYS } from "../storage";
+import { getJson, setJson, del, listKeys, userKey, KEYS } from "../storage";
 import { requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, readJson, int } from "../http";
 import { toUploadedFile, type Doc } from "../serialize";
@@ -42,31 +42,9 @@ export async function security(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const u = await userDoc(viewer.userId);
   return json({
-    email: u.email ? String(u.email) : "",
-    provider: u.email ? "local" : "mihoyo",
-    hasBoundEmail: Boolean(u.email),
-    hasPassword: Boolean(u.password_hash),
     // 米游社扫码登录生成的密钥，供账号页展示/复制
     secretKey: u.secret_key ? String(u.secret_key) : null,
   });
-}
-
-export async function sendBindEmailCode(req: Request): Promise<Response> {
-  const { email } = await readJson<{ email?: string }>(req);
-  const e = String(email || "").trim().toLowerCase();
-  if (!e) return badRequest("请输入邮箱");
-  return json({ email: e, sent: true, expiresIn: 600, cooldown: 0 });
-}
-
-export async function bindEmail(req: Request): Promise<Response> {
-  const viewer = await requireAuth(req);
-  const { email } = await readJson<{ email?: string }>(req);
-  const e = String(email || "").trim().toLowerCase();
-  if (!e) return badRequest("请输入邮箱");
-  const u = await userDoc(viewer.userId);
-  await setJson(userKey(viewer.userId), { ...u, email: e });
-  await setJson(userEmailKey(e), { document_id: viewer.userId });
-  return json({ email: e, provider: "local", hasBoundEmail: true, hasPassword: true });
 }
 
 export async function uploads(req: Request): Promise<Response> {

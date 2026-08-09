@@ -19,7 +19,6 @@ import * as profileRoutes from "./_lib/routes/profiles";
 import * as meRoutes from "./_lib/routes/me";
 import * as adminRoutes from "./_lib/routes/admin";
 import * as emoteRoutes from "./_lib/routes/emotes";
-import * as githubRoutes from "./_lib/routes/github";
 import * as mihoyoRoutes from "./_lib/routes/mihoyo";
 import * as aiRoutes from "./_lib/routes/ai";
 import * as dmRoutes from "./_lib/routes/dm";
@@ -169,12 +168,6 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
 
-    // ── GitHub OAuth 登录 ────────────────────────────
-    case "github": {
-      // GitHub OAuth 已移除（仅保留路由壳避免 404 噪音）
-      return error(410, "GitHub 登录已停用，请使用米游社扫码登录", "GITHUB_REMOVED");
-    }
-
     // ── 个人主页 ─────────────────────────────────────
     case "profiles": {
       if (sub2 === "articles" && isGet(req)) return profileRoutes.articles(req);
@@ -194,8 +187,6 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "profile" && sub2 === "pinned-articles" && isGet(req)) return meRoutes.pinnedArticles(req);
       if (sub === "profile" && sub2 === "pinned-articles" && isPut(req)) return meRoutes.updatePinnedArticles(req);
       if (sub === "security" && isGet(req)) return meRoutes.security(req);
-      if (sub === "email" && sub2 === "send-code" && isPost(req)) return meRoutes.sendBindEmailCode(req);
-      if (sub === "email" && s.length === 3 && isPut(req)) return meRoutes.bindEmail(req);
       if (sub === "uploads" && s.length === 3 && isGet(req)) return meRoutes.uploads(req);
       if (sub === "uploads" && s.length === 4 && isDelete(req)) return meRoutes.deleteUpload(req);
       if (sub === "business-cards" && sub2 === "equip" && isPut(req)) return meRoutes.equipBusinessCard(req);

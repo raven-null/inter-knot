@@ -4,7 +4,6 @@ import { useMessage } from "zenless-ui";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  EnvelopeIcon,
   KeyIcon,
   LinkIcon,
   NoSymbolIcon,
@@ -13,7 +12,6 @@ import {
 import { resolveErrorMessage } from "~/utils/api-error";
 
 const auth = useAuthStore();
-const api = useApi();
 const message = useMessage();
 const loginDialog = useLoginDialog();
 const accountData = useAccountData();
@@ -33,7 +31,6 @@ const {
   ensureMihoyo,
   ensureBlocked,
   loadBlocked,
-  setSecurity,
   setMihoyoBinding,
   unbindMihoyo: unbindMihoyoAction,
   unblockUser: unblockUserAction,
@@ -47,7 +44,7 @@ if (import.meta.client && !auth.isLogin) {
 
 // ── 页面视图 ─────────────────────────────────
 type AccountMenuKey = "account" | "mihoyo" | "blacklist";
-type AccountSubView = "" | "email";
+type AccountSubView = "";
 const activeMenuKey = ref<AccountMenuKey>("account");
 const activeSubView = ref<AccountSubView>("");
 const panelTransitionName = ref("ik-ac-fade");
@@ -153,48 +150,11 @@ const unbindMihoyo = async () => {
 };
 
 // ── 账号安全 ─────────────────────────────────
-const bindEmailInput = ref("");
-const bindCodeInput = ref("");
-const bindEmailLoading = ref(false);
-
-const codeCooldown = ref(0);
-let codeCooldownTimer: ReturnType<typeof setInterval> | null = null;
-
-const startCodeCooldown = (seconds: number) => {
-  if (codeCooldownTimer) {
-    clearInterval(codeCooldownTimer);
-    codeCooldownTimer = null;
-  }
-  codeCooldown.value = seconds;
-  codeCooldownTimer = setInterval(() => {
-    codeCooldown.value -= 1;
-    if (codeCooldown.value <= 0 && codeCooldownTimer) {
-      clearInterval(codeCooldownTimer);
-      codeCooldownTimer = null;
-    }
-  }, 1000);
-};
-
-onBeforeUnmount(() => {
-  if (codeCooldownTimer) {
-    clearInterval(codeCooldownTimer);
-    codeCooldownTimer = null;
-  }
-});
-
 const accountMetaText = computed(() => {
   if (securityLoading.value) return "加载中";
-  if (security.value?.hasBoundEmail) return security.value.email;
-  if (security.value?.hasPassword) return "已设置密码";
-  return "未绑定邮箱";
+  if (security.value?.secretKey) return "登录密钥已生成";
+  return "暂无登录密钥";
 });
-
-const openEmail = () => {
-  panelTransitionName.value = "ik-ac-slide-right";
-  activeSubView.value = "email";
-  bindEmailInput.value = security.value?.email || "";
-  bindCodeInput.value = "";
-};
 
 // ── 登录密钥展示 ─────────────────────────────
 const secretKeyRevealed = ref(false);
@@ -225,54 +185,6 @@ const goBack = () => {
   stopMihoyoQr();
   activeMenuKey.value = "account";
   activeSubView.value = "";
-  bindEmailInput.value = "";
-  bindCodeInput.value = "";
-};
-
-const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-
-const sendBindEmailCode = async () => {
-  const email = bindEmailInput.value.trim();
-  if (!isValidEmail(email)) {
-    message.warning("请输入正确的邮箱");
-    return;
-  }
-  bindEmailLoading.value = true;
-  try {
-    const res = await api.sendBindEmailCode(email);
-    message.success("验证码已发送");
-    startCodeCooldown(res.cooldown || 60);
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "发送验证码失败"));
-  } finally {
-    bindEmailLoading.value = false;
-  }
-};
-
-const clearBindEmailForm = () => {
-  bindEmailInput.value = "";
-  bindCodeInput.value = "";
-};
-
-const confirmBindEmail = async () => {
-  const email = bindEmailInput.value.trim();
-  const code = bindCodeInput.value.trim();
-  if (!isValidEmail(email) || !code) {
-    message.warning("请填写正确的邮箱和验证码");
-    return;
-  }
-  bindEmailLoading.value = true;
-  try {
-    const res = await api.bindEmail(email, code);
-    setSecurity(res);
-    auth.updateUserPartial({ email });
-    message.success("邮箱绑定成功");
-    goBack();
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "绑定邮箱失败"));
-  } finally {
-    bindEmailLoading.value = false;
-  }
 };
 
 // ── 黑名单管理 ─────────────────────────────
@@ -337,21 +249,6 @@ useHead({ title: "账号中心" });
               <div class="ik-ac-section__head">
                 <span class="ik-ac-section__label">账号</span>
               </div>
-              <button class="ik-ac-row" @click="openEmail">
-                <span class="ik-ac-row__label">
-                  <EnvelopeIcon class="ik-ac-row__icon" aria-hidden="true" />
-                  邮箱
-                </span>
-                <span
-                  class="ik-ac-row__value"
-                  :class="{ 'is-empty': !security?.hasBoundEmail && !securityLoading }"
-                >
-                  {{ securityLoading ? '加载中' : security?.hasBoundEmail ? security.email : '未绑定' }}
-                </span>
-                <span class="ik-ac-row__chevron" aria-hidden="true">
-                  <ChevronRightIcon aria-hidden="true" />
-                </span>
-              </button>
               <button
                 class="ik-ac-row ik-ac-row--key"
                 @click="toggleSecretKey"
@@ -422,22 +319,6 @@ useHead({ title: "账号中心" });
                   <span class="ik-ac-section__label">账号</span>
                 </div>
 
-                <button class="ik-ac-row" @click="openEmail">
-                  <span class="ik-ac-row__label">
-                    <EnvelopeIcon class="ik-ac-row__icon" aria-hidden="true" />
-                    邮箱
-                  </span>
-                  <span
-                    class="ik-ac-row__value"
-                    :class="{ 'is-empty': !security?.hasBoundEmail && !securityLoading }"
-                  >
-                    {{ securityLoading ? '加载中' : security?.hasBoundEmail ? security.email : '未绑定' }}
-                  </span>
-                  <span class="ik-ac-row__chevron" aria-hidden="true">
-                    <ChevronRightIcon aria-hidden="true" />
-                  </span>
-                </button>
-
 <button
                   class="ik-ac-row ik-ac-row--key"
                   @click="toggleSecretKey"
@@ -460,62 +341,6 @@ useHead({ title: "账号中心" });
                     <ChevronRightIcon aria-hidden="true" />
                   </span>
                 </button>
-              </div>
-            </template>
-
-            <template v-else-if="activeSubView === 'email'">
-              <header class="ik-ac-detail-header ik-ac-detail-header--stacked">
-                <button class="ik-ac-back" aria-label="返回" @click="goBack">
-                  <ChevronLeftIcon aria-hidden="true" />
-                </button>
-                <h2 class="ik-ac-detail-title">邮箱</h2>
-                <div class="ik-ac-detail-spacer" />
-              </header>
-
-              <div class="ik-ac-detail-body ik-ac-detail-body--pushed">
-                <template v-if="securityLoading">
-                  <p class="ik-ac-loading">加载中…</p>
-                </template>
-                <template v-else>
-                  <z-form class="ik-ac-form" label-position="top">
-                    <z-form-item label="新邮箱">
-                      <z-input
-                        v-model="bindEmailInput"
-                        type="email"
-                        placeholder="请输入邮箱"
-                      />
-                    </z-form-item>
-                    <z-form-item label="验证码">
-                      <z-input v-model="bindCodeInput" placeholder="请输入验证码">
-                        <template #append>
-                          <z-button
-                            class="ik-ac-code-btn"
-                            :disabled="codeCooldown > 0 || bindEmailLoading"
-                            @click="sendBindEmailCode"
-                          >
-                            {{ bindEmailLoading ? '发送中' : codeCooldown > 0 ? `${codeCooldown}s` : '发送' }}
-                          </z-button>
-                        </template>
-                      </z-input>
-                    </z-form-item>
-                  </z-form>
-                  <div class="ik-ac-form-actions">
-                    <z-button
-                      :icon="{ error: '#ff4444' }"
-                      :disabled="bindEmailLoading"
-                      @click="clearBindEmailForm"
-                    >
-                      清除
-                    </z-button>
-                    <z-button
-                      :icon="{ success: '#00cc0d' }"
-                      :disabled="bindEmailLoading || !bindEmailInput.trim() || !bindCodeInput.trim()"
-                      @click="confirmBindEmail"
-                    >
-                      确认
-                    </z-button>
-                  </div>
-                </template>
               </div>
             </template>
           </template>
@@ -971,47 +796,6 @@ useHead({ title: "账号中心" });
   width: 100%;
 }
 
-/* ── 账号安全表单 ── */
-.ik-ac-form {
-  display: flex;
-  flex-direction: column;
-}
-
-.ik-ac-form :deep(.z-form-item) {
-  margin-bottom: 0;
-}
-
-.ik-ac-form :deep(.z-form-item + .z-form-item) {
-  margin-top: 16px;
-}
-
-.ik-ac-form :deep(.z-form-item__label) {
-  color: #b8b8c0;
-  text-align: left;
-  padding-right: 0;
-  line-height: 1.4;
-  margin-bottom: 6px;
-}
-
-.ik-ac-form :deep(.z-input) {
-  width: 100%;
-}
-
-.ik-ac-form :deep(.z-input__append) {
-  display: flex;
-}
-
-.ik-ac-code-btn {
-  white-space: nowrap;
-}
-
-.ik-ac-form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 20px;
-}
-
 .ik-ac-security-send-hint {
   margin: 0;
   font-size: 13px;
@@ -1238,8 +1022,7 @@ useHead({ title: "账号中心" });
   color: rgba(255, 255, 255, 0.55);
 }
 
-.ik-ac-unbind-btn,
-.ik-ac-return-btn {
+.ik-ac-unbind-btn {
   align-self: center;
 }
 
@@ -1333,8 +1116,6 @@ useHead({ title: "账号中心" });
 
   /* 桌面端：账号安全表单输入框、按钮等收窄并居中，避免横屏过度拉伸 */
   .ik-ac-detail-body > .z-input,
-  .ik-ac-detail-body > .ik-ac-form,
-  .ik-ac-detail-body > .ik-ac-form-actions,
   .ik-ac-detail-body > .ik-ac-btn,
   .ik-ac-detail-body > .ik-ac-empty,
   .ik-ac-detail-body > .ik-ac-security-send-hint,

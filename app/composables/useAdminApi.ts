@@ -6,7 +6,6 @@ interface AdminUser {
   documentId: string;
   username: string;
   name: string;
-  email: string;
   avatar: string;
   level: number;
   exp: number;

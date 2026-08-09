@@ -61,10 +61,8 @@ export async function ensureSeed(): Promise<void> {
       });
     }
 
-    // 管理员
-    const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@example.com").toLowerCase();
-    // 检查是否已有管理员（通过 email 或 by-key 索引）
-    const existingAdmin = await getJson<unknown>(`users/by-email/${adminEmail}.json`);
+    // 管理员（无邮箱，用密钥登录）
+    const existingAdmin = await getJson<unknown>(`users/by-role/admin.json`);
     if (!existingAdmin) {
       const adminDocumentId = genId();
       const uid = await generateUid();
@@ -75,7 +73,6 @@ export async function ensureSeed(): Promise<void> {
         uid,
         username: "管理员",
         name: "管理员",
-        email: adminEmail,
         password_hash: passHash,
         secret_key: secretKey,
         avatar_url: "/images/default-avatar.webp",
@@ -90,7 +87,7 @@ export async function ensureSeed(): Promise<void> {
         followersCount: 0,
         followingCount: 0,
       });
-      await setJson(`users/by-email/${adminEmail}.json`, { document_id: adminDocumentId });
+      await setJson(`users/by-role/admin.json`, { document_id: adminDocumentId });
       await setJson(userUidKey(uid), { document_id: adminDocumentId });
       await setJson(`users/by-key/${secretKey}.json`, { document_id: adminDocumentId });
     }
@@ -126,7 +123,7 @@ async function fixCategoryIds(): Promise<void> {
   }
 }
 
-/** 版块按 slug 去重；管理员按邮箱去重（保留邮箱索引指向的那个，删除其余） */
+/** 版块按 slug 去重；管理员按 role 去重（保留 by-role 索引指向的那个，删除其余） */
 async function cleanupDuplicates(): Promise<void> {
   // 版块去重
   const catKeys = await listKeys("categories/");
@@ -142,37 +139,32 @@ async function cleanupDuplicates(): Promise<void> {
     }
   }
 
-  // 管理员去重（仅处理有邮箱的用户）
-  const userKeys = (await listKeys("users/")).filter((k) => !k.includes("/by-email/"));
-  const byEmail = new Map<string, string[]>();
+  // 管理员去重（仅处理 role=admin 的用户）
+  const userKeys = (await listKeys("users/")).filter((k) => !k.includes("/by-role/") && !k.includes("/by-uid/"));
+  const adminKeys: string[] = [];
   for (const key of userKeys) {
-    const u = await getJson<{ email?: string; role?: string }>(key);
-    if (!u || !u.email) continue;
-    const list = byEmail.get(u.email) || [];
-    list.push(key);
-    byEmail.set(u.email, list);
+    const u = await getJson<{ role?: string }>(key);
+    if (u?.role === "admin") adminKeys.push(key);
   }
-  for (const [email, keys] of byEmail) {
-    if (keys.length <= 1) continue;
-    // 邮箱索引当前指向的 documentId 优先保留，否则保留第一个
-    const emailIdxKey = `users/by-email/${email}.json`;
-    const idx = await getJson<{ document_id?: string }>(emailIdxKey);
+  if (adminKeys.length > 1) {
+    // by-role 索引当前指向的 documentId 优先保留，否则保留第一个
+    const roleIdx = await getJson<{ document_id?: string }>("users/by-role/admin.json");
     let keepKey: string | null = null;
-    for (const key of keys) {
+    for (const key of adminKeys) {
       const u = await getJson<{ document_id?: string }>(key);
-      if (idx && u?.document_id === idx.document_id) keepKey = key;
+      if (roleIdx && u?.document_id === roleIdx.document_id) keepKey = key;
     }
-    if (!keepKey) keepKey = keys[0]!;
-    for (const key of keys) {
+    if (!keepKey) keepKey = adminKeys[0]!;
+    for (const key of adminKeys) {
       if (key !== keepKey) await del(key);
     }
     const kept = await getJson<{ document_id?: string }>(keepKey);
-    if (kept?.document_id) await setJson(emailIdxKey, { document_id: kept.document_id });
+    if (kept?.document_id) await setJson("users/by-role/admin.json", { document_id: kept.document_id });
   }
 
   // UID 回填：为早期创建（无 uid 字段）的用户分配唯一 8 位 UID
   const uidKeys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+    (k) => !k.includes("/by-role/") && !k.includes("/by-uid/"),
   );
   for (const key of uidKeys) {
     const u = await getJson<Doc>(key);

@@ -6,8 +6,6 @@ import type { AccountSecurity, BlockedUser, MihoyoBinding } from "~/types/entiti
 const STORAGE_KEY = "ik:account:data";
 const STALE_TIME = 5 * 60 * 1000; // 5 分钟后重新拉取
 
-const MIHOYO_PLACEHOLDER_EMAIL_SUFFIX = "@mihoyo-login.inter-knot.invalid";
-
 interface AccountDataState {
   security: AccountSecurity | null;
   securityFetchedAt: number | null;
@@ -29,18 +27,6 @@ function defaultState(): AccountDataState {
     blockedHasNext: true,
     blockedCursor: "",
     blockedFetchedAt: null,
-  };
-}
-
-function inferSecurityFromUser(email?: string | null): AccountSecurity {
-  const safeEmail = email || "";
-  const isPlaceholder = safeEmail.endsWith(MIHOYO_PLACEHOLDER_EMAIL_SUFFIX);
-  return {
-    email: safeEmail,
-    provider: isPlaceholder ? "mihoyo" : "local",
-    hasBoundEmail: !!safeEmail && !isPlaceholder,
-    hasPassword: !!safeEmail && !isPlaceholder,
-    secretKey: null,
   };
 }
 
@@ -101,8 +87,7 @@ function createAccountData() {
       state.value.security = await api.getMySecurity();
       securityFetchedAt.value = Date.now();
     } catch (err) {
-      // 后端 /api/me/security 尚未部署时的降级：根据 auth.user.email 推断
-      state.value.security = inferSecurityFromUser(auth.user?.email);
+      state.value.security = { secretKey: null };
       securityFetchedAt.value = Date.now();
       message.error(resolveErrorMessage(err, "获取账号安全信息失败"));
     } finally {
@@ -175,19 +160,6 @@ function createAccountData() {
     }
   };
 
-  const setSecurity = (value: AccountSecurity) => {
-    state.value.security = value;
-    securityFetchedAt.value = Date.now();
-  };
-
-  const setPasswordDone = () => {
-    if (state.value.security) {
-      state.value.security.hasPassword = true;
-      state.value.security.provider = "local";
-    }
-    securityFetchedAt.value = Date.now();
-  };
-
   const unblockUser = async (user: BlockedUser) => {
     if (!user.documentId) return;
     try {
@@ -220,7 +192,7 @@ function createAccountData() {
   };
 
   if (import.meta.client) {
-    // 登录（含米游社/邮箱等）后清空上一用户的本地缓存，确保重新拉取当前账号的绑定/黑名单
+    // 登录（含米游社等）后清空上一用户的本地缓存，确保重新拉取当前账号的绑定/黑名单
     window.addEventListener("auth:login", clear);
     window.addEventListener("auth:logout", clear);
   }
@@ -244,8 +216,6 @@ function createAccountData() {
     ensureBlocked,
     loadBlocked,
     unbindMihoyo,
-    setSecurity,
-    setPasswordDone,
     unblockUser,
     setMihoyoBinding,
     clearBlocked,

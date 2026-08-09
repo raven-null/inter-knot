@@ -36,7 +36,6 @@ export function toAuthor(doc: Doc | null | undefined): Doc | null {
     username,
     login: username,
     name: doc.name ? String(doc.name) : username,
-    email: doc.email ? String(doc.email) : undefined,
     avatar: doc.avatar_url ? String(doc.avatar_url) : DEFAULT_AVATAR,
     level: Number(doc.level || 1),
     exp: Number(doc.exp || 0),

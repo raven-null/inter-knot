@@ -233,7 +233,6 @@ export async function searchAuthors(req: Request): Promise<Response> {
     });
   }
   for (const key of keys) {
-    if (key.includes("/by-email/")) continue;
     const u = await getJson<Doc>(key);
     if (!u) continue;
     const name = String(u.name || u.username || "");

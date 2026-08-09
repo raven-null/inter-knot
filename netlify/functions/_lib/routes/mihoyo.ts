@@ -357,7 +357,6 @@ async function handleConfirmed(
       uid: uidNumber,
       username,
       name: zzzNickname || username,
-      email: null,
       mihoyo_id: accountId,
       secret_key: secretKey,
       password_hash: null,

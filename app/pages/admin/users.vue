@@ -109,7 +109,7 @@ onMounted(load);
       <input
         v-model="keyword"
         class="ik-admin-input"
-        placeholder="搜索 UID / 用户名 / 昵称 / 邮箱"
+        placeholder="搜索 UID / 用户名 / 昵称"
         @keyup.enter="doSearch"
       />
       <button class="ik-admin-btn ik-admin-btn--primary" @click="doSearch">搜索</button>
@@ -122,7 +122,6 @@ onMounted(load);
           <tr>
             <th>用户</th>
             <th>UID</th>
-            <th>邮箱</th>
             <th>等级</th>
             <th>角色</th>
             <th>状态</th>
@@ -139,7 +138,6 @@ onMounted(load);
               </div>
             </td>
             <td style="font-variant-numeric: tabular-nums; color: var(--ik-primary, #bfff09)">{{ u.uid || "-" }}</td>
-            <td>{{ u.email }}</td>
             <td>
               <select
                 class="ik-admin-input"
@@ -206,7 +204,6 @@ onMounted(load);
           <AdminBadge :tone="current.status === 'active' ? 'green' : 'red'">{{ current.status === "active" ? "正常" : "已禁用" }}</AdminBadge>
         </div>
         <dl style="margin: 0 0 16px; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px">
-          <dt style="color: #9a9a9a">邮箱</dt><dd style="margin: 0">{{ current.email || "-" }}</dd>
           <dt style="color: #9a9a9a">等级</dt>
           <dd style="margin: 0; display: flex; align-items: center; gap: 8px">
             <select

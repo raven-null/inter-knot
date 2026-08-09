@@ -35,7 +35,7 @@ async function buildTrend(
     if (commentsByDay.has(d)) commentsByDay.set(d, (commentsByDay.get(d) || 0) + 1);
   }
   const userKeys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+    (k) => !k.includes("/by-uid/"),
   );
   for (const key of userKeys) {
     const u = await getJson<{ created_at?: string }>(key);
@@ -74,7 +74,7 @@ export async function stats(req: Request): Promise<Response> {
   await requireAdmin(req);
   const s = await getStats();
   const keys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/") && !k.includes("/by-github/"),
+    (k) => !k.includes("/by-uid/"),
   );
   const recentUsers: Doc[] = [];
   for (const key of keys) {
@@ -134,7 +134,7 @@ export async function users(req: Request): Promise<Response> {
   const q = (qp.get("q") || "").toLowerCase();
 
   const keys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-email/") && !k.includes("/by-uid/"),
+    (k) => !k.includes("/by-uid/"),
   );
   const all: Doc[] = [];
   for (const key of keys) {
@@ -145,7 +145,7 @@ export async function users(req: Request): Promise<Response> {
 
   const filtered = q
     ? all.filter((u) => {
-        const hay = `${u.username || ""} ${u.name || ""} ${u.email || ""} ${u.uid || ""}`.toLowerCase();
+        const hay = `${u.username || ""} ${u.name || ""} ${u.uid || ""}`.toLowerCase();
         return hay.includes(q);
       })
     : all;
@@ -156,7 +156,6 @@ export async function users(req: Request): Promise<Response> {
       uid: Number(u.uid || 0),
       username: String(u.username || ""),
       name: String(u.name || u.username || ""),
-      email: u.email ? String(u.email) : "",
       avatar: String(u.avatar_url || DEFAULT_AVATAR),
       level: Number(u.level || 1),
       exp: Number(u.exp || 0),
@@ -205,7 +204,6 @@ export async function deleteUser(req: Request): Promise<Response> {
 
   // 删除用户文档与索引
   await del(userKey(id));
-  if (u.email) await del(`users/by-email/${String(u.email).toLowerCase()}.json`);
   if (u.uid != null) await del(`users/by-uid/${Number(u.uid)}.json`);
   if (u.mihoyo_id) await del(`users/by-mihoyo/${String(u.mihoyo_id)}.json`);
   await del(`mihoyo/bindings/${id}.json`);

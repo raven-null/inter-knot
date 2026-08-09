@@ -99,7 +99,6 @@ export function genId(): string {
 
 // ── 文档 key ─────────────────────────────────────────
 export const userKey = (id: string) => `users/${id}.json`;
-export const userEmailKey = (email: string) => `users/by-email/${email}.json`;
 export const userUidKey = (uid: number) => `users/by-uid/${uid}.json`;
 export const categoryKey = (id: string) => `categories/${id}.json`;
 export const postKey = (id: string) => `posts/${id}.json`;
@@ -111,7 +110,6 @@ export const blockKey = (viewer: string, target: string) => `user_blocks/${viewe
 export const readKey = (viewer: string, postId: string) => `read_records/${viewer}/${postId}.json`;
 export const reportKey = (viewer: string, targetType: string, targetId: string) => `reports/${viewer}/${targetType}/${targetId}.json`;
 export const uploadKey = (hash: string) => `uploads/${hash}.json`;
-export const codeKey = (purpose: string, email: string) => `verification_codes/${purpose}/${email}.json`;
 
 export const KEYS = {
   settings: "settings.json",

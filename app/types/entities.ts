@@ -6,7 +6,6 @@ export interface Author {
   username?: string;
   login?: string;
   name?: string;
-  email?: string;
   avatar?: string;
   level?: number;
   exp?: number;
@@ -17,10 +16,6 @@ export interface Author {
 
 /** 账号安全概览（/api/me/security） */
 export interface AccountSecurity {
-  email: string;
-  provider: "mihoyo" | "local";
-  hasBoundEmail: boolean;
-  hasPassword: boolean;
   /** 米游社扫码登录生成的登录密钥（仅当前账号可见）。 */
   secretKey?: string | null;
 }

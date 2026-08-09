@@ -150,20 +150,6 @@ export type MihoyoQrPollResult =
       debug?: unknown;
     };
 
-interface SendRegisterCodeResult {
-  email: string;
-  sent: boolean;
-  expiresIn: number;
-  cooldown: number;
-}
-
-interface SendResetCodeResult {
-  email: string;
-  sent: boolean;
-  expiresIn: number;
-  cooldown: number;
-}
-
 interface PostCommentPayload {
   postId: string;
   content: string;
@@ -405,7 +391,6 @@ function toAuthor(raw: unknown, apiBaseUrl: string): Author {
       (data.username as string | undefined) ||
       (data.login as string | undefined) ||
       "Unknown",
-    email: data.email as string | undefined,
     avatar,
     exp: (data.exp as number | undefined) || 0,
     level: (data.level as number | undefined) || 1,
@@ -1877,47 +1862,13 @@ export function useApi() {
     );
   };
 
-  // ── 账号安全（/api/me/security、邮箱绑定、密码设置） ─────────────
+  // ── 账号安全（/api/me/security） ─────────────
 
   const getMySecurity = async (): Promise<AccountSecurity> => {
     const response = await $api("/api/me/security");
     const data = response as Record<string, unknown>;
     return {
-      email: String(data.email || ""),
-      provider: data.provider === "local" ? "local" : "mihoyo",
-      hasBoundEmail: data.hasBoundEmail === true,
-      hasPassword: data.hasPassword === true,
       secretKey: data.secretKey ? String(data.secretKey) : null,
-    };
-  };
-
-  const sendBindEmailCode = async (email: string): Promise<SendRegisterCodeResult> => {
-    const response = await $api("/api/me/email/send-code", {
-      method: "POST",
-      body: { email },
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      email: String(data.email || email),
-      sent: data.sent === true,
-      expiresIn: Number(data.expiresIn || 600),
-      cooldown: Number(data.cooldown || 60),
-    };
-  };
-
-  const bindEmail = async (email: string, code: string): Promise<AccountSecurity> => {
-    const response = await $api("/api/me/email", {
-      method: "PUT",
-      body: { email, code },
-    });
-    const data = response as Record<string, unknown>;
-    invalidate(qk.me.self);
-    invalidate(qk.me.profile);
-    return {
-      email: String(data.email || email),
-      provider: data.provider === "local" ? "local" : "mihoyo",
-      hasBoundEmail: data.hasBoundEmail === true,
-      hasPassword: data.hasPassword === true,
     };
   };
 
@@ -2109,8 +2060,6 @@ export function useApi() {
     getMyProfileSettings,
     // 账号安全
     getMySecurity,
-    sendBindEmailCode,
-    bindEmail,
     getPinnedArticles,
     updatePinnedArticles,
     searchAuthors,
