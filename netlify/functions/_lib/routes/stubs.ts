@@ -58,7 +58,7 @@ export async function presencePing(req: Request): Promise<Response> {
   const prefix = "presence/sessions/";
 
   const keys = await listKeys(prefix);
-  const sessions: Record<string, unknown>[] = [];
+  const sessionMap = new Map<string, Record<string, unknown>>();
   for (const key of keys) {
     const s = await getJson<Record<string, unknown>>(key);
     if (!s) continue;
@@ -67,12 +67,12 @@ export async function presencePing(req: Request): Promise<Response> {
       await del(key);
       continue;
     }
-    sessions.push(s);
+    sessionMap.set(key, s);
   }
 
   if (presenceId) {
     const key = `${prefix}${presenceId}.json`;
-    const existing = await getJson<Record<string, unknown>>(key);
+    const existing = sessionMap.get(key);
     let info: Record<string, unknown> = {};
     if (viewer) {
       const u = await getJson<Record<string, unknown>>(`users/${viewer.userId}.json`);
@@ -90,8 +90,11 @@ export async function presencePing(req: Request): Promise<Response> {
       lastSeenAt: new Date(now).toISOString(),
     };
     await setJson(key, session);
-    sessions.push(session);
+    // 已存在的会话原地更新，避免同一会话在列表中重复出现
+    sessionMap.set(key, session);
   }
+
+  const sessions = [...sessionMap.values()];
 
   const onlineUsers = sessions
     .filter((s) => !!s.username)
