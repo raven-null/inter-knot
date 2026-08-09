@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { useMessage } from "zenless-ui";
-import type { Avatar, BusinessCard, Post, Profile } from "~/types/entities";
+import type { Avatar, BusinessCard, Post, Profile, AppNotification, AppNotificationType, NotificationSettings } from "~/types/entities";
 import { isNotFoundError, resolveErrorMessage } from "~/utils/api-error";
 import { getCoverAspectRatio } from "~/utils/cover";
 import { levelView } from "~/utils/level";
+import {
+  HeartIcon,
+  ChatBubbleOvalLeftEllipsisIcon,
+  AtSymbolIcon,
+  UserPlusIcon,
+  ArrowRightIcon,
+  BellIcon,
+  BellSlashIcon,
+} from "@heroicons/vue/24/outline";
 
 const route = useRoute();
 const router = useRouter();
@@ -293,6 +302,119 @@ const toggleBlock = async () => {
     message.error(resolveErrorMessage(err, "操作失败"));
   } finally {
     blockLoading.value = false;
+  }
+};
+
+// ── 通知弹窗 ─────────────────────────────────────────
+const notifications = ref<AppNotification[]>([]);
+const notificationsLoading = ref(false);
+const notificationsError = ref("");
+const notifSettings = ref<NotificationSettings>({ muted: false, mutedTypes: {} });
+const showNotifModal = ref(false);
+const showNotifSettings = ref(false);
+
+const openNotifModal = async () => {
+  if (!authStore.isLogin) {
+    loginDialog.open();
+    return;
+  }
+  showNotifModal.value = true;
+  showNotifSettings.value = false;
+  await loadNotifications();
+};
+
+const closeNotifModal = () => {
+  showNotifModal.value = false;
+};
+
+const loadNotifications = async () => {
+  notificationsLoading.value = true;
+  notificationsError.value = "";
+  try {
+    const res = await api.getNotifications();
+    notifications.value = res.data;
+    notifSettings.value = res.settings;
+    if (res.unreadCount > 0) {
+      void api.markNotificationsRead();
+      notifications.value = notifications.value.map((n) => ({ ...n, read: true }));
+    }
+  } catch (err) {
+    notificationsError.value = resolveErrorMessage(err, "加载通知失败");
+  } finally {
+    notificationsLoading.value = false;
+  }
+};
+
+/** 通知的展示文本 */
+const notificationText = (n: AppNotification): string => {
+  const name = n.actor?.name || n.actor?.username || "用户";
+  switch (n.type) {
+    case "like":
+      return n.target?.postTitle ? `${name} 赞了你的帖子「${n.target.postTitle}」` : `${name} 赞了你的内容`;
+    case "comment":
+      return n.target?.postTitle
+        ? `${name} 评论了你的帖子「${n.target.postTitle}」`
+        : `${name} 回复了你的评论`;
+    case "mention":
+      return n.target?.postTitle
+        ? `${name} 在帖子「${n.target.postTitle}」中 @了你`
+        : `${name} 在评论中 @了你`;
+    case "follow":
+      return `${name} 关注了你`;
+    default:
+      return `${name} 与你有了新互动`;
+  }
+};
+
+const notificationSnippet = (n: AppNotification): string =>
+  n.target?.snippet ? `「${n.target.snippet}」` : "";
+
+const formatNotifTime = (iso: string): string => {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Date.now() - t;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < minute) return "刚刚";
+  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`;
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  return new Date(t).toLocaleDateString("zh-CN");
+};
+
+const openNotification = (n: AppNotification) => {
+  closeNotifModal();
+  if (n.target?.postId) {
+    postModal.open(n.target.postId, {
+      preview: { title: n.target.postTitle || "" },
+      commentId: n.target.commentId,
+    });
+  } else if (n.actor?.documentId) {
+    navigateTo(`/profile/${n.actor.documentId}`);
+  }
+};
+
+/** 免打扰设置：切换全局免打扰 */
+const toggleNotifMuted = async () => {
+  try {
+    const next = await api.updateNotificationSettings({ muted: !notifSettings.value.muted });
+    notifSettings.value = next;
+  } catch {
+    message.error("设置失败");
+  }
+};
+
+/** 免打扰设置：切换某类型免打扰 */
+const toggleNotifTypeMuted = async (type: AppNotificationType) => {
+  try {
+    const mutedTypes = { ...notifSettings.value.mutedTypes };
+    mutedTypes[type] = !mutedTypes[type];
+    const next = await api.updateNotificationSettings({ mutedTypes });
+    notifSettings.value = next;
+  } catch {
+    message.error("设置失败");
   }
 };
 
@@ -637,6 +759,13 @@ onBeforeUnmount(() => {
               <span class="ik-stat__label">粉丝</span>
               <span class="ik-stat__num">{{ formatNumber(profile.followersCount ?? 0) }}</span>
             </span>
+            <template v-if="profile.isSelf">
+              <span class="ik-stat__sep">-</span>
+              <span class="ik-stat ik-stat--clickable ik-stat--notif" @click="openNotifModal">
+                <BellIcon class="ik-stat__notif-icon" />
+                <span class="ik-stat__label">通知</span>
+              </span>
+            </template>
           </div>
 
         </div>
@@ -868,6 +997,133 @@ onBeforeUnmount(() => {
                             <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
                           </div>
                         </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </Teleport>
+      </ClientOnly>
+
+      <!-- 通知弹窗 -->
+      <ClientOnly>
+        <Teleport to="body">
+          <Transition name="ik-overlay" appear>
+            <div v-if="showNotifModal" class="ik-overlay" @mousedown.self="closeNotifModal">
+              <div class="ik-overlay__stripe" aria-hidden="true"></div>
+              <div class="ik-notif-modal" @click.stop>
+                <div class="ik-notif-modal__outer">
+                  <div class="ik-notif-modal__inner">
+                    <div class="ik-notif-modal__header">
+                      <span class="ik-notif-modal__title">通知</span>
+                      <div class="ik-notif-modal__header-actions">
+                        <button
+                          type="button"
+                          class="ik-notif-modal__settings-btn"
+                          :class="{ 'is-muted': notifSettings.muted }"
+                          :aria-label="notifSettings.muted ? '关闭免打扰' : '开启免打扰'"
+                          :title="notifSettings.muted ? '已开启免打扰' : '免打扰'"
+                          @click="toggleNotifMuted"
+                        >
+                          <BellSlashIcon v-if="notifSettings.muted" class="ik-notif-modal__settings-icon" />
+                          <BellIcon v-else class="ik-notif-modal__settings-icon" />
+                        </button>
+                        <button class="ik-dialog__close" aria-label="关闭" @click="closeNotifModal">
+                          <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
+                        </button>
+                      </div>
+                    </div>
+                    <!-- 免打扰详细设置面板 -->
+                    <div v-if="showNotifSettings && !notifSettings.muted" class="ik-notif-modal__settings-panel">
+                      <div class="ik-notif-modal__settings-row">
+                        <span>点赞通知</span>
+                        <button
+                          type="button"
+                          class="ik-notif-modal__toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.like }"
+                          @click="toggleNotifTypeMuted('like')"
+                        >
+                          {{ notifSettings.mutedTypes?.like ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-notif-modal__settings-row">
+                        <span>评论通知</span>
+                        <button
+                          type="button"
+                          class="ik-notif-modal__toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.comment }"
+                          @click="toggleNotifTypeMuted('comment')"
+                        >
+                          {{ notifSettings.mutedTypes?.comment ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-notif-modal__settings-row">
+                        <span>@提及通知</span>
+                        <button
+                          type="button"
+                          class="ik-notif-modal__toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.mention }"
+                          @click="toggleNotifTypeMuted('mention')"
+                        >
+                          {{ notifSettings.mutedTypes?.mention ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-notif-modal__settings-row">
+                        <span>关注通知</span>
+                        <button
+                          type="button"
+                          class="ik-notif-modal__toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.follow }"
+                          @click="toggleNotifTypeMuted('follow')"
+                        >
+                          {{ notifSettings.mutedTypes?.follow ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                    </div>
+                    <div class="ik-notif-modal__body">
+                      <div v-if="notificationsLoading && !notifications.length" class="ik-notif-modal__empty">
+                        加载中…
+                      </div>
+                      <div v-else-if="notificationsError" class="ik-notif-modal__empty ik-notif-modal__empty--error">
+                        {{ notificationsError }}
+                      </div>
+                      <div v-else-if="!notifications.length" class="ik-notif-modal__empty">
+                        暂无通知
+                      </div>
+                      <template v-else>
+                        <button
+                          v-for="n in notifications"
+                          :key="n.id"
+                          type="button"
+                          class="ik-notif-item"
+                          :class="{ 'is-unread': !n.read }"
+                          @click="openNotification(n)"
+                        >
+                          <img
+                            :src="n.actor?.avatar || '/images/default-avatar.webp'"
+                            :alt="n.actor?.name || ''"
+                            class="ik-notif-item__avatar"
+                            @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+                          />
+                          <div class="ik-notif-item__content">
+                            <div class="ik-notif-item__title">
+                              <span class="ik-notif-item__icon" aria-hidden="true">
+                                <HeartIcon v-if="n.type === 'like'" class="ik-notif-item__icon-svg" />
+                                <ChatBubbleOvalLeftEllipsisIcon v-else-if="n.type === 'comment'" class="ik-notif-item__icon-svg" />
+                                <AtSymbolIcon v-else-if="n.type === 'mention'" class="ik-notif-item__icon-svg" />
+                                <UserPlusIcon v-else class="ik-notif-item__icon-svg" />
+                              </span>
+                              <span class="ik-notif-item__text">{{ notificationText(n) }}</span>
+                            </div>
+                            <span v-if="notificationSnippet(n)" class="ik-notif-item__snippet">
+                              {{ notificationSnippet(n) }}
+                            </span>
+                            <span class="ik-notif-item__time">{{ formatNotifTime(n.createdAt) }}</span>
+                          </div>
+                          <ArrowRightIcon class="ik-notif-item__arrow" aria-hidden="true" />
+                        </button>
                       </template>
                     </div>
                   </div>
@@ -1393,6 +1649,219 @@ onBeforeUnmount(() => {
   height: 100%;
   color: rgba(255,255,255,0.4);
   font-size: 14px;
+}
+
+/* ── 通知弹窗 ──────────────────────────────────── */
+.ik-notif-modal {
+  position: relative;
+  z-index: 1;
+  width: 420px;
+  max-width: 92%;
+  height: 60vh;
+  max-height: 80vh;
+}
+.ik-notif-modal__outer {
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  background: #2D2C2D;
+  border-radius: 18px 0 18px 18px;
+  overflow: hidden;
+}
+.ik-notif-modal__inner {
+  width: 100%;
+  height: 100%;
+  background: #141414;
+  border: 3px solid #000;
+  border-radius: 16px 0 16px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ik-notif-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: url("/images/tab-bg-point.webp") repeat, linear-gradient(180deg, #161616 0%, #080808 100%);
+  flex-shrink: 0;
+}
+.ik-notif-modal__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-notif-modal__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ik-notif-modal__settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+.ik-notif-modal__settings-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+.ik-notif-modal__settings-btn.is-muted {
+  color: #ff6b6b;
+}
+.ik-notif-modal__settings-icon {
+  width: 18px;
+  height: 18px;
+}
+.ik-notif-modal__settings-panel {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ik-notif-modal__settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.ik-notif-modal__settings-row:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ik-notif-modal__toggle {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(191, 255, 9, 0.2);
+  color: #BFFF09;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+.ik-notif-modal__toggle:hover {
+  background: rgba(191, 255, 9, 0.3);
+}
+.ik-notif-modal__toggle.is-off {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+}
+.ik-notif-modal__toggle.is-off:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.ik-notif-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ik-notif-modal__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255,255,255,0.4);
+  font-size: 14px;
+}
+.ik-notif-modal__empty--error {
+  color: #ff6b6b;
+}
+
+/* ── 通知列表项 ──────────────────────────────── */
+.ik-notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ik-notif-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.ik-notif-item.is-unread {
+  box-shadow: inset 3px 0 0 0 var(--ik-primary, #bfff09);
+}
+.ik-notif-item__avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.ik-notif-item__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ik-notif-item__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.ik-notif-item__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.ik-notif-item__icon-svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ik-primary, #bfff09);
+}
+.ik-notif-item__text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ddd;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-notif-item__snippet {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-notif-item__time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+.ik-notif-item__arrow {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── 统计区域通知图标 ──────────────────────────── */
+.ik-stat--notif {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ik-stat__notif-icon {
+  width: 14px;
+  height: 14px;
 }
 
 @keyframes ik-spin {
