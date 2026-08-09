@@ -486,8 +486,6 @@ function toPost(raw: unknown, apiBaseUrl: string): Post {
     liked: data.liked === true,
     favorited: data.favorited === true,
     favoritesCount: Number(data.favoritesCount ?? 0),
-    dennyCount: Number(data.dennyCount ?? 0),
-    hasGivenDenny: data.hasGivenDenny === true,
     isAnonymous: data.isAnonymous === true,
     isHidden: data.isHidden === true,
     isOwner: data.isOwner === true,
@@ -2055,7 +2053,7 @@ export function useApi() {
     };
   };
 
-  // ── 丁尼(Denny)货币系统 ───────────────────────────────
+  // ── 一键三连 ────────────────────────────────────────
 
   /**
    * 一键三连：点赞 + 收藏（幂等）
@@ -2068,10 +2066,6 @@ export function useApi() {
     likesCount: number;
     favorited: boolean;
     favoritesCount: number;
-    coinGiven: boolean;
-    coinReason: string;
-    dennyCount: number;
-    newBalance: number | null;
   }> => {
     const response = await $api("/api/articles/triple", {
       method: "POST",
@@ -2083,10 +2077,6 @@ export function useApi() {
       likesCount: Number(d.likesCount || 0),
       favorited: d.favorited === true,
       favoritesCount: Number(d.favoritesCount || 0),
-      coinGiven: d.coinGiven === true,
-      coinReason: String(d.coinReason || "FAILED"),
-      dennyCount: Number(d.dennyCount || 0),
-      newBalance: typeof d.newBalance === "number" ? d.newBalance : null,
     };
   };
 

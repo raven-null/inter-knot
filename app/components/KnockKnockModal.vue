@@ -590,7 +590,7 @@ const bubbleText = (msg: DmMessage): BubbleRender => {
     if ((k === "comment" || k === "reply" || k === "mention") && msg.comment?.content) {
       return { mode: "rich", content: msg.comment.content };
     }
-    // 互动类（like / favorite / denny / system）→ 走后端预渲染的 plain content
+    // 互动类（like / favorite / system）→ 走后端预渲染的 plain content
   }
   return msg.content ?? "";
 };
@@ -665,7 +665,7 @@ const isLikeOnComment = (msg: DmMessage): boolean =>
 /** quote 卡左侧 label */
 const quoteLabel = (msg: DmMessage): string => {
   if (isLikeOnComment(msg)) return "评论";
-  if (msg.notificationKind === "like" || msg.notificationKind === "favorite" || msg.notificationKind === "denny") return "帖子";
+  if (msg.notificationKind === "like" || msg.notificationKind === "favorite") return "帖子";
   if (msg.notificationKind === "system") return "帖子";
   return "评论帖子"; // comment / reply / mention：引用所在帖子
 };

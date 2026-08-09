@@ -117,8 +117,6 @@ export interface Post {
   liked?: boolean;
   favorited?: boolean;
   favoritesCount?: number;
-  dennyCount?: number;
-  hasGivenDenny?: boolean;
   isAnonymous?: boolean;
   /** 仅作者本人可见：内容因举报被隐藏（他人访问详情直接 404） */
   isHidden?: boolean;
@@ -474,8 +472,7 @@ export type DmNotificationKind =
   | "comment"
   | "reply"
   | "mention"
-  | "system"
-  | "denny";
+  | "system";
 
 /**
  * pseudo conversation id 类型标记。真 DM 的 documentId 是 strapi 给的 hash；

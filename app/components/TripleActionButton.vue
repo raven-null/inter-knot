@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
       <IkRollingDigit :value="likesCount" :fallback="fallback" />
     </span>
 
-    <!-- 三连迸发：👍 / 丁尼 / ⭐ -->
+    <!-- 三连迸发：👍 / ⭐ -->
     <Teleport v-if="bursting" to="body">
       <div class="ik-triple__burst-layer" aria-hidden="true">
         <span
@@ -263,12 +263,6 @@ onBeforeUnmount(() => {
           :style="{ '--tx': burstOriginX + 'px', '--ty': burstOriginY + 'px' }"
         >
           <HandThumbUpIconSolid class="ik-triple__burst-icon" />
-        </span>
-        <span
-          class="ik-triple__burst ik-triple__burst--coin"
-          :style="{ '--tx': burstOriginX + 'px', '--ty': burstOriginY + 'px' }"
-        >
-          <img src="/images/materials/dennies_v2.webp" alt="" />
         </span>
         <span
           class="ik-triple__burst ik-triple__burst--star"
@@ -354,17 +348,11 @@ onBeforeUnmount(() => {
   object-fit: contain;
 }
 
-/* 三枚图标各自抛物线轨迹；起始位置由 JS 在触发时设置（这里用 CSS 变量兜底） */
+/* 两枚图标各自抛物线轨迹；起始位置由 JS 在触发时设置（这里用 CSS 变量兜底） */
 .ik-triple__burst--like {
   --bx: -28px;
   --by: -42px;
   animation: ik-triple-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-.ik-triple__burst--coin {
-  --bx: 0px;
-  --by: -52px;
-  animation: ik-triple-burst 620ms cubic-bezier(0.22, 1, 0.36, 1) 40ms forwards;
 }
 
 .ik-triple__burst--star {

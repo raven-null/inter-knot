@@ -105,8 +105,6 @@ export function toPost(doc: Doc | null | undefined, state: ViewerState = {}): Do
     likesCount: Number(doc.likes_count || 0),
     commentsCount: Number(doc.comments_count || 0),
     favoritesCount: Number(doc.favorites_count || 0),
-    dennyCount: 0,
-    hasGivenDenny: false,
     isRead: state.readIds ? state.readIds.has(documentId) : false,
     liked: state.likedIds ? state.likedIds.has(documentId) : false,
     favorited: state.favoritedIds ? state.favoritedIds.has(documentId) : false,

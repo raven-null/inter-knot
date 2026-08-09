@@ -470,10 +470,6 @@ export async function triple(req: Request): Promise<Response> {
     likesCount: Number(fresh?.likes_count || 0),
     favorited,
     favoritesCount: Number(fresh?.favorites_count || 0),
-    coinGiven: true,
-    coinReason: "OK",
-    dennyCount: 0,
-    newBalance: null,
   });
 }
 
