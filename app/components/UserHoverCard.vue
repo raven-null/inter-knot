@@ -405,10 +405,11 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* ── Avatar + name + follow row (below banner) ── */
+/* ── Avatar + name + follow row (half overlapping banner) ── */
 .ik-hovercard__avatar-row {
   position: relative;
-  padding: 14px 16px 0;
+  padding: 0 16px;
+  margin-top: -26px;
   z-index: 1;
   display: flex;
   align-items: center;
