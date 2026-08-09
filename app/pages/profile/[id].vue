@@ -158,6 +158,11 @@ const showFollowers = () => {
 const closeFollowModal = () => {
   followModalType.value = null;
 };
+
+const openFollowProfile = (documentId: string) => {
+  closeFollowModal();
+  void navigateTo(`/profile/${documentId}`);
+};
 const followModalTitle = computed(() =>
   followModalType.value === "following" ? "关注" : "粉丝",
 );
@@ -850,7 +855,7 @@ onBeforeUnmount(() => {
                           v-for="user in followModalUsers"
                           :key="user.documentId"
                           class="ik-follow-item"
-                          @click="navigateTo(`/profile/${user.documentId}`); closeFollowModal()"
+                          @click="openFollowProfile(user.documentId)"
                         >
                           <img
                             :src="user.avatar || '/images/default-avatar.webp'"
