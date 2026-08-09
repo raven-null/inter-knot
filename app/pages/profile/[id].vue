@@ -374,9 +374,40 @@ onMounted(async () => {
     void loadProfileFavorites();
     void loadProfileHistory();
   }
+  startProfileRefresh();
 });
 
+// 统计信息（浏览/评论/点赞/关注/粉丝）定期刷新：避免长时间停留时数据陈旧。
+const PROFILE_REFRESH_MS = 15_000;
+let profileRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+const startProfileRefresh = () => {
+  if (!import.meta.client) return;
+  if (profileRefreshTimer) clearInterval(profileRefreshTimer);
+  profileRefreshTimer = setInterval(() => {
+    // 页面隐藏时不刷新，避免浪费请求
+    if (document.visibilityState === "hidden") return;
+    void refreshProfileStats();
+  }, PROFILE_REFRESH_MS);
+};
+
+const refreshProfileStats = async () => {
+  if (loading.value) return;
+  try {
+    // 失效 profile 缓存后重新拉取，拿到最新统计
+    api.invalidateQueries(["profile", profileId.value]);
+    const fresh = await api.getProfile(profileId.value);
+    profile.value = fresh;
+  } catch {
+    /* 静默：刷新失败不影响当前展示 */
+  }
+};
+
 onBeforeUnmount(() => {
+  if (profileRefreshTimer) {
+    clearInterval(profileRefreshTimer);
+    profileRefreshTimer = null;
+  }
   profileTabLabel.value = null;
 });
 </script>
