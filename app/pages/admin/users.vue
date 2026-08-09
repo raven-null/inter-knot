@@ -18,6 +18,15 @@ const drawerOpen = ref(false);
 const current = ref<any>(null);
 const currentPosts = ref<any[]>([]);
 
+// 添加用户相关
+const addUserDialogOpen = ref(false);
+const newUser = ref({
+  name: "",
+  username: "",
+  uid: "",
+});
+const addUserLoading = ref(false);
+
 const load = async () => {
   loading.value = true;
   try {
@@ -99,6 +108,33 @@ const openDetail = async (u: any) => {
   }
 };
 
+const openAddUserDialog = () => {
+  newUser.value = { name: "", username: "", uid: "" };
+  addUserDialogOpen.value = true;
+};
+
+const addUser = async () => {
+  if (!newUser.value.name.trim()) {
+    message.error("请输入用户名");
+    return;
+  }
+  addUserLoading.value = true;
+  try {
+    await admin.createUser({
+      name: newUser.value.name.trim(),
+      username: newUser.value.username.trim() || undefined,
+      uid: newUser.value.uid ? Number(newUser.value.uid) : undefined,
+    });
+    message.success("用户创建成功");
+    addUserDialogOpen.value = false;
+    await load();
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "创建用户失败"));
+  } finally {
+    addUserLoading.value = false;
+  }
+};
+
 onMounted(load);
 </script>
 
@@ -113,6 +149,7 @@ onMounted(load);
         @keyup.enter="doSearch"
       />
       <button class="ik-admin-btn ik-admin-btn--primary" @click="doSearch">搜索</button>
+      <button class="ik-admin-btn ik-admin-btn--primary" @click="openAddUserDialog">添加用户</button>
     </div>
 
     <AdminCard>
@@ -156,7 +193,6 @@ onMounted(load);
                 @change="changeRole(u, ($event.target as HTMLSelectElement).value)"
               >
                 <option value="user">用户</option>
-                <option value="moderator">版主</option>
                 <option value="admin">管理员</option>
               </select>
             </td>
@@ -227,5 +263,117 @@ onMounted(load);
         <div v-else style="color: #666; font-size: 12px">暂无帖子</div>
       </template>
     </AdminDrawer>
+
+    <!-- 添加用户弹窗 -->
+    <Teleport to="body">
+      <Transition name="ik-overlay" appear>
+        <div v-if="addUserDialogOpen" class="ik-overlay" @mousedown.self="addUserDialogOpen = false">
+          <div class="ik-overlay__stripe" aria-hidden="true"></div>
+          <div class="ik-add-user-dialog" @click.stop>
+            <div class="ik-add-user-dialog__outer">
+              <div class="ik-add-user-dialog__inner">
+                <div class="ik-add-user-dialog__header">
+                  <span class="ik-add-user-dialog__title">添加用户</span>
+                  <button class="ik-dialog__close" aria-label="关闭" @click="addUserDialogOpen = false">
+                    <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
+                  </button>
+                </div>
+                <div class="ik-add-user-dialog__body">
+                  <div class="ik-add-user-dialog__field">
+                    <label class="ik-add-user-dialog__label">用户名 *</label>
+                    <input
+                      v-model="newUser.name"
+                      class="ik-admin-input"
+                      placeholder="请输入用户名"
+                    />
+                  </div>
+                  <div class="ik-add-user-dialog__field">
+                    <label class="ik-add-user-dialog__label">昵称</label>
+                    <input
+                      v-model="newUser.username"
+                      class="ik-admin-input"
+                      placeholder="请输入昵称（可选）"
+                    />
+                  </div>
+                  <div class="ik-add-user-dialog__field">
+                    <label class="ik-add-user-dialog__label">UID</label>
+                    <input
+                      v-model="newUser.uid"
+                      class="ik-admin-input"
+                      type="number"
+                      placeholder="请输入 UID（可选）"
+                    />
+                  </div>
+                  <div class="ik-add-user-dialog__actions">
+                    <button class="ik-admin-btn" @click="addUserDialogOpen = false">取消</button>
+                    <button
+                      class="ik-admin-btn ik-admin-btn--primary"
+                      :disabled="addUserLoading || !newUser.name.trim()"
+                      @click="addUser"
+                    >
+                      {{ addUserLoading ? '创建中...' : '创建' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.ik-add-user-dialog {
+  position: relative;
+  z-index: 1;
+  width: 400px;
+  max-width: 92%;
+}
+.ik-add-user-dialog__outer {
+  width: 100%;
+  padding: 3px;
+  background: #2D2C2D;
+  border-radius: 18px 0 18px 18px;
+}
+.ik-add-user-dialog__inner {
+  width: 100%;
+  background: #141414;
+  border: 3px solid #000;
+  border-radius: 16px 0 16px 16px;
+}
+.ik-add-user-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ik-add-user-dialog__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-add-user-dialog__body {
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ik-add-user-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ik-add-user-dialog__label {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+.ik-add-user-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+</style>

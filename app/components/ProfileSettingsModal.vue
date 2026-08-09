@@ -362,10 +362,6 @@ onBeforeUnmount(() => {
                       </div>
                       <div class="ik-edit-name__meta">
                         <span class="ik-edit-name__count">{{ nameInput.trim().length }}/{{ NAME_MAX }}</span>
-                        <div class="ik-edit-name__cost">
-                          <span class="ik-edit-name__cost-amount">10</span>
-                          <img src="/images/materials/dennies_v2.webp" alt="Dennies" class="ik-edit-name__cost-img" draggable="false" />
-                        </div>
                       </div>
                     </div>
                     <z-button
@@ -820,24 +816,6 @@ onBeforeUnmount(() => {
   gap: 8px; /* 缩窄字数与费用的间距，使其靠得更近 */
   margin-top: -6px;
   width: 100%;
-}
-
-.ik-edit-name__cost {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.ik-edit-name__cost-amount {
-  font-size: 12px; /* 调小至 12px，与字数统计（12px）完全等大对齐 */
-  font-weight: 700;
-  color: var(--ik-primary);
-}
-
-.ik-edit-name__cost-img {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
 }
 
 .ik-edit-name__count {

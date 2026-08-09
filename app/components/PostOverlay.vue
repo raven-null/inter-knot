@@ -653,38 +653,9 @@ const likeArticle = async () => {
     const result = await api.toggleLike("article", post.value.id);
     post.value.liked = result.liked;
     post.value.likesCount = result.likesCount;
-    message.success(result.liked ? "已点赞（￣︶￣）↗　" : "已取消点赞(；′⌒`)");
+    message.success(result.liked ? "已点赞" : "已取消点赞");
   } catch (err) {
     message.error(resolveErrorMessage(err, "点赞失败"));
-  }
-};
-
-const tripling = ref(false);
-const tripleCharge = ref({ progress: 0, active: false });
-const onTripleCharge = (payload: { progress: number; active: boolean }) => {
-  tripleCharge.value = payload;
-};
-
-const handleTriple = async () => {
-  if (!post.value) return;
-  if (!auth.isLogin) {
-    loginDialog.open();
-    return;
-  }
-  if (tripling.value) return;
-  tripling.value = true;
-
-  try {
-    const result = await api.tripleAction(post.value.id);
-    post.value.liked = result.liked;
-    post.value.likesCount = result.likesCount;
-    post.value.favorited = result.favorited;
-    post.value.favoritesCount = result.favoritesCount;
-    message.success("三连成功！(￣︶￣)↗");
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "三连失败"));
-  } finally {
-    tripling.value = false;
   }
 };
 
@@ -1526,15 +1497,17 @@ onBeforeUnmount(() => {
 
                         <div class="ik-engage-bar__interact-container">
                           <div class="ik-engage-bar__buttons">
-                            <TripleActionButton
-                              :liked="post.liked"
-                              :likes-count="postLikeCount"
-                              :can-triple="auth.isLogin && !isOwner"
-                              :busy="tripling"
-                              @like="likeArticle"
-                              @triple="handleTriple"
-                              @charge="onTripleCharge"
-                            />
+                            <button
+                              type="button"
+                              class="ik-engage-bar__action"
+                              :class="{ 'ik-engage-bar__action--active': post.liked }"
+                              :disabled="!auth.isLogin"
+                              @click="likeArticle"
+                            >
+                              <HandThumbUpIconSolid v-if="post.liked" class="ik-engage-icon" aria-hidden="true" />
+                              <HandThumbUpIcon v-else class="ik-engage-icon" aria-hidden="true" />
+                              <IkRollingDigit :value="postLikeCount" />
+                            </button>
                             <button
                               type="button"
                               class="ik-engage-bar__action"
@@ -1542,11 +1515,8 @@ onBeforeUnmount(() => {
                               :disabled="favoriting"
                               @click="favoriteArticle"
                             >
-                              <span class="ik-triple__icon-shell">
-                                <StarIconSolid v-if="post.favorited" class="ik-engage-icon" aria-hidden="true" />
-                                <StarIcon v-else class="ik-engage-icon" aria-hidden="true" />
-                                <TripleChargeRing :progress="tripleCharge.progress" :show="tripleCharge.active" />
-                              </span>
+                              <StarIconSolid v-if="post.favorited" class="ik-engage-icon" aria-hidden="true" />
+                              <StarIcon v-else class="ik-engage-icon" aria-hidden="true" />
                               <IkRollingDigit :value="post.favoritesCount ?? 0" />
                             </button>
                             <z-dropdown

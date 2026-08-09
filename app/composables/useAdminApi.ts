@@ -65,6 +65,11 @@ export function useAdminApi() {
     return $api(`/api/admin/users/${documentId}`, { method: "DELETE" });
   };
 
+  /** 创建用户 */
+  const createUser = async (payload: { name: string; username?: string; uid?: number }) => {
+    return $api("/api/admin/users", { method: "POST", body: payload });
+  };
+
   const posts = async (page = 1, pageSize = 20, q = "", status = "") => {
     return $api<Paginated<AdminPost>>("/api/admin/posts", {
       query: { page: String(page), pageSize: String(pageSize), q, status },
@@ -165,6 +170,7 @@ export function useAdminApi() {
     users,
     updateUser,
     deleteUser,
+    createUser,
     posts,
     updatePost,
     deleteArticle,
