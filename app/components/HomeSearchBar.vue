@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/vue/24/outline";
 import type { SearchSuggestion } from "~/composables/useApi";
+import { useDebounceFn } from "@vueuse/core";
 
 const api = useApi();
 const route = useRoute();
@@ -21,6 +22,13 @@ const syncKeyword = () => {
   keyword.value = pickFirstQuery(route.query.q as string | string[] | undefined);
 };
 
+// 实时搜索：输入变化（防抖）即更新路由 query，首页 watcher 会自动重拉列表；
+// 清空则回退到无搜索状态（恢复搜索前页面）。
+const debouncedPush = useDebounceFn(() => {
+  const q = keyword.value.trim();
+  void router.push({ path: "/", query: q ? { q } : {} });
+}, 300);
+
 const search = async () => {
   const q = keyword.value.trim();
   suggestions.value = [];
@@ -37,6 +45,8 @@ const onInput = () => {
   const k = keyword.value.trim();
   if (suggestTimer) clearTimeout(suggestTimer);
   suggestSeq += 1;
+  // 输入即搜索：防抖更新下方帖子列表
+  debouncedPush();
   if (!k) {
     suggestions.value = [];
     suggestVisible.value = false;
@@ -59,6 +69,8 @@ const clearKeyword = () => {
   keyword.value = "";
   suggestions.value = [];
   suggestVisible.value = false;
+  // 清空即恢复搜索前页面状态
+  void router.push({ path: "/", query: {} });
   inputRef.value?.focus();
 };
 
