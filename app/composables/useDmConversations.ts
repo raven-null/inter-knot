@@ -173,6 +173,12 @@ let subscribed = false;
 let typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const TYPING_TTL_MS = 4_000;
 
+// Netlify Functions 不支持 WebSocket（ticket 恒为空），WS 通道实际不可用。
+// 为保证消息能及时到达，弹窗打开期间按固定间隔轮询：刷新会话列表 +
+// 若正在某个会话中则拉取其最新消息（ensureMessages force 会与本地缓存去重）。
+const DM_POLL_MS = 5_000;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
 export function useDmConversations(): UseDmConversations {
   const conversations = useState<DmConversationSummary[]>(
     "dm:conversations",
@@ -1054,15 +1060,35 @@ export function useDmConversations(): UseDmConversations {
     typingTimers.set(key, timer);
   };
 
+  /** 轮询兜底：Netlify 无 WS，弹窗打开期间定时刷新会话列表与当前会话消息 */
+  const startPolling = () => {
+    if (pollTimer) return;
+    pollTimer = setInterval(() => {
+      void refresh({ silent: true });
+      const activeId = activeConversationId.value;
+      if (activeId) {
+        void ensureMessages(activeId, true).catch(() => { /* 静默 */ });
+      }
+    }, DM_POLL_MS);
+  };
+
+  const stopPolling = () => {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+
   const startStream = () => {
     if (subscribed) {
       // 已订阅；只保证 stream 在运行
       stream.start();
+      startPolling();
       return;
     }
     subscribed = true;
     stream.start();
-
+    startPolling();
     unsubscribeAll.push(stream.on<MessageCreatedData>("message.created", onMessageCreated));
     unsubscribeAll.push(stream.on<MessageEditedData>("message.edited", onMessageEdited));
     unsubscribeAll.push(stream.on<{ content: string }>("message.delta", onMessageDelta));
@@ -1076,6 +1102,7 @@ export function useDmConversations(): UseDmConversations {
   };
 
   const stopStream = () => {
+    stopPolling();
     for (const off of unsubscribeAll) {
       try { off(); } catch { /* noop */ }
     }
