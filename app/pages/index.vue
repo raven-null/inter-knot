@@ -615,8 +615,8 @@ watch(
 const selectCategory = (slug: string) => {
   // 选分类即回到推荐流（关注/收藏是独立筛选，不与分类叠加）。
   if (feedMode.value !== "recommend") feedMode.value = "recommend";
-  // 再次点击当前分类：取消筛选回到「全部 / 最新」
-  if (slug === selectedCategory.value) {
+  // 「全部」恒回到全部分类；再次点击当前分类：取消筛选回到全部
+  if (slug === "" || slug === selectedCategory.value) {
     selectedCategory.value = "";
     return;
   }
@@ -907,6 +907,14 @@ onBeforeUnmount(() => {
            恒渲染（不随 categories 异步加载出现/消失），为分类栏预留固定高度，
            避免无缓存冷启动时频道列表后到导致下方内容跳动。 -->
       <nav class="ik-category-tabs" aria-label="帖子频道">
+        <button
+          type="button"
+          class="ik-category-tab"
+          :class="{ 'ik-category-tab--active': selectedCategory === '' }"
+          @click="selectCategory('')"
+        >
+          全部
+        </button>
         <button
           v-for="cat in categories"
           :key="cat.slug"
