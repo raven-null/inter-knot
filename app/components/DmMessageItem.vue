@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { DocumentTextIcon, ArrowPathIcon, ClipboardDocumentIcon, CheckIcon } from "@heroicons/vue/24/outline";
-import type { DmMessage } from "~/types/entities";
+import type { DmMessage, ExternalVideo } from "~/types/entities";
 import type { EnrichedMessage } from "~/utils/dm-view";
 import { hasBubbleLinks, parseBubbleSegments } from "~/utils/dm-view";
 import { buildWorkflowSteps, type WorkflowStepView } from "~/utils/workflow";
 import { formatTime, formatFullTime } from "~/utils/time";
+import { toCanonicalUrl, toThumbUrl } from "~/utils/image";
+
+const { openGallery } = useLightGallery();
 
 /**
  * 单条 DM 消息（Phase 4 拆分自 KnockKnockModal）：
@@ -96,6 +99,67 @@ const messageSegments = computed((): string[] | null => {
   const segs = steps.map((s) => s.text);
   return splitBySegments(rendered, segs);
 });
+
+/** 是否为图片消息 */
+const isImageMessage = computed(() => props.entry.msg.kind === "image" && !!props.entry.msg.content);
+
+/** 图片 URL */
+const imageUrl = computed(() => {
+  if (!isImageMessage.value) return null;
+  return props.entry.msg.content;
+});
+
+/** 打开图片灯箱 */
+const openImageLightbox = () => {
+  const url = imageUrl.value;
+  if (!url) return;
+  const canonicalUrl = toCanonicalUrl(url);
+  openGallery([{ src: canonicalUrl, thumb: toThumbUrl(canonicalUrl) }], 0);
+};
+
+/** Bilibili 视频检测 */
+const BILIBILI_URL_RE = /(?:bilibili\.com\/(?:video\/|s\/video\/)?(BV[0-9A-Za-z]{10})|bilibili\.com\/video\/(?:av)?(\d+)|b23\.tv\/[0-9A-Za-z]+)/i;
+const BVID_RE = /BV[0-9A-Za-z]{10}/;
+const AVID_RE = /(?:av)?(\d+)/i;
+
+/** 检测消息中是否包含 Bilibili 视频链接 */
+const bilibiliVideo = computed<ExternalVideo | null>(() => {
+  if (props.entry.msg.kind !== "text") return null;
+  const text = props.entry.msg.content || "";
+  const urlMatch = text.match(BILIBILI_URL_RE);
+  if (!urlMatch) {
+    const bvidMatch = text.match(BVID_RE);
+    if (bvidMatch) {
+      return {
+        provider: "bilibili",
+        bvid: bvidMatch[0],
+        embedUrl: `https://player.bilibili.com/player.html?bvid=${bvidMatch[0]}&autoplay=0&danmaku=0&poster=1`,
+      };
+    }
+    return null;
+  }
+  let bvid: string | undefined;
+  let aid: number | undefined;
+  if (urlMatch[1]) bvid = urlMatch[1];
+  else if (urlMatch[2]) aid = Number.parseInt(urlMatch[2], 10) || undefined;
+  if (!bvid && !aid) {
+    const bvidMatch = text.match(BVID_RE);
+    if (bvidMatch) bvid = bvidMatch[0];
+  }
+  if (!bvid && !aid) return null;
+  const params = new URLSearchParams();
+  if (bvid) params.set("bvid", bvid);
+  if (aid) params.set("aid", String(aid));
+  params.set("autoplay", "0");
+  params.set("danmaku", "0");
+  params.set("poster", "1");
+  return {
+    provider: "bilibili",
+    bvid,
+    aid,
+    embedUrl: `https://player.bilibili.com/player.html?${params.toString()}`,
+  };
+});
 </script>
 
 <template>
@@ -172,10 +236,28 @@ const messageSegments = computed((): string[] | null => {
       <div
         v-else
         class="ik-knock__msg-bubble"
-        :class="{ 'is-deleted': !!entry.msg.deletedAt }"
+        :class="{ 'is-deleted': !!entry.msg.deletedAt, 'is-image': isImageMessage, 'is-video': !!bilibiliVideo }"
         :title="fullTime || undefined"
       >
-        <template v-if="typeof entry.rendered === 'object'">
+        <!-- 图片消息 -->
+        <div
+          v-if="isImageMessage"
+          class="ik-knock__msg-image-wrap"
+          @click="openImageLightbox"
+        >
+          <img
+            :src="toThumbUrl(imageUrl!, 360)"
+            :alt="entry.msg.content || '图片'"
+            class="ik-knock__msg-image"
+            loading="lazy"
+            @error="($event.target as HTMLImageElement).src = imageUrl!"
+          />
+        </div>
+        <!-- Bilibili 视频消息 -->
+        <div v-else-if="bilibiliVideo" class="ik-knock__msg-video-wrap">
+          <BilibiliPlayer :video="bilibiliVideo" />
+        </div>
+        <template v-else-if="typeof entry.rendered === 'object'">
           <CommentBody :content="entry.rendered.content" />
         </template>
         <span
@@ -409,23 +491,76 @@ const messageSegments = computed((): string[] | null => {
 }
 
 /*
- * 白底气泡里的 @mention 芯片需要单独配色：
- * 默认 MentionChip 是「黄绿字 + 透明底」，在白底上几乎不可读。
- * 这里用 :deep 穿透 scoped 边界，把它改成「黄底黑字小标签」——
- * 与 KnockKnock 选中态的 #fbfe00 主色一致，整体语言统一。
+ * 白底气泡里的 @mention 芯片配色：
+ * 与帖子详情页 MentionChip 保持一致，使用黄绿文字 (#BFFF09)。
+ * 自己发的蓝底气泡：直接用黄绿字；对方发的白底气泡：加深色背景保证可读性。
  */
 .ik-knock__msg-bubble :deep(.ik-mention) {
-  background-color: #fbfe00;
-  color: #000;
-  padding: 0 6px;
-  border-radius: 4px;
-  font-weight: 700;
+  color: #BFFF09;
+  font-weight: 600;
+  padding: 0 4px;
+  border-radius: 3px;
+  transition: background-color 140ms ease;
 }
 
 .ik-knock__msg-bubble :deep(.ik-mention:hover),
 .ik-knock__msg-bubble :deep(.ik-mention:focus-visible) {
-  background-color: #e8eb00;
-  color: #000;
+  background-color: rgba(191, 255, 9, 0.16);
+  outline: none;
+}
+
+/* 对方发的白底气泡：@mention 需要更深的文字色保证对比度 */
+.ik-knock__msg-bubble:not(.is-mine) :deep(.ik-mention) {
+  color: #7acc00;
+}
+
+.ik-knock__msg-bubble:not(.is-mine) :deep(.ik-mention:hover),
+.ik-knock__msg-bubble:not(.is-mine) :deep(.ik-mention:focus-visible) {
+  background-color: rgba(122, 204, 0, 0.16);
+}
+
+/* ── 图片消息 ── */
+.ik-knock__msg-bubble.is-image {
+  padding: 4px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.ik-knock__msg-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 280px;
+  max-height: 280px;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.ik-knock__msg-image {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  transition: opacity 140ms ease;
+}
+
+.ik-knock__msg-image-wrap:hover .ik-knock__msg-image {
+  opacity: 0.9;
+}
+
+/* ── 视频消息 ── */
+.ik-knock__msg-bubble.is-video {
+  padding: 4px;
+  overflow: hidden;
+}
+
+.ik-knock__msg-video-wrap {
+  width: 320px;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 /* ── 消息入场动画（仅增量到达的新消息，仅动画 transform + opacity 不触发重排） ── */
