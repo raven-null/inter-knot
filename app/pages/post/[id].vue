@@ -1783,6 +1783,10 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
 }
 
 .ik-page__cover-nav {
