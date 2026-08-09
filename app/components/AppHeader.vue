@@ -1056,7 +1056,7 @@ watch(
   transition: width 0.3s ease;
 }
 
-/* 桌面端等级入口：Lv 徽章（点击进等级页） */
+/* 桌面端等级入口：Lv 徽章（点击进等级页，无背景） */
 .ik-header-level-link {
   display: inline-flex;
   align-items: center;
@@ -1066,13 +1066,12 @@ watch(
   padding: 0 8px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #4661fd 0%, #10bff0 100%);
+  background: transparent;
   color: #fff;
   font-size: 13px;
   font-weight: 900;
   font-style: italic;
   line-height: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   flex-shrink: 0;
   transition: filter 0.2s ease, transform 0.2s ease;
