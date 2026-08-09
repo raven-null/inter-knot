@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Avatar (overlapping banner) -->
+          <!-- Avatar + name + follow (below banner) -->
           <div class="ik-hovercard__avatar-row">
             <div class="ik-hovercard__avatar-wrap" @click="goProfile">
               <img
@@ -287,20 +287,11 @@ onBeforeUnmount(() => {
                 {{ profile.level }}
               </span>
             </div>
-          </div>
-
-          <!-- Name + signature (below avatar) -->
-          <div class="ik-hovercard__info">
             <div class="ik-hovercard__name-row" @click="goProfile">
               <span class="ik-hovercard__name">{{ profile.name || profile.login || "匿名用户" }}</span>
             </div>
-            <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
-            <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
-          </div>
-
-          <!-- Follow button (below banner) -->
-          <div v-if="canFollow" class="ik-hovercard__follow-row">
             <button
+              v-if="canFollow"
               type="button"
               class="ik-hovercard__follow"
               :class="{ 'is-following': profile.isFollowing }"
@@ -309,6 +300,12 @@ onBeforeUnmount(() => {
             >
               {{ followLoading ? '…' : profile.isFollowing ? '已关注' : '关注' }}
             </button>
+          </div>
+
+          <!-- Signature (below avatar) -->
+          <div class="ik-hovercard__info">
+            <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
+            <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
           </div>
 
           <div v-if="profile.stats" class="ik-hovercard__stats">
@@ -408,18 +405,21 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* ── Avatar row (overlapping banner) ──────────── */
+/* ── Avatar + name + follow row (below banner) ── */
 .ik-hovercard__avatar-row {
   position: relative;
-  padding: 0 16px;
-  margin-top: -26px;
+  padding: 14px 16px 0;
   z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .ik-hovercard__avatar-wrap {
   position: relative;
   display: inline-block;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .ik-hovercard__avatar {
@@ -450,13 +450,9 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-.ik-hovercard__info {
-  padding: 8px 16px 0;
-  min-width: 0;
-}
-
 .ik-hovercard__name-row {
   cursor: pointer;
+  min-width: 0;
 }
 
 .ik-hovercard__name {
@@ -470,6 +466,26 @@ onBeforeUnmount(() => {
 
 .ik-hovercard__name:hover {
   color: #BFFF09;
+}
+
+.ik-hovercard__follow {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 5px 18px;
+  border: 1px solid var(--ik-primary, #bfff09);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ik-primary, #bfff09);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.ik-hovercard__info {
+  padding: 6px 16px 0;
+  min-width: 0;
 }
 
 .ik-hovercard__bio {
@@ -487,26 +503,6 @@ onBeforeUnmount(() => {
 
 .ik-hovercard__bio--empty {
   color: rgba(255, 255, 255, 0.3);
-}
-
-.ik-hovercard__follow-row {
-  display: flex;
-  justify-content: flex-start;
-  padding: 10px 16px 0;
-}
-
-.ik-hovercard__follow {
-  flex-shrink: 0;
-  padding: 5px 18px;
-  border: 1px solid var(--ik-primary, #bfff09);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ik-primary, #bfff09);
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
 }
 
 .ik-hovercard__follow:hover {
