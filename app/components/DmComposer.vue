@@ -69,6 +69,7 @@ const onComposerKeyDown = (e: KeyboardEvent) => {
 defineExpose({
   focus: () => composerRef.value?.focus(),
   textarea: composerRef,
+  textareaEl: computed(() => composerRef.value),
 });
 </script>
 

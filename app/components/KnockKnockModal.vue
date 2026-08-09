@@ -1258,7 +1258,13 @@ const sendError = ref<string | null>(null);
 const composerRef = ref<InstanceType<typeof DmComposer> | null>(null);
 const composerTextarea = computed((): HTMLTextAreaElement | null => {
   const comp = composerRef.value as any;
-  return comp?.textarea?.value ?? comp?.$el?.querySelector?.("textarea") ?? null;
+  if (!comp) return null;
+  // textareaEl 是 computed ref，.value 拿到元素
+  if (comp.textareaEl?.value) return comp.textareaEl.value;
+  // fallback: textarea 是 ref，.value 拿到元素
+  if (comp.textarea?.value) return comp.textarea.value;
+  // 最终 fallback: DOM 查询
+  return comp.$el?.querySelector?.("textarea") ?? null;
 });
 
 // ── @ 提及 ───────────────────────────────────────
