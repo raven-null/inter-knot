@@ -422,7 +422,17 @@ function toPost(raw: unknown, apiBaseUrl: string): Post {
 
   let coverNsfw: NsfwStatus | undefined;
 
-  if (typeof data.cover === "string" || data.cover === null || data.cover === undefined) {
+  // 后端同时返回 `cover`（首图 URL 字符串）与 `covers`（图片数组）。
+  // 只要 `covers` 是数组就优先用它，保证多图帖子在客户端完整展示。
+  const coversRaw = extractAllMediaMeta(data.covers, apiBaseUrl);
+  if (coversRaw.length) {
+    covers = coversRaw;
+    const firstCover = covers[0] || null;
+    coverUrl = firstCover?.url || "";
+    coverW = firstCover?.width;
+    coverH = firstCover?.height;
+    coverNsfw = firstCover?.nsfwStatus;
+  } else if (typeof data.cover === "string" || data.cover === null || data.cover === undefined) {
     coverUrl = (typeof data.cover === "string" ? toMediaUrl(data.cover) : "");
     coverW = typeof data.coverWidth === "number" ? data.coverWidth : undefined;
     coverH = typeof data.coverHeight === "number" ? data.coverHeight : undefined;
@@ -436,7 +446,7 @@ function toPost(raw: unknown, apiBaseUrl: string): Post {
         ? extractAllMediaMeta(data.cover, apiBaseUrl)
         : extractAllMediaMeta(data.coverImages, apiBaseUrl).length
           ? extractAllMediaMeta(data.coverImages, apiBaseUrl)
-          : extractAllMediaMeta(data.covers, apiBaseUrl);
+          : [];
     const firstCover = covers[0] || null;
     coverUrl = firstCover?.url || "";
     coverW = firstCover?.width;
