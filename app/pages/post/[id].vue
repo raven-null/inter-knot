@@ -149,7 +149,23 @@ const coverAspectRatio = computed(() => {
   return 16 / 9;
 });
 
-// ── 封面多图轮播（与帖子弹窗一致） ────────────────
+// 统一媒体列表：先图片后视频，视频插入轮播中与图片一起滑动
+interface MediaItem {
+  kind: "image" | "video";
+  index: number; // 同类中的索引（图片或视频各自计数）
+}
+const mediaItems = computed<MediaItem[]>(() => {
+  const items: MediaItem[] = [];
+  covers.value.forEach((_, i) => items.push({ kind: "image", index: i }));
+  (post.value?.externalVideos || []).forEach((_, i) => items.push({ kind: "video", index: i }));
+  return items;
+});
+const hasMedia = computed(() => mediaItems.value.length > 0);
+const mediaCount = computed(() => mediaItems.value.length);
+const getExternalVideo = (i: number) => post.value?.externalVideos?.[i];
+const getCover = (i: number) => covers.value[i];
+
+// ── 封面多图/视频轮播 ────────────────
 const coverIndex = ref(0);
 const emblaRef = shallowRef<HTMLElement | null>(null);
 const emblaApi = shallowRef<EmblaCarouselType | undefined>();
@@ -185,13 +201,13 @@ watch(emblaRef, (el, _, onCleanup) => {
   onCleanup(() => destroyEmbla());
 }, { flush: "post" });
 
-// 已批准加载的封面索引集合：只有命中其中的图片才会真正请求 src。
+// 已批准加载的媒体索引集合：只有命中其中的项才会真正加载。
 const loadedCoverIndices = ref<Set<number>>(new Set([0, 1, 2]));
 const LOAD_WINDOW_RADIUS = 2;
 
 const expandLoadWindow = () => {
   const i = coverIndex.value;
-  const total = covers.value.length;
+  const total = mediaCount.value;
   if (total === 0) return;
   const next = new Set(loadedCoverIndices.value);
   let changed = false;
@@ -208,14 +224,14 @@ const resetLoadWindow = () => {
   loadedCoverIndices.value = new Set([0, 1, 2]);
 };
 
-// 命中加载窗口的图片才允许真正请求 src
+// 命中加载窗口的媒体才允许真正加载
 const isCoverNearby = (i: number) =>
   i === coverIndex.value || loadedCoverIndices.value.has(i);
 
 const goCover = (index: number) => {
   const api = emblaApi.value;
   if (!api) return;
-  const total = covers.value.length;
+  const total = mediaCount.value;
   if (total <= 1) return;
   const target = Math.min(Math.max(index, 0), total - 1);
   api.scrollTo(target);
@@ -238,8 +254,8 @@ watch(() => postId.value, () => {
   });
 });
 
-// 封面列表变化后重新初始化 Embla
-watch(covers, () => {
+// 媒体列表变化后重新初始化 Embla
+watch(mediaItems, () => {
   nextTick(() => {
     emblaApi.value?.reInit();
     expandLoadWindow();
@@ -1072,102 +1088,100 @@ onBeforeUnmount(() => {
           <!-- 左栏：封面 + 正文 -->
           <div class="ik-page__left">
             <div class="ik-page__left-scroll" ref="scrollRef">
-              <!-- 封面 / 视频 -->
-              <div class="ik-page__cover-wrap" v-if="hasCovers || post.externalVideos?.length">
-                <template v-if="hasCovers">
-                  <!-- 单张封面 -->
+              <!-- 封面 / 视频（统一轮播：图片保持原尺寸，视频插入轮播） -->
+              <div class="ik-page__cover-wrap" v-if="hasMedia">
+                <!-- 单张媒体 -->
+                <div
+                  v-if="mediaCount === 1 && mediaItems[0]"
+                  class="ik-page__cover-border"
+                  :style="{ aspectRatio: String(coverAspectRatio) }"
+                >
+                  <img
+                    v-if="mediaItems[0]!.kind === 'image'"
+                    :src="firstCoverDisplayUrl"
+                    :alt="post.title"
+                    class="ik-page__cover"
+                    @click="openCoverPreview()"
+                    @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                  />
+                  <BilibiliPlayer
+                    v-else
+                    :video="getExternalVideo(mediaItems[0]!.index)!"
+                  />
+                </div>
+
+                <!-- 多媒体轮播 -->
+                <div
+                  v-else
+                  class="ik-page__cover-border ik-page__cover-border--carousel"
+                  :style="{ aspectRatio: String(coverAspectRatio) }"
+                >
                   <div
-                    v-if="covers.length === 1"
-                    class="ik-page__cover-border"
-                    :style="{ aspectRatio: String(coverAspectRatio) }"
+                    ref="emblaRef"
+                    class="ik-page__cover-scroller"
+                    @wheel="onCoverWheel"
                   >
-                    <img
-                      :src="firstCoverDisplayUrl"
-                      :alt="post.title"
-                      class="ik-page__cover"
-                      @click="openCoverPreview()"
-                      @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                    <div class="ik-page__cover-track">
+                      <div
+                        v-for="(item, i) in mediaItems"
+                        :key="i"
+                        class="ik-page__cover-slide"
+                      >
+                        <img
+                          v-if="item.kind === 'image' && getCover(item.index)"
+                          :src="isCoverNearby(i) ? toCanonicalUrl(getCover(item.index)!.url) : undefined"
+                          :alt="`${post.title} - ${item.index + 1}`"
+                          class="ik-page__cover"
+                          :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
+                          decoding="async"
+                          draggable="false"
+                          @click="openCoverPreview(item.index)"
+                          @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                        />
+                        <BilibiliPlayer
+                          v-else-if="isCoverNearby(i) && getExternalVideo(item.index)"
+                          :video="getExternalVideo(item.index)!"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    v-show="coverIndex > 0"
+                    type="button"
+                    class="ik-page__cover-nav ik-page__cover-nav--prev"
+                    aria-label="上一个"
+                    @click.stop="goCover(coverIndex - 1)"
+                  >
+                    <ChevronLeftIcon style="width:20px;height:20px" />
+                  </button>
+                  <button
+                    v-show="coverIndex < mediaCount - 1"
+                    type="button"
+                    class="ik-page__cover-nav ik-page__cover-nav--next"
+                    aria-label="下一个"
+                    @click.stop="goCover(coverIndex + 1)"
+                  >
+                    <ChevronRightIcon style="width:20px;height:20px" />
+                  </button>
+
+                  <div class="ik-page__cover-dots">
+                    <button
+                      v-for="(_, i) in mediaItems"
+                      :key="i"
+                      type="button"
+                      class="ik-page__cover-dot"
+                      :class="{ 'ik-page__cover-dot--active': i === coverIndex }"
+                      :aria-label="`第 ${i + 1} 项`"
+                      :aria-current="i === coverIndex ? 'true' : undefined"
+                      @click.stop="goCover(i)"
                     />
                   </div>
 
-                  <!-- 多图轮播 -->
-                  <div
-                    v-else
-                    class="ik-page__cover-border ik-page__cover-border--carousel"
-                    :style="{ aspectRatio: String(coverAspectRatio) }"
-                  >
-                    <div
-                      ref="emblaRef"
-                      class="ik-page__cover-scroller"
-                      @wheel="onCoverWheel"
-                    >
-                      <div class="ik-page__cover-track">
-                        <div
-                          v-for="(c, i) in covers"
-                          :key="c.url + i"
-                          class="ik-page__cover-slide"
-                        >
-                          <img
-                            :src="isCoverNearby(i) ? toCanonicalUrl(c.url) : undefined"
-                            :alt="`${post.title} - ${i + 1}`"
-                            class="ik-page__cover"
-                            :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
-                            decoding="async"
-                            draggable="false"
-                            @click="openCoverPreview(i)"
-                            @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      v-show="coverIndex > 0"
-                      type="button"
-                      class="ik-page__cover-nav ik-page__cover-nav--prev"
-                      aria-label="上一张"
-                      @click.stop="goCover(coverIndex - 1)"
-                    >
-                      <ChevronLeftIcon style="width:20px;height:20px" />
-                    </button>
-                    <button
-                      v-show="coverIndex < covers.length - 1"
-                      type="button"
-                      class="ik-page__cover-nav ik-page__cover-nav--next"
-                      aria-label="下一张"
-                      @click.stop="goCover(coverIndex + 1)"
-                    >
-                      <ChevronRightIcon style="width:20px;height:20px" />
-                    </button>
-
-                    <div class="ik-page__cover-dots">
-                      <button
-                        v-for="(_, i) in covers"
-                        :key="i"
-                        type="button"
-                        class="ik-page__cover-dot"
-                        :class="{ 'ik-page__cover-dot--active': i === coverIndex }"
-                        :aria-label="`第 ${i + 1} 张`"
-                        :aria-current="i === coverIndex ? 'true' : undefined"
-                        @click.stop="goCover(i)"
-                      />
-                    </div>
-
-                    <span class="ik-page__cover-count ik-page__cover-count--top">
-                      {{ coverIndex + 1 }} / {{ covers.length }}
-                    </span>
-                  </div>
-                </template>
-                <template v-else-if="post.externalVideos?.length">
-                  <div
-                    v-for="(video, idx) in post.externalVideos"
-                    :key="`video-${idx}`"
-                    class="ik-page__cover-border"
-                    :style="{ aspectRatio: String(coverAspectRatio) }"
-                  >
-                    <BilibiliPlayer :video="video" />
-                  </div>
-                </template>
+                  <span class="ik-page__cover-count ik-page__cover-count--top">
+                    {{ coverIndex + 1 }} / {{ mediaCount }}
+                  </span>
+                </div>
               </div>
 
               <!-- 正文 -->
@@ -1184,16 +1198,9 @@ onBeforeUnmount(() => {
                   class="ik-page__content"
                   v-html="bodyHtml"
                 ></div>
-                <p v-else-if="!post.externalVideos?.length" class="ik-page__content" style="color: #808080">
+                <p v-else-if="!hasMedia" class="ik-page__content" style="color: #808080">
                   这里空空如也～
                 </p>
-                <div v-if="hasCovers && post.externalVideos?.length" class="ik-page__videos">
-                  <BilibiliPlayer
-                    v-for="(video, idx) in post.externalVideos"
-                    :key="`video-${idx}`"
-                    :video="video"
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -1959,13 +1966,6 @@ onBeforeUnmount(() => {
 }
 .ik-page__content :deep(table tbody tr:nth-child(even)) {
   background: #161616;
-}
-
-.ik-page__videos {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 16px;
 }
 
 /* ── Right Column ─────────────────────────────── */

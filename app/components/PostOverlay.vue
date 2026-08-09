@@ -209,6 +209,19 @@ const hasCovers = computed(() => covers.value.length > 0);
 const isCommentEditorActive = computed(() => commentInputFocused.value);
 const postLikeCount = computed(() => post.value?.likesCount ?? 0);
 
+// 统一媒体列表：先图片后视频，视频插入轮播中与图片一起滑动
+interface MediaItem { kind: "image" | "video"; index: number }
+const mediaItems = computed<MediaItem[]>(() => {
+  const items: MediaItem[] = [];
+  covers.value.forEach((_, i) => items.push({ kind: "image", index: i }));
+  (post.value?.externalVideos || []).forEach((_, i) => items.push({ kind: "video", index: i }));
+  return items;
+});
+const hasMedia = computed(() => mediaItems.value.length > 0);
+const mediaCount = computed(() => mediaItems.value.length);
+const getExternalVideo = (i: number) => post.value?.externalVideos?.[i];
+const getCover = (i: number) => covers.value[i];
+
 const syncCommentInputHeight = async () => {
   await nextTick();
   const textarea = commentInputBoxRef.value?.querySelector("textarea") as HTMLTextAreaElement | null;
@@ -308,15 +321,15 @@ watch(emblaRef, (el, _, onCleanup) => {
   onCleanup(() => destroyEmbla());
 }, { flush: "post" });
 
-// 已批准加载的封面索引集合：只有命中其中的图片才会真正请求 src。
+// 已批准加载的媒体索引集合：只有命中其中的项才会真正加载。
 // 设计目的：让新图的网络请求 + 解码不要砸在切换动画的同一帧里。
-// 切换动画由 Embla 在合成器线程驱动，但相邻图仍按需加载，避免一次性拉取全部。
+// 切换动画由 Embla 在合成器线程驱动，但相邻项仍按需加载，避免一次性拉取全部。
 const loadedCoverIndices = ref<Set<number>>(new Set([0, 1, 2]));
 const LOAD_WINDOW_RADIUS = 2;
 
 const expandLoadWindow = () => {
   const i = coverIndex.value;
-  const total = covers.value.length;
+  const total = mediaCount.value;
   if (total === 0) return;
   const next = new Set(loadedCoverIndices.value);
   let changed = false;
@@ -330,18 +343,18 @@ const expandLoadWindow = () => {
 };
 
 const resetLoadWindow = () => {
-  // 重置到初始窗口（前三张），与首次进入时一致
+  // 重置到初始窗口（前三项），与首次进入时一致
   loadedCoverIndices.value = new Set([0, 1, 2]);
 };
 
-// 命中加载窗口、或正好是当前焦点的图片，才允许真正请求 src。
+// 命中加载窗口、或正好是当前焦点的项，才允许真正加载。
 const isCoverNearby = (i: number) =>
   i === coverIndex.value || loadedCoverIndices.value.has(i);
 
 const goCover = (index: number) => {
   const api = emblaApi.value;
   if (!api) return;
-  const total = covers.value.length;
+  const total = mediaCount.value;
   if (total <= 1) return;
   const target = Math.min(Math.max(index, 0), total - 1);
   api.scrollTo(target);
@@ -367,8 +380,8 @@ watch(() => props.postId, () => {
   });
 });
 
-// 封面列表变化后重新初始化 Embla，并立即扩张当前索引的加载窗口
-watch(covers, () => {
+// 媒体列表变化后重新初始化 Embla，并立即扩张当前索引的加载窗口
+watch(mediaItems, () => {
   nextTick(() => {
     emblaApi.value?.reInit();
     expandLoadWindow();
@@ -1222,43 +1235,50 @@ onBeforeUnmount(() => {
                 <div class="ik-dialog__left">
                   <div class="ik-dialog__left-scroll" ref="scrollRef">
                     <!-- 封面 / 视频 -->
+                    <!-- 封面 / 视频（统一轮播） -->
                     <div class="ik-dialog__cover-wrap">
                       <div
                         class="ik-dialog__cover-border"
                         :style="{ aspectRatio: String(coverAspectRatio) }"
                       >
-                        <!-- 单张封面 -->
-                        <template v-if="hasCovers && covers.length === 1">
-                          <div v-if="coverPreviewSrc(0)" class="ik-dialog__cover-preview">
-                            <img
-                              :ref="setLoadedPreviewImage"
-                              :src="coverPreviewSrc(0)"
-                              alt=""
-                              class="ik-dialog__cover-preview-image"
-                              aria-hidden="true"
-                              :decoding="isCompact ? 'async' : 'sync'"
+                        <!-- 单张媒体 -->
+                        <template v-if="mediaCount === 1 && mediaItems[0]">
+                          <template v-if="mediaItems[0]!.kind === 'image'">
+                            <div v-if="coverPreviewSrc(0)" class="ik-dialog__cover-preview">
+                              <img
+                                :ref="setLoadedPreviewImage"
+                                :src="coverPreviewSrc(0)"
+                                alt=""
+                                class="ik-dialog__cover-preview-image"
+                                aria-hidden="true"
+                                :decoding="isCompact ? 'async' : 'sync'"
+                              />
+                            </div>
+                            <NsfwImage
+                              :src="firstCover ? coverDisplaySrc(firstCover.url) : DEFAULT_COVER_IMAGE"
+                              :status="firstCover?.nsfwStatus"
+                              :alt="post.title"
+                              img-class="ik-dialog__cover"
+                              loading="eager"
+                              decoding="async"
+                              @load="onCoverImageLoad(0)"
+                              @click="openCoverPreview(0)"
+                              @error="onCoverImageLoad(0); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
                             />
-                          </div>
-                          <NsfwImage
-                            :src="firstCover ? coverDisplaySrc(firstCover.url) : DEFAULT_COVER_IMAGE"
-                            :status="firstCover?.nsfwStatus"
-                            :alt="post.title"
-                            img-class="ik-dialog__cover"
-                            loading="eager"
-                            decoding="async"
-                            @load="onCoverImageLoad(0)"
-                            @click="openCoverPreview(0)"
-                            @error="onCoverImageLoad(0); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                            <div
+                              v-if="!isCoverImageLoaded(0) && !coverPreviewSrc(0)"
+                              class="ik-skel ik-dialog__cover-skel"
+                              aria-hidden="true"
+                            ></div>
+                          </template>
+                          <BilibiliPlayer
+                            v-else
+                            :video="getExternalVideo(mediaItems[0]!.index)!"
                           />
-                          <div
-                            v-if="!isCoverImageLoaded(0) && !coverPreviewSrc(0)"
-                            class="ik-skel ik-dialog__cover-skel"
-                            aria-hidden="true"
-                          ></div>
                         </template>
 
-                        <!-- 多图轮播 -->
-                        <template v-else-if="hasCovers">
+                        <!-- 多媒体轮播 -->
+                        <template v-else-if="mediaCount > 1">
                           <div
                             ref="emblaRef"
                             class="ik-dialog__cover-scroller"
@@ -1266,40 +1286,49 @@ onBeforeUnmount(() => {
                           >
                             <div class="ik-dialog__cover-track">
                               <div
-                                v-for="(c, i) in covers"
-                                :key="c.url + i"
+                                v-for="(item, i) in mediaItems"
+                                :key="i"
                                 class="ik-dialog__cover-slide"
                               >
-                                <div
-                                  v-if="coverPreviewSrc(i)"
-                                  class="ik-dialog__cover-preview"
-                                >
-                                  <img
-                                    :ref="i === 0 ? setLoadedPreviewImage : undefined"
-                                    :src="isCoverNearby(i) ? coverPreviewSrc(i) : undefined"
-                                    alt=""
-                                    class="ik-dialog__cover-preview-image"
-                                    aria-hidden="true"
-                                    :decoding="i === 0 && !isCompact ? 'sync' : 'async'"
+                                <!-- 图片 -->
+                                <template v-if="item.kind === 'image' && getCover(item.index)">
+                                  <div
+                                    v-if="isCoverNearby(i) && coverPreviewSrc(item.index)"
+                                    class="ik-dialog__cover-preview"
+                                  >
+                                    <img
+                                      :ref="i === 0 ? setLoadedPreviewImage : undefined"
+                                      :src="coverPreviewSrc(item.index)"
+                                      alt=""
+                                      class="ik-dialog__cover-preview-image"
+                                      aria-hidden="true"
+                                      :decoding="i === 0 && !isCompact ? 'sync' : 'async'"
+                                    />
+                                  </div>
+                                  <NsfwImage
+                                    v-if="isCoverNearby(i) && getCover(item.index)"
+                                    :src="coverDisplaySrc(getCover(item.index)!.url)"
+                                    :status="getCover(item.index)!.nsfwStatus"
+                                    :alt="`${post.title} - ${item.index + 1}`"
+                                    img-class="ik-dialog__cover"
+                                    loading="eager"
+                                    decoding="async"
+                                    draggable="false"
+                                    @load="onCoverImageLoad(i)"
+                                    @click="openCoverPreview(item.index)"
+                                    @error="onCoverImageLoad(i); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
                                   />
-                                </div>
-                                <NsfwImage
-                                  :src="isCoverNearby(i) ? coverDisplaySrc(c.url) : undefined"
-                                  :status="c.nsfwStatus"
-                                  :alt="`${post.title} - ${i + 1}`"
-                                  img-class="ik-dialog__cover"
-                                  :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
-                                  decoding="async"
-                                  draggable="false"
-                                  @load="onCoverImageLoad(i)"
-                                  @click="openCoverPreview(i)"
-                                  @error="onCoverImageLoad(i); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                                  <div
+                                    v-if="!isCoverImageLoaded(i) && (!isCoverNearby(i) || !coverPreviewSrc(item.index))"
+                                    class="ik-skel ik-dialog__cover-skel"
+                                    aria-hidden="true"
+                                  ></div>
+                                </template>
+                                <!-- 视频 -->
+                                <BilibiliPlayer
+                                  v-else-if="isCoverNearby(i) && getExternalVideo(item.index)"
+                                  :video="getExternalVideo(item.index)!"
                                 />
-                                <div
-                                  v-if="!isCoverImageLoaded(i) && (!isCoverNearby(i) || !coverPreviewSrc(i))"
-                                  class="ik-skel ik-dialog__cover-skel"
-                                  aria-hidden="true"
-                                ></div>
                               </div>
                             </div>
                           </div>
@@ -1308,16 +1337,16 @@ onBeforeUnmount(() => {
                             v-show="coverIndex > 0"
                             type="button"
                             class="ik-dialog__cover-nav ik-dialog__cover-nav--prev"
-                            aria-label="上一张"
+                            aria-label="上一个"
                             @click.stop="goCover(coverIndex - 1)"
                           >
                             <ChevronLeftIcon style="width:20px;height:20px" />
                           </button>
                           <button
-                            v-show="coverIndex < covers.length - 1"
+                            v-show="coverIndex < mediaCount - 1"
                             type="button"
                             class="ik-dialog__cover-nav ik-dialog__cover-nav--next"
-                            aria-label="下一张"
+                            aria-label="下一个"
                             @click.stop="goCover(coverIndex + 1)"
                           >
                             <ChevronRightIcon style="width:20px;height:20px" />
@@ -1325,29 +1354,20 @@ onBeforeUnmount(() => {
 
                           <div class="ik-dialog__cover-dots">
                             <button
-                              v-for="(_, i) in covers"
+                              v-for="(_, i) in mediaItems"
                               :key="i"
                               type="button"
                               class="ik-dialog__cover-dot"
                               :class="{ 'ik-dialog__cover-dot--active': i === coverIndex }"
-                              :aria-label="`第 ${i + 1} 张`"
+                              :aria-label="`第 ${i + 1} 项`"
                               :aria-current="i === coverIndex ? 'true' : undefined"
                               @click.stop="goCover(i)"
                             />
                           </div>
 
                           <span class="ik-dialog__cover-count ik-dialog__cover-count--top">
-                            {{ coverIndex + 1 }} / {{ covers.length }}
+                            {{ coverIndex + 1 }} / {{ mediaCount }}
                           </span>
-                        </template>
-
-                        <!-- 无图片封面但有 B 站视频：在封面区域直接放播放器 -->
-                        <template v-else-if="post.externalVideos?.length">
-                          <BilibiliPlayer
-                            v-for="(video, idx) in post.externalVideos"
-                            :key="`video-${idx}`"
-                            :video="video"
-                          />
                         </template>
 
                         <!-- 默认占位图 -->
@@ -1383,16 +1403,9 @@ onBeforeUnmount(() => {
                         class="ik-dialog__content"
                         v-html="bodyHtml"
                       ></div>
-                      <p v-else-if="!post.externalVideos?.length" class="ik-dialog__content" style="color: #808080">
+                      <p v-else-if="!hasMedia" class="ik-dialog__content" style="color: #808080">
                         这里空空如也～
                       </p>
-                      <div v-if="hasCovers && post.externalVideos?.length" class="ik-dialog__videos">
-                        <BilibiliPlayer
-                          v-for="(video, idx) in post.externalVideos"
-                          :key="`video-${idx}`"
-                          :video="video"
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
