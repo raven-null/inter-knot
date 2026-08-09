@@ -44,6 +44,13 @@ if (import.meta.client) {
     router.replace(decodeURIComponent(fallbackPath)).catch(() => undefined);
   }
 
+  // 直接访问带 ?ik_knock=1 的 URL 时，自动打开敲敲弹窗
+  if (url.searchParams.get(OVERLAY_KNOCK_KEY) === "1") {
+    const convId = url.searchParams.get("ik_knock_c") || undefined;
+    const tab = (url.searchParams.get("ik_knock_tab") || undefined) as "calls" | "contacts" | "groups" | undefined;
+    knockModal.open({ dmConversationId: convId, tab });
+  }
+
   // 监听浏览器后退/前进：如果弹窗打开，关闭它
   window.addEventListener("popstate", postModal.handlePopState);
   window.addEventListener("popstate", knockModal.handlePopState);
