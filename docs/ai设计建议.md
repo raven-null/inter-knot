@@ -947,7 +947,134 @@ Apple HIG 建议最小触摸目标 44px。当前部分元素不足：
 
 ---
 
+## 十九、敲敲「通话」与「通知」Tab 整合方案
+
+> 现状：敲敲弹窗（`KnockKnockModal.vue`）现有 4 个 Tab —— 通话(calls/AI) / 私聊(contacts) / 群聊(groups) / 通知(notifications)。
+> 目标：把「通话」与「通知」整合为**一个统一的消息中心入口**，减少 Tab 数量、让 AI 会话与互动通知在同一个地方被感知与处理。
+
+### 1. 现状梳理
+
+| Tab | 内容 | 入口 URL |
+|-----|------|----------|
+| 通话 (calls) | AI 角色会话列表（Fairy 等），右侧为 AI 聊天面板；需要登录 | `?ik_knock=1&ik_knock_tab=calls` |
+| 通知 (notifications) | 收到的点赞 / 评论 / 关注列表，点击跳转帖子/评论或用户主页；需要登录 | `?ik_knock=1&ik_knock_tab=notifications` |
+| 私聊 (contacts) | 真实用户 DM 会话列表 | `?ik_knock=1`（默认） |
+| 群聊 (groups) | 群会话列表 + 创建群聊 | `?ik_knock=1&ik_knock_tab=groups` |
+
+**两者共同点**：都需要登录；都是「进来先看列表，点击再进详情」的两段式交互；数据源都挂在当前用户下。
+
+### 2. 整合目标
+
+1. **减少 Tab**：4 个 Tab → 3 个（通话/通知合并为「消息」，保留私聊、群聊）
+2. **统一未读**：AI 会话未读 + 互动通知未读在同一处提示
+3. **两段式不变**：左侧列表（AI 会话 + 通知混合），右侧详情（AI 聊天或通知跳转）
+4. **URL 兼容**：旧 `ik_knock_tab=calls` / `ik_knock_tab=notifications` 都能重定向/等价命中到新入口
+
+### 3. 三种整合方案（推荐方案 B）
+
+#### 方案 A：堆叠式（一个列表，上下分区）
+```
+[消息 Tab]
+├─ 置顶区：AI 角色（Fairy 等，带未读角标）
+├─ ───── 分隔线 ─────
+└─ 通知列表（点赞/评论/关注，带未读高亮）
+右侧面板：选中 AI → 聊天；选中通知 → 帖子/主页
+```
+- 优点：实现简单，改动小（列表纵向拼接）
+- 缺点：AI 角色与通知是两类完全不同的事件，混排后「找 AI 会话」要往下翻；视觉噪音大
+
+#### 方案 B：分组 Tab（推荐）—— 一个 Tab，内部用「通话 / 通知」分段切换
+```
+[消息 Tab]
+└─ 顶部小分段： [通话] [通知]   ← 记忆上次选择
+   ├─ 通话：AI 角色列表 + 右侧聊天面板（复用现有 calls 逻辑）
+   └─ 通知：互动通知列表（复用现有 notifications 逻辑）
+```
+- 优点：
+  - 对外只有一个「消息」Tab，但内部两段互不干扰，各自保留原有交互
+  - 未读角标统一挂在「消息」Tab 上（AI 未读 + 通知未读数合并）
+  - 与现有代码结构天然对应：`calls` 与 `notifications` 的内部渲染逻辑原样保留，只是外层再套一层分段
+  - URL 映射自然：`ik_knock_tab=messages&ik_knock_seg=calls|notifications`
+- 缺点：多一层分段选择（可用记忆上次选择 + 未读自动跳到有未读的一侧缓解）
+
+#### 方案 C：动态流式（timeline 全混排）
+```
+[消息 Tab]
+└─ 按时间倒序统一时间线：
+   「Fairy 回复了你」 / 「X 赞了你的帖子」 / 「Y 关注了你」
+   类型图标 + 高亮区分，点击按类型进入聊天或帖子
+```
+- 优点：信息密度最高，符合「消息中心」直觉
+- 缺点：改动最大；AI 会话是「持续对话」而非「单条事件」，强行混入时间线会割裂会话上下文，丢失「聊天列表」形态
+
+> **结论：推荐方案 B** —— 在保持「通话」「通知」各自成熟交互的前提下，用「消息」Tab + 内部分段收敛入口，改动可控、未读可统一、URL 可兼容。
+
+### 4. 推荐方案 B 详细设计
+
+#### 4.1 Tab 结构（改后）
+
+| Tab | 内部内容 |
+|-----|----------|
+| 消息 (messages) | 分段：`[通话] [通知]`；右侧详情 = AI 聊天 or 通知跳转 |
+| 私聊 (contacts) | 不变 |
+| 群聊 (groups) | 不变 |
+
+#### 4.2 未读角标合并
+
+- 「消息」Tab 上的未读 = `aiCharacters 未读总数 + 通知未读数`
+- 进入「消息」后：默认切到有未读的分段；AI 段未读在角色项上显示，通知段进入即自动标记已读（沿用现有 `markNotificationsRead`）
+
+#### 4.3 URL 约定（兼容旧地址）
+
+```
+新入口：?ik_knock=1&ik_knock_tab=messages&ik_knock_seg=notifications
+旧地址：?ik_knock=1&ik_knock_tab=calls        → 等价 ik_knock_tab=messages&ik_knock_seg=calls
+        ?ik_knock=1&ik_knock_tab=notifications → 等价 ik_knock_tab=messages&ik_knock_seg=notifications
+```
+- `useKnockKnockModal` 的 `updateUrl` 增加 `seg` 参数
+- 读取 URL 时对 `calls` / `notifications` 做别名归一（避免书签/分享链接失效）
+
+#### 4.4 交互细节
+
+| 场景 | 行为 |
+|------|------|
+| 点击「消息」Tab | 显示分段，默认选中未读数较多的分段；无未读则沿用上次选择 |
+| 分段切换 | `replaceState` 更新 `ik_knock_seg`，不新增 history |
+| 在通话段点 AI 角色 | 右侧进入聊天，`ik_knock_seg=calls&ik_knock_c=<会话>` |
+| 在通知段点通知 | 打开帖子弹窗（定位评论）或跳转个人主页（沿用现状） |
+| 移动端 | 分段仍显示在列表顶部；选中会话后右侧聊天全屏（沿用 `is-mobile-chat` 机制） |
+
+#### 4.5 需要调整的代码点
+
+| 位置 | 改动 |
+|------|------|
+| `useKnockKnockModal.ts` | `OpenOptions.tab` 增加 `messages`；`updateUrl` 支持 `seg` |
+| `overlay-history.ts` | `knockHistoryUrl` 增加 `ik_knock_seg` 参数处理与 `calls`/`notifications` 别名归一 |
+| `KnockKnockModal.vue` | 外层 Tab 由「通话/通知」合并为「消息」；内部 `ik-knock__seg` 分段；左侧列表按分段渲染（calls 与 notifications 现有代码包一层 `v-if` 即可） |
+| `KnockKnockModal.vue` | 未读合并：`aiCharacterRows` 未读合计 + 通知未读合计 → 「消息」Tab 角标 |
+| 通知数据 | 无需改动后端；沿用 `GET /api/notifications` |
+
+### 5. 分期实施
+
+| 阶段 | 内容 |
+|------|------|
+| **P1 收敛入口** | 外层 Tab 合并为「消息」，新增分段切换 + URL `ik_knock_seg` + 旧地址别名归一；未读合并到「消息」Tab |
+| **P2 交互打磨** | 默认分段选择（有未读优先）、分段切换动画、移动端适配 |
+| **P3 可选增强** | 通知段支持「只显示未读」筛选；AI 会话支持置顶 |
+
+### 6. 不做的事
+
+| 不做 | 原因 |
+|------|------|
+| 方案 C 的时间线混排 | AI 是持续会话，混入单条事件会割裂上下文，破坏聊天列表形态 |
+| 删除「私聊 / 群聊」Tab | 用户 DM 与 AI/通知语义不同，保留独立 Tab 更清晰 |
+| 合并后端通知数据源 | 点赞/评论/关注通知与 AI 会话结构完全不同，应保持两套存储 |
+
+---
+
 ## 十六、设计规范速查表
+
+```
 
 ```
 颜色
