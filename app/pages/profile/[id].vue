@@ -1315,6 +1315,32 @@ onBeforeUnmount(() => {
 }
 
 /* ── 关注/粉丝列表弹窗 ── */
+.ik-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.ik-overlay__stripe {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    40deg,
+    transparent,
+    transparent 3.5px,
+    rgba(255, 255, 255, 0.09) 4.5px,
+    rgba(255, 255, 255, 0.09) 7.5px,
+    transparent 8.5px
+  );
+}
+
 .ik-follow-modal {
   position: relative;
   z-index: 1;
