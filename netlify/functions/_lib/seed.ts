@@ -5,9 +5,10 @@
  * - 对早期版本（并发 bug 导致的重复数据）做一次性去重清理（seedVersion 升级触发）
  */
 
-import { genId, getJson, setJson, setJsonOnce, del, listKeys, userKey, userEmailKey, userUidKey, categoryKey, KEYS } from "./storage";
+import { genId, getJson, setJson, setJsonOnce, del, listKeys, userKey, userUidKey, categoryKey, KEYS } from "./storage";
 import { hashPassword } from "./auth";
 import { generateUid } from "./uid";
+import { genSecretKey } from "./routes/auth";
 import type { Doc } from "./serialize";
 
 const SEED_VERSION = 4;
@@ -62,10 +63,13 @@ export async function ensureSeed(): Promise<void> {
 
     // 管理员
     const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@example.com").toLowerCase();
-    if (!(await getJson<unknown>(userEmailKey(adminEmail)))) {
+    // 检查是否已有管理员（通过 email 或 by-key 索引）
+    const existingAdmin = await getJson<unknown>(`users/by-email/${adminEmail}.json`);
+    if (!existingAdmin) {
       const adminDocumentId = genId();
       const uid = await generateUid();
       const passHash = await hashPassword(process.env.ADMIN_INITIAL_PASSWORD || "admin123456");
+      const secretKey = genSecretKey();
       await setJson(userKey(adminDocumentId), {
         document_id: adminDocumentId,
         uid,
@@ -73,6 +77,7 @@ export async function ensureSeed(): Promise<void> {
         name: "管理员",
         email: adminEmail,
         password_hash: passHash,
+        secret_key: secretKey,
         avatar_url: "/images/default-avatar.webp",
         bio: "",
         level: 1,
@@ -85,8 +90,9 @@ export async function ensureSeed(): Promise<void> {
         followersCount: 0,
         followingCount: 0,
       });
-      await setJson(userEmailKey(adminEmail), { document_id: adminDocumentId });
+      await setJson(`users/by-email/${adminEmail}.json`, { document_id: adminDocumentId });
       await setJson(userUidKey(uid), { document_id: adminDocumentId });
+      await setJson(`users/by-key/${secretKey}.json`, { document_id: adminDocumentId });
     }
 
     await setJson(KEYS.stats, { userCount: 1, postCount: 0, commentCount: 0, viewCount: 0 });
@@ -149,7 +155,8 @@ async function cleanupDuplicates(): Promise<void> {
   for (const [email, keys] of byEmail) {
     if (keys.length <= 1) continue;
     // 邮箱索引当前指向的 documentId 优先保留，否则保留第一个
-    const idx = await getJson<{ document_id?: string }>(userEmailKey(email));
+    const emailIdxKey = `users/by-email/${email}.json`;
+    const idx = await getJson<{ document_id?: string }>(emailIdxKey);
     let keepKey: string | null = null;
     for (const key of keys) {
       const u = await getJson<{ document_id?: string }>(key);
@@ -160,7 +167,7 @@ async function cleanupDuplicates(): Promise<void> {
       if (key !== keepKey) await del(key);
     }
     const kept = await getJson<{ document_id?: string }>(keepKey);
-    if (kept?.document_id) await setJson(userEmailKey(email), { document_id: kept.document_id });
+    if (kept?.document_id) await setJson(emailIdxKey, { document_id: kept.document_id });
   }
 
   // UID 回填：为早期创建（无 uid 字段）的用户分配唯一 8 位 UID

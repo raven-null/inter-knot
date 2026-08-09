@@ -16,6 +16,7 @@ import { resolveUser, requireAuth, signToken } from "../auth";
 import { generateUid } from "../uid";
 import { json, ok, badRequest, error, readJson } from "../http";
 import { toAuthor, DEFAULT_AVATAR, type Doc } from "../serialize";
+import { genSecretKey } from "./auth";
 
 const PASSPORT_BASE = "https://passport-api.mihoyo.com/account/ma-cn-passport/web";
 const PASSPORT_LEGACY = "https://passport-api.mihoyo.com/account/auth/api";
@@ -335,12 +336,22 @@ async function handleConfirmed(
       await setJson(`users/by-uid/${newUid}.json`, { document_id: idx.document_id });
       user = { ...existing, uid: newUid };
     }
+    // 为已有用户生成密钥（如果没有）
+    if (!user.secret_key) {
+      const secretKey = genSecretKey();
+      await setJson(userKey(idx.document_id), { ...user, secret_key: secretKey });
+      await setJson(`users/by-key/${secretKey}.json`, { document_id: idx.document_id });
+      user = { ...user, secret_key: secretKey };
+    }
   } else {
     const documentId = genId();
     const now = new Date().toISOString();
-    const username = `mh${accountId}`.slice(0, 24);
+    // 米游社账号 ID 直接作为用户名（首次登录唯一入口）
+    const username = accountId;
     // 米游社账号 ID 即 UID（不随机生成）；若不可转为数字则兜底随机
     const uidNumber = /^\d+$/.test(accountId) ? Number(accountId) : await generateUid();
+    // 自动生成密钥，方便下次登录
+    const secretKey = genSecretKey();
     user = {
       document_id: documentId,
       uid: uidNumber,
@@ -348,6 +359,7 @@ async function handleConfirmed(
       name: zzzNickname || username,
       email: null,
       mihoyo_id: accountId,
+      secret_key: secretKey,
       password_hash: null,
       avatar_url: DEFAULT_AVATAR,
       bio: "",
@@ -364,6 +376,7 @@ async function handleConfirmed(
     await setJson(userKey(documentId), user);
     await setJson(BY_MIHOYO(accountId), { document_id: documentId });
     await setJson(userUidKey(uidNumber), { document_id: documentId });
+    await setJson(`users/by-key/${secretKey}.json`, { document_id: documentId });
     await bumpStats({ userCount: 1 });
   }
 
@@ -381,6 +394,7 @@ async function handleConfirmed(
     binding,
     jwt,
     user: toAuthor(user),
+    secretKey: user.secret_key ? String(user.secret_key) : null,
   });
 }
 

@@ -77,12 +77,8 @@ async function dispatch(req: Request): Promise<Response> {
   switch (area) {
     // ── 认证 ─────────────────────────────────────────
     case "auth": {
-      if (sub === "local" && isPost(req)) return authRoutes.login(req);
+      if (sub === "login-by-key" && isPost(req)) return authRoutes.loginByKey(req);
       if (sub === "renew" && isPost(req)) return authRoutes.renew(req);
-      if (sub === "send-register-code" && isPost(req)) return authRoutes.sendRegisterCode(req);
-      if (sub === "register-with-code" && isPost(req)) return authRoutes.registerWithCode(req);
-      if (sub === "send-reset-code" && isPost(req)) return authRoutes.sendResetCode(req);
-      if (sub === "reset-password" && isPost(req)) return authRoutes.resetPassword(req);
       if (sub === "mihoyo" && sub2 === "qr" && s.length === 4 && isPost(req)) return mihoyoRoutes.qrCreate(req);
       if (sub === "mihoyo" && sub2 === "qr" && s[4] === "status" && isPost(req)) return mihoyoRoutes.qrStatus(req);
       if (sub === "mihoyo" && sub2 === "binding" && isGet(req)) return mihoyoRoutes.binding(req);
@@ -175,8 +171,8 @@ async function dispatch(req: Request): Promise<Response> {
 
     // ── GitHub OAuth 登录 ────────────────────────────
     case "github": {
-      if (sub === "callback" && isPost(req)) return githubRoutes.callback(req);
-      return error(404, "接口不存在");
+      // GitHub OAuth 已移除（仅保留路由壳避免 404 噪音）
+      return error(410, "GitHub 登录已停用，请使用米游社扫码登录", "GITHUB_REMOVED");
     }
 
     // ── 个人主页 ─────────────────────────────────────

@@ -275,54 +275,11 @@ const confirmBindEmail = async () => {
 };
 
 const sendSetPasswordCode = async () => {
-  if (!security.value?.hasBoundEmail || !security.value.email) {
-    message.warning("请先绑定邮箱");
-    return;
-  }
-  setPasswordLoading.value = true;
-  try {
-    const res = await api.sendResetCode(security.value.email);
-    message.success("验证码已发送");
-    startCodeCooldown(res.cooldown || 60);
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "发送验证码失败"));
-  } finally {
-    setPasswordLoading.value = false;
-  }
+  message.warning("密码设置功能已移除，请使用米游社扫码登录");
 };
 
 const confirmSetPassword = async () => {
-  const code = setPasswordCodeInput.value.trim();
-  const password = setPasswordInput.value;
-  const confirm = setPasswordConfirmInput.value;
-  if (!code || !password) {
-    message.warning("请填写验证码和新密码");
-    return;
-  }
-  if (password.length < 6) {
-    message.warning("密码长度不能少于 6 位");
-    return;
-  }
-  if (password !== confirm) {
-    message.warning("两次输入的密码不一致");
-    return;
-  }
-  if (!security.value?.hasBoundEmail || !security.value.email) {
-    message.warning("请先绑定邮箱");
-    return;
-  }
-  setPasswordLoading.value = true;
-  try {
-    await api.resetPassword(security.value!.email, code, password);
-    const hadPassword = security.value?.hasPassword === true;
-    setPasswordDone();
-    message.success(hadPassword ? "密码修改成功" : "密码设置成功");
-    goBack();
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "设置密码失败"));
-  } finally {
-    setPasswordLoading.value = false;
-  }
+  message.warning("密码设置功能已移除，请使用米游社扫码登录");
 };
 
 // ── 黑名单管理 ─────────────────────────────

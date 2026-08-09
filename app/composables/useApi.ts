@@ -146,6 +146,7 @@ export type MihoyoQrPollResult =
       isNewUser: boolean;
       binding: MihoyoBinding | null;
       auth: AuthResult;
+      secretKey?: string | null;
       debug?: unknown;
     };
 
@@ -643,85 +644,6 @@ export function useApi() {
   // 供页面在"用户明确刷新"等场景下跳过 staleTime 缓存使用
   const invalidateQueries = (queryKey: QueryKey) => invalidate(queryKey);
 
-  const login = async (
-    email: string,
-    password: string,
-  ): Promise<AuthResult> => {
-    const response = await $api("/api/auth/local", {
-      method: "POST",
-      body: { identifier: email, password },
-    });
-    const data = response as Record<string, unknown>;
-    // 身份变更：清空所有缓存，避免带上旧用户的 isRead / liked 等个性化字段
-    clearAllCache();
-    return {
-      token: (data.jwt as string | undefined) || null,
-      user: toAuthor(data.user, apiBaseUrl),
-    };
-  };
-
-  const sendRegisterCode = async (
-    email: string,
-  ): Promise<SendRegisterCodeResult> => {
-    const response = await $api("/api/auth/send-register-code", {
-      method: "POST",
-      body: { email },
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      email: String(data.email || email),
-      sent: data.sent === true,
-      expiresIn: Number(data.expiresIn || 600),
-      cooldown: Number(data.cooldown || 60),
-    };
-  };
-
-  const registerWithCode = async (
-    email: string,
-    code: string,
-    password: string,
-  ): Promise<AuthResult> => {
-    const response = await $api("/api/auth/register-with-code", {
-      method: "POST",
-      body: { email, code, password },
-    });
-    const data = response as Record<string, unknown>;
-    clearAllCache();
-    return {
-      token: (data.jwt as string | undefined) || null,
-      user: toAuthor(data.user, apiBaseUrl),
-    };
-  };
-
-  const sendResetCode = async (
-    email: string,
-  ): Promise<SendResetCodeResult> => {
-    const response = await $api("/api/auth/send-reset-code", {
-      method: "POST",
-      body: { email },
-    });
-    const data = response as Record<string, unknown>;
-    return {
-      email: String(data.email || email),
-      sent: data.sent === true,
-      expiresIn: Number(data.expiresIn || 600),
-      cooldown: Number(data.cooldown || 60),
-    };
-  };
-
-  const resetPassword = async (
-    email: string,
-    code: string,
-    password: string,
-  ): Promise<{ success: boolean }> => {
-    const response = await $api("/api/auth/reset-password", {
-      method: "POST",
-      body: { email, code, password },
-    });
-    const data = response as Record<string, unknown>;
-    return { success: data.success === true };
-  };
-
   // ── 米游社扫码登录 / 绑定 ──────────────────────────
   // $api 会自动带上 Authorization：已登录时创建的二维码是绑定模式，
   // 未登录（登录框）则是登录模式，由后端按会话区分。
@@ -763,6 +685,7 @@ export function useApi() {
         token: (data.jwt as string | undefined) || null,
         user: toAuthor(data.user, apiBaseUrl),
       },
+      secretKey: data.secretKey ? String(data.secretKey) : null,
       debug: data.debug,
     };
   };
@@ -781,20 +704,17 @@ export function useApi() {
     return { success: data.success === true };
   };
 
-  /** GitHub OAuth 登录：前端在 /login 收到 code 后调用，交换出本站 JWT */
-  const githubCallback = async (
-    code: string,
-    redirectUri: string,
-  ): Promise<AuthResult> => {
-    const response = await $api("/api/auth/github/callback", {
+  /** 密钥登录（米游社登录后生成的 secret_key） */
+  const loginByKey = async (key: string): Promise<AuthResult> => {
+    const response = await $api("/api/auth/login-by-key", {
       method: "POST",
-      body: { code, redirectUri },
+      body: { key },
     });
     const data = response as Record<string, unknown>;
     clearAllCache();
     return {
       token: (data.jwt as string | undefined) || null,
-      user: (data.user as Author) || null,
+      user: toAuthor(data.user, apiBaseUrl),
     };
   };
 
@@ -2132,12 +2052,6 @@ export function useApi() {
   return {
     clearAllCache,
     invalidateQueries,
-    login,
-    githubCallback,
-    sendRegisterCode,
-    registerWithCode,
-    sendResetCode,
-    resetPassword,
     getSelfUser,
     searchArticles,
     suggestArticles,
@@ -2205,6 +2119,7 @@ export function useApi() {
     pollMihoyoQr,
     getMihoyoBinding,
     unbindMihoyo,
+    loginByKey,
   };
 }
 

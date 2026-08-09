@@ -6,41 +6,18 @@ const api = useApi();
 const auth = useAuthStore();
 const { visible, close } = useLoginDialog();
 const message = useMessage();
-const form = reactive({
-  email: "",
-  code: "",
-  password: "",
-  confirmPassword: "",
-});
 
-const isRegister = ref(false);
-const isReset = ref(false);
 const isLoading = ref(false);
-const isCodeSent = ref(false);
-const isSendingCode = ref(false);
-const cooldown = ref(0);
-let cooldownTimer: ReturnType<typeof setInterval> | null = null;
-
-/** 当前模式的标题 */
-const modeTitle = computed(() => {
-  if (isReset.value) return "重置密码";
-  if (isRegister.value) return "注册";
-  return "登录";
-});
 
 // ── 米游社扫码登录 ──────────────────────────────
 const isMihoyo = ref(false);
-// 进入米游社弹窗时所处的页面（登录/注册），决定弹窗标题
-const mihoyoFromRegister = ref(false);
-const mihoyoTitle = computed(() => (mihoyoFromRegister.value ? "米游社注册" : "米游社登录"));
-
 const mihoyo = useMihoyoQr({
   isActive: () => isMihoyo.value && visible.value,
   width: 220,
   onConfirmed: async (res) => {
     if (res.mode !== "login") return;
     if (!res.auth.token) throw new Error("登录失败：未获取到 Token");
-    await onLoginSuccess(res.auth.token, res.auth.user);
+    await onLoginSuccess(res.auth.token, res.auth.user, res.secretKey);
   },
   onError: (err) => {
     message.error(resolveErrorMessage(err, "获取二维码失败"));
@@ -68,7 +45,6 @@ const stopMihoyoPolling = mihoyo.stopQr;
 
 const enterMihoyoMode = () => {
   isMihoyo.value = true;
-  mihoyoFromRegister.value = isRegister.value;
   void startMihoyoQr();
 };
 
@@ -77,224 +53,71 @@ const exitMihoyoMode = () => {
   stopMihoyoPolling();
 };
 
-// ── GitHub OAuth 登录 ──────────────────────────────
-const config = useRuntimeConfig();
-const startGithubLogin = () => {
-  const clientId = String(config.public.githubClientId || "");
-  if (!clientId) {
-    message.error("GitHub 登录未配置");
+// ── 密钥登录 ──────────────────────────────
+const keyInput = ref("");
+
+const handleKeyLogin = async () => {
+  const k = keyInput.value.trim();
+  if (!k) {
+    message.warning("请输入密钥");
     return;
   }
-  if (!import.meta.client) return;
-  const state = crypto.randomUUID();
-  sessionStorage.setItem("github_oauth_state", state);
-  const redirectUri = `${window.location.origin}/login`;
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    scope: "read:user",
-    state,
-  });
-  window.location.href = `https://github.com/login/oauth/authorize?${params.toString()}`;
-};
-
-const stopCooldown = () => {
-  if (cooldownTimer) {
-    clearInterval(cooldownTimer);
-    cooldownTimer = null;
-  }
-};
-
-const startCooldown = (seconds: number) => {
-  stopCooldown();
-  cooldown.value = Math.max(0, Math.floor(seconds));
-  if (cooldown.value <= 0) return;
-  cooldownTimer = setInterval(() => {
-    cooldown.value = Math.max(0, cooldown.value - 1);
-    if (cooldown.value <= 0) {
-      stopCooldown();
-    }
-  }, 1000);
-};
-
-const resetForm = () => {
-  form.email = "";
-  form.code = "";
-  form.password = "";
-  form.confirmPassword = "";
-  isRegister.value = false;
-  isReset.value = false;
-  isLoading.value = false;
-  isCodeSent.value = false;
-  cooldown.value = 0;
-  stopCooldown();
-  exitMihoyoMode();
-};
-
-const onLoginSuccess = async (token: string, user: Awaited<ReturnType<typeof api.getSelfUser>>) => {
-  auth.setSession(token, user);
-  resetForm();
-  close();
-  message.success(`登录成功，${user.name || user.username || "欢迎回来"}`);
-  // Asynchronously fetch full user info (with author relation) in background
-  try {
-    const fullUser = await api.getSelfUser();
-    auth.setSession(token, fullUser);
-  } catch {
-    // silently ignore — basic user info already stored
-  }
-};
-
-const validateRegisterBase = () => {
-  if (!form.email.trim() || !form.password.trim()) {
-    throw new Error("请输入邮箱和密码");
-  }
-  if (form.password !== form.confirmPassword) {
-    throw new Error("两次输入的密码不一致");
-  }
-};
-
-const sendCode = async () => {
-  if (!form.email.trim()) {
-    message.error("请先输入邮箱");
-    return;
-  }
-  isSendingCode.value = true;
-  try {
-    if (isReset.value) {
-      const res = await api.sendResetCode(form.email.trim());
-      isCodeSent.value = true;
-      form.email = res.email;
-      startCooldown(res.cooldown);
-      message.success("验证码已发送，请查收邮箱");
-    } else {
-      const res = await api.sendRegisterCode(form.email.trim());
-      isCodeSent.value = true;
-      form.email = res.email;
-      startCooldown(res.cooldown);
-      message.success("验证码已发送，请查收邮箱");
-    }
-  } catch (err) {
-    message.error(resolveErrorMessage(err, "发送验证码失败"));
-  } finally {
-    isSendingCode.value = false;
-  }
-};
-
-const submit = async () => {
   isLoading.value = true;
-
   try {
-    if (isReset.value) {
-      if (!form.email.trim()) throw new Error("请输入邮箱");
-      if (!form.code.trim()) throw new Error("请输入验证码");
-      if (!form.password.trim()) throw new Error("请输入新密码");
-      if (form.password !== form.confirmPassword) throw new Error("两次输入的密码不一致");
-      await api.resetPassword(form.email.trim(), form.code.trim(), form.password.trim());
-      message.success("密码已重置，请使用新密码登录");
-      isReset.value = false;
-      isRegister.value = false;
-      form.code = "";
-      form.password = "";
-      form.confirmPassword = "";
-      isCodeSent.value = false;
-      cooldown.value = 0;
-      stopCooldown();
-      return;
-    }
-
-    if (!isRegister.value) {
-      if (!form.email.trim() || !form.password.trim()) {
-        throw new Error("请输入邮箱和密码");
-      }
-      const loginRes = await api.login(form.email.trim(), form.password.trim());
-      if (!loginRes.token) {
-        throw new Error("登录失败：未获取到 Token");
-      }
-      await onLoginSuccess(loginRes.token, loginRes.user);
-      return;
-    }
-
-    validateRegisterBase();
-    if (!form.code.trim()) {
-      throw new Error("请输入验证码");
-    }
-    const registerRes = await api.registerWithCode(
-      form.email.trim(),
-      form.code.trim(),
-      form.password.trim(),
-    );
-
-    if (!registerRes.token) {
-      throw new Error("注册失败：未获取到 Token");
-    }
-    await onLoginSuccess(registerRes.token, registerRes.user);
+    const res = await api.loginByKey(k);
+    if (!res.token) throw new Error("登录失败：密钥无效");
+    await onLoginSuccess(res.token, res.user);
   } catch (err) {
-    const label = isReset.value ? "重置失败" : isRegister.value ? "注册失败" : "登录失败";
-    message.error(resolveErrorMessage(err, label));
+    message.error(resolveErrorMessage(err, "密钥登录失败"));
   } finally {
     isLoading.value = false;
   }
 };
 
-const toggleMode = () => {
-  if (isReset.value) {
-    isReset.value = false;
-    isRegister.value = false;
-  } else {
-    isRegister.value = !isRegister.value;
+// ── 登录成功 / 密钥展示 ──────────────────────────────
+const secretKeyToShow = ref<string | null>(null);
+
+const onLoginSuccess = async (token: string, user: any, secretKey?: string | null) => {
+  if (secretKey) secretKeyToShow.value = secretKey;
+  auth.setSession(token, user);
+  // 异步拉取完整用户信息
+  try {
+    const fullUser = await api.getSelfUser();
+    auth.setSession(token, fullUser);
+  } catch { /* ignore */ }
+  // 如果米游社登录未返回密钥，从 profile 接口补取
+  if (!secretKeyToShow.value) {
+    try {
+      const raw = await useNuxtApp().$api("/api/me/profile") as any;
+      if (raw?.secretKey) secretKeyToShow.value = raw.secretKey;
+    } catch { /* ignore */ }
   }
-  isCodeSent.value = false;
-  form.code = "";
-  form.password = "";
-  form.confirmPassword = "";
-  cooldown.value = 0;
-  stopCooldown();
 };
 
-const enterResetMode = () => {
-  isReset.value = true;
-  isRegister.value = false;
-  isCodeSent.value = false;
-  form.code = "";
-  form.password = "";
-  form.confirmPassword = "";
-  cooldown.value = 0;
-  stopCooldown();
+const handleContinue = () => {
+  secretKeyToShow.value = null;
+  close();
+  message.success("登录成功，欢迎回来");
+};
+
+const handleCopyKey = async () => {
+  if (!secretKeyToShow.value) return;
+  try {
+    await navigator.clipboard.writeText(secretKeyToShow.value);
+    message.success("密钥已复制到剪贴板");
+  } catch {
+    message.error("复制失败，请手动复制");
+  }
 };
 
 const handleClose = () => {
   if (!isLoading.value) {
-    resetForm();
+    exitMihoyoMode();
     close();
   }
 };
 
-const emailRef = ref<{ $el: HTMLElement } | null>(null);
-const passwordRef = ref<{ $el: HTMLElement } | null>(null);
-const confirmPasswordRef = ref<{ $el: HTMLElement } | null>(null);
-const codeRef = ref<{ $el: HTMLElement } | null>(null);
-
-const focusInput = (ref: Ref<{ $el: HTMLElement } | null>) => {
-  nextTick(() => ref.value?.$el?.querySelector('input')?.focus());
-};
-
-const handleEnterEmail = () => {
-  if (isReset.value && !isCodeSent.value) {
-    sendCode();
-  } else {
-    focusInput(passwordRef);
-  }
-};
-const handleEnterPassword = () => {
-  if (isRegister.value || isReset.value) focusInput(confirmPasswordRef);
-  else submit();
-};
-const handleEnterConfirmPassword = () => focusInput(codeRef);
-const handleEnterCode = () => submit();
-
 onUnmounted(() => {
-  stopCooldown();
   stopMihoyoPolling();
 });
 </script>
@@ -303,173 +126,78 @@ onUnmounted(() => {
   <Teleport to="body">
     <Transition name="ik-overlay">
       <div v-if="visible" class="ik-overlay" @mousedown.self="handleClose">
-        <!-- 斜线纹理背景（与帖子弹窗一致） -->
         <div class="ik-overlay__stripe" aria-hidden="true"></div>
 
-        <div class="ik-dialog" @click.stop>
-          <!-- 外边框（半透明白色，三圆角） -->
+        <!-- 密钥展示卡片（登录后如果有密钥） -->
+        <div v-if="secretKeyToShow" class="ik-key-card" @click.stop>
+          <div class="ik-key-card__outer">
+            <div class="ik-key-card__inner">
+              <div class="ik-key-card__header">
+                <span class="ik-key-card__title">登录成功</span>
+              </div>
+              <div class="ik-key-card__body">
+                <p class="ik-key-card__hint">
+                  请妥善保管您的登录密钥，下次登录可直接使用：
+                </p>
+                <div class="ik-key-card__key-row">
+                  <code class="ik-key-card__key">{{ secretKeyToShow }}</code>
+                  <button type="button" class="ik-key-card__copy" @click="handleCopyKey">
+                    复制
+                  </button>
+                </div>
+                <p class="ik-key-card__warn">⚠ 此密钥仅显示一次，丢失后需重新扫码获取</p>
+              </div>
+              <div class="ik-key-card__footer">
+                <z-button @click="handleContinue">进入绳网</z-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 主登录弹窗 -->
+        <div v-else class="ik-dialog" @click.stop>
           <div class="ik-dialog__outer">
-            <!-- 内边框（纯黑，三圆角） -->
             <div class="ik-dialog__inner">
-              <!-- Header Bar -->
               <div class="ik-dialog__header">
-                <span class="ik-dialog__title">
-                  {{ modeTitle }}
-                </span>
-                <button
-                  class="ik-dialog__close"
-                  aria-label="关闭"
-                  @click="handleClose"
-                >
+                <span class="ik-dialog__title">登录</span>
+                <button class="ik-dialog__close" aria-label="关闭" @click="handleClose">
                   <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
                 </button>
               </div>
 
-              <!-- Content -->
               <div class="ik-dialog__body">
                 <IkZzzMarquee />
                 <div class="ik-login__wrapper">
-                <div class="ik-login__inner">
-                <!-- 登录方式：第三方登录在上，邮箱表单在「或」下（重置密码时隐藏） -->
-                <div class="ik-login-field-grid" :class="{ 'is-open': !isReset }">
-                  <div class="ik-login-field-grid__inner">
-                    <div class="ik-login-methods">
-                      <div class="ik-login-methods__row">
-                        <button
-                          type="button"
-                          class="ik-login-method-btn"
-                          :title="isRegister ? '使用米游社注册' : '使用米游社登录'"
-                          aria-label="米游社"
-                          @click="enterMihoyoMode"
-                        >
-                          <img src="/images/mihoyo-icon.webp" alt="" class="ik-login-method-btn__icon" draggable="false" />
-                        </button>
-                        <button
-                          type="button"
-                          class="ik-login-method-btn"
-                          :title="isRegister ? '使用 GitHub 注册' : '使用 GitHub 登录'"
-                          aria-label="GitHub"
-                          @click="startGithubLogin"
-                        >
-                          <svg class="ik-login-method-btn__icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
-                          </svg>
-                        </button>
-                      </div>
-                      <div class="ik-login-divider" role="separator">
-                        <span class="ik-login-divider__line" aria-hidden="true"></span>
-                        <span class="ik-login-divider__text">或</span>
-                        <span class="ik-login-divider__line" aria-hidden="true"></span>
-                      </div>
+                  <div class="ik-login__inner">
+                    <!-- 米游社扫码登录 -->
+                    <button
+                      type="button"
+                      class="ik-login-mihoyo-btn"
+                      @click="enterMihoyoMode"
+                    >
+                      <img src="/images/mihoyo-icon.webp" alt="" class="ik-login-mihoyo-btn__icon" draggable="false" />
+                      <span class="ik-login-mihoyo-btn__text">米游社扫码登录</span>
+                    </button>
+
+                    <!-- 分隔线 -->
+                    <div class="ik-login-divider" role="separator">
+                      <span class="ik-login-divider__line" aria-hidden="true"></span>
+                      <span class="ik-login-divider__text">或</span>
+                      <span class="ik-login-divider__line" aria-hidden="true"></span>
                     </div>
+
+                    <!-- 密钥登录 -->
+                    <z-input
+                      v-model="keyInput"
+                      placeholder="输入登录密钥"
+                      @keydown.enter="handleKeyLogin"
+                    />
                   </div>
-                </div>
-                <div class="ik-login-form">
-                  <!-- 邮箱：始终可见 -->
-                  <z-input
-                    ref="emailRef"
-                    v-model="form.email"
-                    :placeholder="isReset ? '注册邮箱' : isRegister ? '邮箱' : '用户名/邮箱'"
-                    @keydown.enter="handleEnterEmail"
-                  />
-
-                  <!-- 密码：登录/注册时直接显示，重置时验证码发送后展开 -->
-                  <div class="ik-login-field-grid" :class="{ 'is-open': !isReset || (isReset && isCodeSent) }">
-                    <div class="ik-login-field-grid__inner">
-                      <z-input
-                        ref="passwordRef"
-                        v-model="form.password"
-                        type="password"
-                        :placeholder="isReset ? '新密码' : '密码'"
-                        @keydown.enter="handleEnterPassword"
-                      >
-                        <template v-if="!isRegister && !isReset" #append>
-                          <button
-                            type="button"
-                            class="ik-forgot-btn"
-                            @click.stop="enterResetMode"
-                          >
-                            忘记密码
-                          </button>
-                        </template>
-                      </z-input>
-                    </div>
-                  </div>
-
-                  <!-- 确认密码：注册 或 重置(验证码已发送) -->
-                  <div class="ik-login-field-grid" :class="{ 'is-open': isRegister || (isReset && isCodeSent) }">
-                    <div class="ik-login-field-grid__inner">
-                      <z-input
-                        ref="confirmPasswordRef"
-                        v-model="form.confirmPassword"
-                        type="password"
-                        :placeholder="isReset ? '确认新密码' : '确认密码'"
-                        @keydown.enter="handleEnterConfirmPassword"
-                      />
-                    </div>
-                  </div>
-
-                  <!-- 验证码：注册 或 重置(验证码已发送) -->
-                  <div class="ik-login-field-grid" :class="{ 'is-open': isRegister || (isReset && isCodeSent) }">
-                    <div class="ik-login-field-grid__inner">
-                      <z-input
-                        ref="codeRef"
-                        v-model="form.code"
-                        placeholder="验证码"
-                        @keydown.enter="handleEnterCode"
-                      >
-                        <template #suffix>
-                          <span class="ik-code-divider" />
-                          <button
-                            class="ik-code-send-btn"
-                            :disabled="cooldown > 0 || isSendingCode"
-                            @click.stop="sendCode"
-                          >
-                            {{ isSendingCode ? '发送中' : cooldown > 0 ? `${cooldown}s` : (isCodeSent ? '重新发送' : '发送') }}
-                          </button>
-                        </template>
-                      </z-input>
-                    </div>
-                  </div>
-
-                  <!-- 底部留白：与字段共用 grid 动画，避免切换时顿挫 -->
-                  <div
-                    class="ik-login-field-grid ik-login-form-spacer"
-                    :class="{ 'is-open': isRegister || (isReset && isCodeSent) }"
-                  >
-                    <div class="ik-login-field-grid__inner">
-                      <div class="ik-login-form-spacer__fill" aria-hidden="true" />
-                    </div>
-                  </div>
-                </div>
-
-                </div>
-                <div class="ik-login-footer">
-                  <z-button @click="toggleMode">
-                    {{ isReset || isRegister ? "返回登录" : "注册账号" }}
-                  </z-button>
-
-                  <!-- 重置模式 - 未发验证码 -->
-                  <template v-if="isReset && !isCodeSent">
-                    <z-button :disabled="isSendingCode" @click="sendCode">
-                      重置密码
+                  <div class="ik-login-footer">
+                    <z-button :disabled="isLoading" @click="handleKeyLogin">
+                      {{ isLoading ? "登录中…" : "密钥登录" }}
                     </z-button>
-                  </template>
-
-                  <!-- 重置模式 - 已发验证码 -->
-                  <template v-else-if="isReset && isCodeSent">
-                    <z-button :disabled="isLoading" @click="submit">
-                      重置密码
-                    </z-button>
-                  </template>
-
-                  <!-- 登录 / 注册模式 -->
-                  <template v-else>
-                    <z-button :disabled="isLoading" @click="submit">
-                      {{ isRegister ? "注册账号" : "登录账号" }}
-                    </z-button>
-                  </template>
-                </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -479,13 +207,13 @@ onUnmounted(() => {
         <!-- 米游社扫码子弹窗 -->
         <Teleport to="body">
           <Transition name="ik-overlay" appear>
-            <div v-if="isMihoyo" class="ik-overlay ik-overlay--sub" @mousedown.self="exitMihoyoMode">
+            <div v-if="isMihoyo && !secretKeyToShow" class="ik-overlay ik-overlay--sub" @mousedown.self="exitMihoyoMode">
               <div class="ik-overlay__stripe" aria-hidden="true"></div>
               <div class="ik-dialog" @click.stop>
                 <div class="ik-dialog__outer">
                   <div class="ik-dialog__inner">
                     <div class="ik-dialog__header">
-                      <span class="ik-dialog__title">{{ mihoyoTitle }}</span>
+                      <span class="ik-dialog__title">米游社登录</span>
                       <button class="ik-dialog__close" aria-label="关闭" @click="exitMihoyoMode">
                         <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
                       </button>
@@ -548,13 +276,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.ik-overlay--sub {
-  z-index: 9200;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .ik-overlay__stripe {
@@ -571,38 +295,49 @@ onUnmounted(() => {
   );
 }
 
-/* ── Dialog Shell ──────────────────────────────── */
+.ik-overlay--sub {
+  z-index: 9200;
+}
+
+/* ── Dialog Shell ─────────────────────────── */
 .ik-dialog {
   position: relative;
   width: 440px;
-  max-width: 90%;
+  max-width: 92%;
+  max-height: 85vh;
+  overflow: hidden;
   will-change: transform;
 }
 
 .ik-dialog__outer {
   width: 100%;
+  max-height: 85vh;
   padding: 4px;
-  background: #2D2C2D;
+  background: #2d2c2d;
   border-radius: 24px 0 24px 24px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .ik-dialog__inner {
   width: 100%;
+  max-height: calc(85vh - 8px);
   padding: 4px;
   background: #000;
   border-radius: 22px 0 22px 22px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
 }
 
-/* ── Header ────────────────────────────────────── */
 .ik-dialog__header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px 12px 24px;
+  padding: 8px 16px 8px 24px;
+  gap: 8px;
   flex-shrink: 0;
   border-radius: 18px 0 0 0;
   background:
@@ -628,14 +363,8 @@ onUnmounted(() => {
   transition: opacity 140ms ease, transform 140ms ease;
 }
 
-.ik-dialog__close:hover {
-  opacity: 0.85;
-  transform: scale(1.08);
-}
-
-.ik-dialog__close:active {
-  transform: scale(0.95);
-}
+.ik-dialog__close:hover { opacity: 0.85; transform: scale(1.08); }
+.ik-dialog__close:active { transform: scale(0.95); }
 
 .ik-dialog__close-img {
   height: 32px;
@@ -646,261 +375,240 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* ── Body ──────────────────────────────────────── */
 .ik-dialog__body {
-  position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   padding: 24px;
   background: #121212;
   border-radius: 0 0 18px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  position: relative;
 }
 
-/* ── Autofill override ─────────────────────────── */
-.ik-login-form :deep(.z-input__inner:-webkit-autofill),
-.ik-login-form :deep(.z-input__inner:-webkit-autofill:hover),
-.ik-login-form :deep(.z-input__inner:-webkit-autofill:focus),
-.ik-login-form :deep(.z-input__inner:-webkit-autofill:active) {
-  -webkit-box-shadow: 0 0 0 1000px #1c1c1c inset !important;
-  -webkit-text-fill-color: #fff !important;
-  transition: background-color 5000s ease-in-out 0s;
-  caret-color: #fff;
-}
+.ik-dialog__body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
-/* ── Wrapper / Panel (matches logout dialog) ──── */
+/* ── 登录内容 ─────────────────────────── */
 .ik-login__wrapper {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  width: 100%;
-}
-
-.ik-login__inner {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 16px;
-}
-
-/* ── 登录方式（第三方登录 + 分隔线） ──────── */
-.ik-login-methods {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding-bottom: 16px;
-}
-
-.ik-login-methods__row {
-  display: flex;
-  align-items: center;
   gap: 20px;
 }
 
-.ik-login-method-btn {
+.ik-login__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ik-login-mihoyo-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 50%;
-  background: #fff;
-  color: #111;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
   cursor: pointer;
-  transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.ik-login-method-btn:hover {
-  opacity: 0.88;
-  border-color: var(--ik-primary, #bfff09);
+.ik-login-mihoyo-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
-.ik-login-method-btn:active {
-  transform: scale(0.95);
-}
-
-.ik-login-method-btn__icon {
-  width: 26px;
-  height: 26px;
+.ik-login-mihoyo-btn__icon {
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  display: block;
-  user-select: none;
-  -webkit-user-drag: none;
+  object-fit: contain;
 }
 
+/* ── 分隔线 ─────────────────────────── */
 .ik-login-divider {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding: 4px 0;
 }
 
 .ik-login-divider__line {
   flex: 1;
   height: 1px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .ik-login-divider__text {
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
 }
 
-/* ── Form ──────────────────────────────────────── */
-.ik-login-form {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.ik-login-field-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* ── Footer ────────────────────────────────────── */
+/* ── Footer ─────────────────────────── */
 .ik-login-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: -18px;
+  gap: 10px;
+  padding-top: 8px;
+}
+
+.ik-login-footer :deep(.z-button) {
+  flex: 1;
+}
+
+/* ── 密钥展示卡片 ─────────────────────────── */
+.ik-key-card {
   position: relative;
-  z-index: 1;
+  width: 420px;
+  max-width: 92%;
+  z-index: 9300;
 }
 
-/* ── Inline send-code button ──────────────────── */
-.ik-code-divider {
-  display: inline-block;
-  width: 1px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.2);
-  margin: 0 8px;
-  flex-shrink: 0;
+.ik-key-card__outer {
+  width: 100%;
+  padding: 4px;
+  background: #2d2c2d;
+  border-radius: 24px 0 24px 24px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.ik-code-send-btn {
+.ik-key-card__inner {
+  width: 100%;
+  padding: 4px;
+  background: #000;
+  border-radius: 22px 0 22px 22px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.ik-key-card__header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 24px;
   flex-shrink: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
+  border-radius: 18px 0 0 0;
+  background:
+    url("/images/tab-bg-point.webp") repeat,
+    linear-gradient(180deg, #161616 0%, #080808 100%);
+}
+
+.ik-key-card__title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.ik-key-card__body {
+  padding: 24px;
+  background: #121212;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ik-key-card__hint {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.ik-key-card__key-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.ik-key-card__key {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #BFFF09;
+  letter-spacing: 1px;
+  word-break: break-all;
+  user-select: all;
+}
+
+.ik-key-card__copy {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  border: 1px solid rgba(191, 255, 9, 0.4);
+  border-radius: 8px;
+  background: rgba(191, 255, 9, 0.1);
   color: #BFFF09;
   font-size: 13px;
   font-weight: 700;
-  white-space: nowrap;
   cursor: pointer;
-  transition: opacity 140ms ease;
+  transition: background 0.2s ease;
 }
 
-.ik-code-send-btn:hover:not(:disabled) {
-  opacity: 0.8;
+.ik-key-card__copy:hover {
+  background: rgba(191, 255, 9, 0.2);
 }
 
-.ik-code-send-btn:disabled {
-  color: rgba(255, 255, 255, 0.3);
-  cursor: not-allowed;
-}
-
-/* ── 忘记密码（密码输入框 append 区域） ── */
-.ik-forgot-btn {
-  display: flex;
-  align-items: center;
-  padding: 0 14px 0 0;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.35);
+.ik-key-card__warn {
+  margin: 0;
   font-size: 12px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color 140ms ease;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
 }
 
-.ik-forgot-btn:hover {
-  color: rgba(255, 255, 255, 0.6);
+.ik-key-card__footer {
+  padding: 12px 24px 16px;
+  background: #121212;
+  border-radius: 0 0 18px 18px;
 }
 
-/* 入场/出场动画统一在 theme.css 的 .ik-overlay-* 全局规则里维护 */
-
-/* ── Field expand/collapse（grid 动画，无卡顿） ── */
-.ik-login-field-grid {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
-  opacity: 0;
-}
-
-.ik-login-field-grid.is-open {
-  grid-template-rows: 1fr;
-  opacity: 1;
-}
-
-.ik-login-field-grid__inner {
-  overflow: hidden;
-}
-
-/* 登录时由折叠字段的 flex gap 占位；注册时展开 32px，抵消前一项 gap */
-.ik-login-form-spacer {
-  margin-top: -16px;
-}
-
-.ik-login-form-spacer__fill {
-  height: 32px;
-}
-
-/* ── Mobile ───────────────────────────────────── */
-@media (max-width: 500px) {
-  .ik-dialog {
-    max-width: 100%;
-  }
-  /* Keep the ZZZ-style 3-rounded-corner frame on mobile; the dialog is a
-     centered popup, not a fullscreen sheet. */
-}
-
-/* ── 米游社扫码 ───────────────────────── */
+/* ── 米游社子弹窗 ─────────────────────────── */
 .ik-mihoyo {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0 4px;
+  gap: 16px;
 }
 
 .ik-mihoyo__qr-box {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 200px;
   height: 200px;
+  background: #fff;
   border-radius: 12px;
   overflow: hidden;
-  background: #fff;
 }
+
+.ik-mihoyo__qr-box.is-dimmed { opacity: 0.4; }
 
 .ik-mihoyo__qr {
   width: 100%;
   height: 100%;
   display: block;
-  user-select: none;
-  -webkit-user-drag: none;
-}
-
-.ik-mihoyo__qr-box.is-dimmed .ik-mihoyo__qr {
-  filter: blur(3px) brightness(0.5);
+  image-rendering: pixelated;
 }
 
 .ik-mihoyo__qr-placeholder {
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.08);
+  background: #eee;
 }
 
 .ik-mihoyo__refresh {
@@ -909,24 +617,26 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 10px 20px;
   border: none;
-  background: rgba(0, 0, 0, 0.55);
-  color: #bfff09;
-  font-size: 14px;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .ik-mihoyo__status {
   margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
 }
 
 .ik-mihoyo__status.is-scanned,
 .ik-mihoyo__status.is-confirmed {
-  color: #bfff09;
+  color: #BFFF09;
+  font-weight: 600;
 }
 
 .ik-mihoyo__status.is-expired,
@@ -941,6 +651,4 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.4);
   text-align: center;
 }
-
-/* prefers-reduced-motion 由 theme.css 全局接管 */
 </style>
