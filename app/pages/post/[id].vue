@@ -7,12 +7,14 @@ import { isNotFoundError, isUserBlockedError, resolveErrorMessage } from "~/util
 import { useRenderedBody } from "~/composables/useRenderedBody";
 import { formatTime } from "~/utils/time";
 import { toCanonicalUrl, toThumbUrl } from "~/utils/image";
-import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon } from "@heroicons/vue/24/outline";
+import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/vue/24/solid";
 import { useMentionInput } from "~/composables/useMentionInput";
 import { useEmoteInsert } from "~/composables/useEmoteInsert";
 import { useCommentSeek } from "~/composables/useCommentSeek";
 import BilibiliPlayer from "~/components/BilibiliPlayer.vue";
+import EmblaCarousel from "embla-carousel";
+import type { EmblaCarouselType } from "embla-carousel";
 
 const DEFAULT_COVER_IMAGE = "/images/default-cover.webp";
 
@@ -147,6 +149,103 @@ const coverAspectRatio = computed(() => {
   return 16 / 9;
 });
 
+// ── 封面多图轮播（与帖子弹窗一致） ────────────────
+const coverIndex = ref(0);
+const emblaRef = shallowRef<HTMLElement | null>(null);
+const emblaApi = shallowRef<EmblaCarouselType | undefined>();
+
+const syncEmblaState = () => {
+  const api = emblaApi.value;
+  if (!api) return;
+  coverIndex.value = api.selectedScrollSnap();
+  expandLoadWindow();
+};
+
+const destroyEmbla = () => {
+  if (emblaApi.value) {
+    emblaApi.value.destroy();
+    emblaApi.value = undefined;
+  }
+};
+
+const initEmbla = (el: HTMLElement) => {
+  destroyEmbla();
+  emblaApi.value = EmblaCarousel(el, {
+    loop: false,
+    align: "start",
+    dragThreshold: 6,
+  });
+  emblaApi.value.on("select", syncEmblaState);
+  emblaApi.value.on("reInit", syncEmblaState);
+  syncEmblaState();
+};
+
+watch(emblaRef, (el, _, onCleanup) => {
+  if (el) initEmbla(el);
+  onCleanup(() => destroyEmbla());
+}, { flush: "post" });
+
+// 已批准加载的封面索引集合：只有命中其中的图片才会真正请求 src。
+const loadedCoverIndices = ref<Set<number>>(new Set([0, 1, 2]));
+const LOAD_WINDOW_RADIUS = 2;
+
+const expandLoadWindow = () => {
+  const i = coverIndex.value;
+  const total = covers.value.length;
+  if (total === 0) return;
+  const next = new Set(loadedCoverIndices.value);
+  let changed = false;
+  for (let k = i - LOAD_WINDOW_RADIUS; k <= i + LOAD_WINDOW_RADIUS; k++) {
+    if (k >= 0 && k < total && !next.has(k)) {
+      next.add(k);
+      changed = true;
+    }
+  }
+  if (changed) loadedCoverIndices.value = next;
+};
+
+const resetLoadWindow = () => {
+  loadedCoverIndices.value = new Set([0, 1, 2]);
+};
+
+// 命中加载窗口的图片才允许真正请求 src
+const isCoverNearby = (i: number) =>
+  i === coverIndex.value || loadedCoverIndices.value.has(i);
+
+const goCover = (index: number) => {
+  const api = emblaApi.value;
+  if (!api) return;
+  const total = covers.value.length;
+  if (total <= 1) return;
+  const target = Math.min(Math.max(index, 0), total - 1);
+  api.scrollTo(target);
+};
+
+// 拦截滚轮：水平滚轮（deltaX）转成外层垂直滚动，避免误判为切图。
+const onCoverWheel = (e: WheelEvent) => {
+  if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  const parent = scrollRef.value;
+  if (parent) parent.scrollTop += e.deltaX;
+};
+
+// 帖子切换时重置封面索引
+watch(() => postId.value, () => {
+  coverIndex.value = 0;
+  resetLoadWindow();
+  nextTick(() => {
+    emblaApi.value?.scrollTo(0, true);
+  });
+});
+
+// 封面列表变化后重新初始化 Embla
+watch(covers, () => {
+  nextTick(() => {
+    emblaApi.value?.reInit();
+    expandLoadWindow();
+  });
+});
+
 const syncCommentInputHeight = async () => {
   await nextTick();
   const textarea = commentInputBoxRef.value?.querySelector("textarea") as HTMLTextAreaElement | null;
@@ -155,14 +254,14 @@ const syncCommentInputHeight = async () => {
   textarea.style.height = `${Math.min(textarea.scrollHeight, 62)}px`;
 };
 
-const openCoverPreview = () => {
+const openCoverPreview = (index = 0) => {
   const images = covers.value.map((c) => ({
     src: toCanonicalUrl(c.url),
     thumb: toThumbUrl(c.url),
     width: c.width,
     height: c.height,
   }));
-  if (images.length) openGallery(images, 0);
+  if (images.length) openGallery(images, Math.min(Math.max(index, 0), images.length - 1));
 };
 
 /* ── 数据加载 ──────────────────────────────────── */
@@ -976,7 +1075,9 @@ onBeforeUnmount(() => {
               <!-- 封面 / 视频 -->
               <div class="ik-page__cover-wrap" v-if="hasCovers || post.externalVideos?.length">
                 <template v-if="hasCovers">
+                  <!-- 单张封面 -->
                   <div
+                    v-if="covers.length === 1"
                     class="ik-page__cover-border"
                     :style="{ aspectRatio: String(coverAspectRatio) }"
                   >
@@ -987,8 +1088,73 @@ onBeforeUnmount(() => {
                       @click="openCoverPreview()"
                       @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
                     />
-                    <span v-if="covers.length > 1" class="ik-page__cover-count">
-                      {{ covers.length }} 张
+                  </div>
+
+                  <!-- 多图轮播 -->
+                  <div
+                    v-else
+                    class="ik-page__cover-border ik-page__cover-border--carousel"
+                    :style="{ aspectRatio: String(coverAspectRatio) }"
+                  >
+                    <div
+                      ref="emblaRef"
+                      class="ik-page__cover-scroller"
+                      @wheel="onCoverWheel"
+                    >
+                      <div class="ik-page__cover-track">
+                        <div
+                          v-for="(c, i) in covers"
+                          :key="c.url + i"
+                          class="ik-page__cover-slide"
+                        >
+                          <img
+                            :src="isCoverNearby(i) ? toCanonicalUrl(c.url) : undefined"
+                            :alt="`${post.title} - ${i + 1}`"
+                            class="ik-page__cover"
+                            :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
+                            decoding="async"
+                            draggable="false"
+                            @click="openCoverPreview(i)"
+                            @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      v-show="coverIndex > 0"
+                      type="button"
+                      class="ik-page__cover-nav ik-page__cover-nav--prev"
+                      aria-label="上一张"
+                      @click.stop="goCover(coverIndex - 1)"
+                    >
+                      <ChevronLeftIcon style="width:20px;height:20px" />
+                    </button>
+                    <button
+                      v-show="coverIndex < covers.length - 1"
+                      type="button"
+                      class="ik-page__cover-nav ik-page__cover-nav--next"
+                      aria-label="下一张"
+                      @click.stop="goCover(coverIndex + 1)"
+                    >
+                      <ChevronRightIcon style="width:20px;height:20px" />
+                    </button>
+
+                    <div class="ik-page__cover-dots">
+                      <button
+                        v-for="(_, i) in covers"
+                        :key="i"
+                        type="button"
+                        class="ik-page__cover-dot"
+                        :class="{ 'ik-page__cover-dot--active': i === coverIndex }"
+                        :aria-label="`第 ${i + 1} 张`"
+                        :aria-current="i === coverIndex ? 'true' : undefined"
+                        @click.stop="goCover(i)"
+                      />
+                    </div>
+
+                    <span class="ik-page__cover-count ik-page__cover-count--top">
+                      {{ coverIndex + 1 }} / {{ covers.length }}
                     </span>
                   </div>
                 </template>
@@ -1577,6 +1743,108 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 700;
   pointer-events: none;
+  z-index: 2;
+}
+
+.ik-page__cover-count--top {
+  top: 10px;
+  bottom: auto;
+}
+
+/* 多图轮播 */
+.ik-page__cover-border--carousel {
+  max-height: none;
+}
+
+.ik-page__cover-scroller {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ik-page__cover-track {
+  display: flex;
+  height: 100%;
+  touch-action: pan-y pinch-zoom;
+}
+
+.ik-page__cover-slide {
+  position: relative;
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.ik-page__cover-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: var(--ik-cursor-pointer);
+  transition: background 160ms ease, opacity 160ms ease;
+  z-index: 2;
+}
+
+.ik-page__cover-nav:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.ik-page__cover-nav--prev {
+  left: 10px;
+}
+
+.ik-page__cover-nav--next {
+  right: 10px;
+}
+
+.ik-page__cover-dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  z-index: 2;
+}
+
+.ik-page__cover-dot {
+  appearance: none;
+  border: none;
+  padding: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  cursor: var(--ik-cursor-pointer);
+  transition: width 200ms ease, background-color 200ms ease, transform 160ms ease;
+}
+
+.ik-page__cover-dot:hover {
+  background: rgba(255, 255, 255, 0.8);
+  transform: scale(1.2);
+}
+
+.ik-page__cover-dot--active {
+  width: 18px;
+  background: var(--ik-primary);
+}
+
+.ik-page__cover-dot--active:hover {
+  background: var(--ik-primary);
+  transform: none;
 }
 
 /* 正文 */
