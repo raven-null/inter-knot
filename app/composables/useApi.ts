@@ -36,6 +36,7 @@ import {
 } from "~/utils/pagination";
 import type { MentionCandidate } from "~/composables/useMentionInput";
 import { toMediaUrl } from "~/utils/image";
+import { compressImageFile } from "~/utils/upload";
 
 // ── 集中定义 queryKey，便于写接口精准 invalidate ─────────────
 const qk = {
@@ -1679,14 +1680,18 @@ export function useApi() {
   ): Promise<UploadedFile> => {
     onProgress?.(0);
 
+    // 客户端压缩：超出 Netlify 请求体上限（约 4.5MB）的大图先缩放转 WebP，避免 413。
+    const uploadFile = await compressImageFile(file);
+    onProgress?.(4);
+
     // 在签名前计算内容 SHA-256，用于服务端的内容级去重。
-    const contentHash = await computeFileSha256(file);
+    const contentHash = await computeFileSha256(uploadFile);
     onProgress?.(5);
 
     const signed = await signUpload({
-      filename: file.name,
-      mimeType: file.type || "image/jpeg",
-      size: file.size,
+      filename: uploadFile.name,
+      mimeType: uploadFile.type || "image/jpeg",
+      size: uploadFile.size,
       contentHash,
     });
 
@@ -1700,13 +1705,13 @@ export function useApi() {
     await fetch(signed.uploadUrl, {
       method: signed.method,
       headers: signed.headers,
-      body: file,
+      body: uploadFile,
     }).then((res) => {
       if (!res.ok) throw new Error(`S3 upload failed: ${res.status}`);
     });
     onProgress?.(80);
 
-    const dims = await getImageDimensions(file);
+    const dims = await getImageDimensions(uploadFile);
     const uploaded = await completeUpload({
       uploadToken: signed.uploadToken,
       width: dims?.width,

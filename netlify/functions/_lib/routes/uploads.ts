@@ -6,7 +6,7 @@ import { ok, json, badRequest, notFound, readJson } from "../http";
 import { toUploadedFile, type Doc } from "../serialize";
 import sharp from "sharp";
 
-const MAX_ORIGINAL_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_ORIGINAL_SIZE = 4 * 1024 * 1024; // 4 MB（Netlify Functions 同步请求体上限约 6MB/二进制约 4.5MB）
 const MAX_EDGE = 2048;
 const WEBP_QUALITY = 80;
 const UPLOAD_BY_DOC = (id: string) => `uploads/by-document/${id}.json`;
@@ -26,7 +26,7 @@ export async function sign(req: Request): Promise<Response> {
 
   const fileSize = Number(size || 0);
   if (!Number.isFinite(fileSize) || fileSize <= 0) return badRequest("缺少文件大小");
-  if (fileSize > MAX_ORIGINAL_SIZE) return badRequest("图片过大，最大 10MB", "FILE_TOO_LARGE");
+  if (fileSize > MAX_ORIGINAL_SIZE) return badRequest("图片过大，最大 4MB", "FILE_TOO_LARGE");
 
   const mime = String(mimeType || "image/jpeg");
   if (!/^image\/(jpeg|png|webp|gif|avif)$/.test(mime)) {
