@@ -140,7 +140,9 @@ async function cleanupDuplicates(): Promise<void> {
   }
 
   // 管理员去重（仅处理 role=admin 的用户）
-  const userKeys = (await listKeys("users/")).filter((k) => !k.includes("/by-role/") && !k.includes("/by-uid/"));
+  const userKeys = (await listKeys("users/")).filter(
+    (k) => !k.slice("users/".length).includes("/"),
+  );
   const adminKeys: string[] = [];
   for (const key of userKeys) {
     const u = await getJson<{ role?: string }>(key);
@@ -164,7 +166,7 @@ async function cleanupDuplicates(): Promise<void> {
 
   // UID 回填：为早期创建（无 uid 字段）的用户分配唯一 8 位 UID
   const uidKeys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-role/") && !k.includes("/by-uid/"),
+    (k) => !k.slice("users/".length).includes("/"),
   );
   for (const key of uidKeys) {
     const u = await getJson<Doc>(key);

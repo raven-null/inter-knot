@@ -9,6 +9,12 @@ import { LEVEL_THRESHOLDS, MAX_LEVEL, levelFromExp } from "../level";
 
 const PAGE_SIZE = 20;
 
+/** 是否真正的用户文档：`users/<id>.json`（排除 by-uid / by-key / by-mihoyo / by-role 等索引文档） */
+function isUserDocKey(key: string): boolean {
+  const rest = key.slice("users/".length);
+  return !rest.includes("/");
+}
+
 /** 近 30 天每日计数：新帖 / 新评论 / 新用户 */
 async function buildTrend(
   feed: Doc[],
@@ -34,9 +40,7 @@ async function buildTrend(
     const d = String(c?.created_at || "").slice(0, 10);
     if (commentsByDay.has(d)) commentsByDay.set(d, (commentsByDay.get(d) || 0) + 1);
   }
-  const userKeys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-uid/"),
-  );
+  const userKeys = (await listKeys("users/")).filter(isUserDocKey);
   for (const key of userKeys) {
     const u = await getJson<{ created_at?: string }>(key);
     const d = String(u?.created_at || "").slice(0, 10);
@@ -73,9 +77,7 @@ function pageSlice<T>(items: T[], page: number, pageSize: number): { data: T[]; 
 export async function stats(req: Request): Promise<Response> {
   await requireAdmin(req);
   const s = await getStats();
-  const keys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-uid/"),
-  );
+  const keys = (await listKeys("users/")).filter(isUserDocKey);
   const recentUsers: Doc[] = [];
   for (const key of keys) {
     const u = await getJson<Doc>(key);
@@ -133,9 +135,7 @@ export async function users(req: Request): Promise<Response> {
   const pageSize = Math.min(50, Math.max(1, int(qp.get("pageSize"), PAGE_SIZE)));
   const q = (qp.get("q") || "").toLowerCase();
 
-  const keys = (await listKeys("users/")).filter(
-    (k) => !k.includes("/by-uid/"),
-  );
+  const keys = (await listKeys("users/")).filter(isUserDocKey);
   const all: Doc[] = [];
   for (const key of keys) {
     const u = await getJson<Doc>(key);
