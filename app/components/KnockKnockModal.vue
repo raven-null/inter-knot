@@ -428,7 +428,7 @@ const createNewAiSession = async () => {
   }
 };
 
-/** 删除指定 AI 会话 */
+/** 删除当前会话（AI / 私聊 / 群聊通用） */
 const deleteAiSession = async (id: string) => {
   if (!id || deletingSessionId.value === id) return;
   const ok = await confirmDialog.open({
@@ -444,7 +444,7 @@ const deleteAiSession = async (id: string) => {
     if (activeConversationId.value === id) {
       activeAiSlug.value = null;
       activeConversationId.value = null;
-      updateUrl("calls");
+      updateUrl(activeTab.value);
     }
   } finally {
     deletingSessionId.value = null;
@@ -1777,9 +1777,9 @@ const handleMobileBack = () => {
                     >
                       <MagnifyingGlassIcon class="ik-knock__search-toggle-icon" aria-hidden="true" />
                     </button>
-                    <!-- AI 会话管理：删除当前会话 -->
+                    <!-- 会话管理：删除当前会话（AI / 私聊 / 群聊通用） -->
                     <button
-                      v-if="isActiveAiConversation && activeConversationId"
+                      v-if="activeConversationId"
                       type="button"
                       class="ik-knock__session-action"
                       :disabled="deletingSessionId === activeConversationId"
