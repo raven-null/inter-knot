@@ -2034,6 +2034,16 @@ export function useApi() {
     });
   };
 
+  // ── 群聊成员 ────────────────────────────────────────
+
+  const getGroupMembers = async (conversationId: string): Promise<{ members: any[] }> => {
+    const response = await $api(`/api/dm/conversations/${encodeURIComponent(conversationId)}/members`);
+    const data = (response || {}) as { members?: unknown };
+    return {
+      members: Array.isArray(data.members) ? data.members : [],
+    };
+  };
+
   const updatePinnedArticles = async (
     pinned: string[] | null,
   ): Promise<{ pinned: string[] | null }> => {
@@ -2154,6 +2164,8 @@ export function useApi() {
     updatePinnedArticles,
     searchAuthors,
     tripleAction,
+    // 群聊成员
+    getGroupMembers,
     // 米游社登录 / 绑定
     createMihoyoQr,
     pollMihoyoQr,

@@ -353,6 +353,8 @@ const startChatWithUser = async (user: any) => {
     }
     const { summary } = await openDirectConversation(user.uid);
     if (summary?.documentId) {
+      // 刷新会话列表确保新会话显示
+      await refresh();
       handleConversationClick(summary.documentId);
     }
   } catch (err) {
@@ -441,6 +443,7 @@ const submitGroup = async () => {
     if (groupModalMode.value === "create") {
       if (!newGroupName.value.trim()) {
         message.warning("请填写群名称");
+        groupSaving.value = false;
         return;
       }
       const summary = await createGroupChat({
@@ -449,6 +452,8 @@ const submitGroup = async () => {
       });
       groupModalOpen.value = false;
       activeTab.value = "groups";
+      // 刷新会话列表确保新群聊显示
+      await refresh();
       activeConversationId.value = summary.documentId;
       updateUrl("groups", summary.documentId);
       message.success("群聊创建成功");
@@ -464,6 +469,34 @@ const submitGroup = async () => {
   } finally {
     groupSaving.value = false;
   }
+};
+
+// ── 群聊信息弹窗 ──────────────────────────────────────
+const groupInfoOpen = ref(false);
+const groupInfoMembers = ref<any[]>([]);
+const groupInfoLoading = ref(false);
+
+const openGroupInfo = async () => {
+  if (!activeConversationId.value || !activeConversation.value || activeConversation.value.kind !== "group") return;
+  groupInfoOpen.value = true;
+  groupInfoLoading.value = true;
+  try {
+    const resp = await api.getGroupMembers(activeConversationId.value);
+    groupInfoMembers.value = resp?.members || [];
+  } catch {
+    groupInfoMembers.value = [];
+  } finally {
+    groupInfoLoading.value = false;
+  }
+};
+
+const closeGroupInfo = () => {
+  groupInfoOpen.value = false;
+  groupInfoMembers.value = [];
+};
+
+const isUserOnline = (userId: number): boolean => {
+  return presenceUsers.value.some((u: any) => u.userId === userId);
 };
 
 const cardAvatarUrl = (card: AiRoleCard): string | null => {
@@ -2025,12 +2058,12 @@ const handleMobileBack = () => {
                     />
                     <div
                       class="ik-knock__main-title-wrap"
-                      :class="{ 'is-clickable': canClickPeerProfile }"
-                      :role="canClickPeerProfile ? 'button' : undefined"
-                      :tabindex="canClickPeerProfile ? 0 : undefined"
-                      :aria-label="canClickPeerProfile ? `查看${activeConversation?.peer?.name || '用户'}的主页` : undefined"
-                      @click="goToProfile(peerProfileUrl)"
-                      @keydown.enter="goToProfile(peerProfileUrl)"
+                      :class="{ 'is-clickable': canClickPeerProfile || activeConversation?.kind === 'group' }"
+                      :role="canClickPeerProfile ? 'button' : activeConversation?.kind === 'group' ? 'button' : undefined"
+                      :tabindex="canClickPeerProfile || activeConversation?.kind === 'group' ? 0 : undefined"
+                      :aria-label="activeConversation?.kind === 'group' ? '查看群聊信息' : canClickPeerProfile ? `查看${activeConversation?.peer?.name || '用户'}的主页` : undefined"
+                      @click="activeConversation?.kind === 'group' ? openGroupInfo() : goToProfile(peerProfileUrl)"
+                      @keydown.enter="activeConversation?.kind === 'group' ? openGroupInfo() : goToProfile(peerProfileUrl)"
                     >
                       <span class="ik-knock__main-title">
                         {{ activeConversation?.title || activeConversation?.peer?.name || "NoData" }}
@@ -2362,6 +2395,66 @@ const handleMobileBack = () => {
             >
               {{ groupModalMode === "create" ? "创建群聊" : "邀请" }}
             </z-button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- 群聊信息弹窗 -->
+  <Teleport to="body">
+    <Transition name="ik-overlay" appear>
+      <div v-if="groupInfoOpen" class="ik-overlay" @mousedown.self="closeGroupInfo">
+        <div class="ik-overlay__stripe" aria-hidden="true"></div>
+        <div class="ik-group-info" @click.stop>
+          <div class="ik-group-info__outer">
+            <div class="ik-group-info__inner">
+              <div class="ik-group-info__header">
+                <span class="ik-group-info__title">群聊信息</span>
+                <button class="ik-dialog__close" aria-label="关闭" @click="closeGroupInfo">
+                  <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
+                </button>
+              </div>
+              <div class="ik-group-info__body">
+                <div class="ik-group-info__stats">
+                  <span class="ik-group-info__stat">
+                    <span class="ik-group-info__stat-label">群成员</span>
+                    <span class="ik-group-info__stat-value">{{ groupInfoMembers.length }}</span>
+                  </span>
+                  <span class="ik-group-info__stat">
+                    <span class="ik-group-info__stat-label">在线</span>
+                    <span class="ik-group-info__stat-value ik-group-info__stat-value--online">
+                      {{ groupInfoMembers.filter(m => isUserOnline(m.userId)).length }}
+                    </span>
+                  </span>
+                </div>
+                <div class="ik-group-info__members">
+                  <div v-if="groupInfoLoading" class="ik-group-info__loading">加载中…</div>
+                  <div
+                    v-for="member in groupInfoMembers"
+                    :key="member.userId"
+                    class="ik-group-info__member"
+                  >
+                    <img
+                      :src="member.avatar || '/images/default-avatar.webp'"
+                      :alt="member.name || ''"
+                      class="ik-group-info__member-avatar"
+                      @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+                    />
+                    <div class="ik-group-info__member-info">
+                      <span class="ik-group-info__member-name">{{ member.name || '未知用户' }}</span>
+                      <span v-if="member.role === 'owner'" class="ik-group-info__member-role">群主</span>
+                    </div>
+                    <span
+                      class="ik-group-info__member-status"
+                      :class="{ 'is-online': isUserOnline(member.userId) }"
+                    >
+                      {{ isUserOnline(member.userId) ? '在线' : '离线' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3967,6 +4060,131 @@ const handleMobileBack = () => {
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.3);
   cursor: not-allowed;
+}
+
+/* ── 群聊信息弹窗 ──────────────────────────────────── */
+.ik-group-info {
+  position: relative;
+  z-index: 1;
+  width: 360px;
+  max-width: 92%;
+  max-height: 70vh;
+}
+.ik-group-info__outer {
+  width: 100%;
+  padding: 3px;
+  background: #2D2C2D;
+  border-radius: 18px 0 18px 18px;
+}
+.ik-group-info__inner {
+  width: 100%;
+  background: #141414;
+  border: 3px solid #000;
+  border-radius: 16px 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.ik-group-info__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+.ik-group-info__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-group-info__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+}
+.ik-group-info__stats {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.ik-group-info__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ik-group-info__stat-label {
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+}
+.ik-group-info__stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-group-info__stat-value--online {
+  color: #52d273;
+}
+.ik-group-info__members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ik-group-info__loading {
+  text-align: center;
+  color: rgba(255,255,255,0.4);
+  font-size: 14px;
+  padding: 20px 0;
+}
+.ik-group-info__member {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 140ms;
+}
+.ik-group-info__member:hover {
+  background: rgba(255,255,255,0.04);
+}
+.ik-group-info__member-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.ik-group-info__member-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ik-group-info__member-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-group-info__member-role {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(251,254,0,0.15);
+  color: #fbfe00;
+  font-weight: 600;
+}
+.ik-group-info__member-status {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+}
+.ik-group-info__member-status.is-online {
+  color: #52d273;
 }
 
 </style>
