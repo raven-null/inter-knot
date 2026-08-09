@@ -7,8 +7,8 @@ import { isNotFoundError, isUserBlockedError, resolveErrorMessage } from "~/util
 import { useRenderedBody } from "~/composables/useRenderedBody";
 import { formatTime } from "~/utils/time";
 import { toCanonicalUrl, toThumbUrl } from "~/utils/image";
-import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
-import { StarIcon as StarIconSolid } from "@heroicons/vue/24/solid";
+import { StarIcon, HandThumbUpIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
+import { StarIcon as StarIconSolid, HandThumbUpIcon as HandThumbUpIconSolid } from "@heroicons/vue/24/solid";
 import { useMentionInput } from "~/composables/useMentionInput";
 import { useEmoteInsert } from "~/composables/useEmoteInsert";
 import { useCommentSeek } from "~/composables/useCommentSeek";
