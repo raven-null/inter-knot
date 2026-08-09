@@ -53,13 +53,6 @@ const kpi = computed(() => [
     sub: `评论 ${data.value.commentCount ?? 0} · 浏览 ${data.value.viewCount ?? 0}`,
   },
   {
-    label: "审核",
-    to: "/admin/review",
-    value: data.value.pendingPosts ?? 0,
-    sub: "待审核帖子",
-    warn: true,
-  },
-  {
     label: "举报审核",
     to: "/admin/reports",
     value: openReports.value,

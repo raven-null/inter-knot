@@ -5,7 +5,6 @@ const auth = useAuthStore();
 
 const ICONS = {
   dash: "M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z",
-  review: "M12 2l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V5l8-3zm-1 13l-3.5-3.5 1.4-1.4L11 12.2l4.1-4.1 1.4 1.4L11 15z",
   posts: "M4 4h16v4H4zM4 10h16v2H4zM4 14h16v2H4zM4 18h10v2H4z",
   comments: "M4 4h16a2 2 0 012 2v10a2 2 0 01-2 2H8l-5 5V6a2 2 0 012-2z",
   reports: "M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
@@ -19,7 +18,6 @@ const navGroups = [
   {
     label: "内容管理",
     items: [
-      { to: "/admin/review", label: "待审核", icon: ICONS.review },
       { to: "/admin/posts", label: "帖子管理", icon: ICONS.posts },
       { to: "/admin/comments", label: "评论管理", icon: ICONS.comments },
       { to: "/admin/reports", label: "举报管理", icon: ICONS.reports },
