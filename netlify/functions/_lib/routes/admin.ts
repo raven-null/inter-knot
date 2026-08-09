@@ -234,19 +234,58 @@ export async function fixFollowCountsOnce(req: Request): Promise<Response> {
 
   const followingKeys = await listKeys(`follows/${id}/`);
   const allKeys = await listKeys("follows/");
-  const actualFollowers = allKeys.filter((k) => {
+  const followerKeys = allKeys.filter((k) => {
     const p = k.split("/");
     return p.length === 3 && p[2] === `${id}.json`;
-  }).length;
+  });
 
-  const newFollowing = followingKeys.length;
-  const newFollowers = actualFollowers;
+  // 找出指向已删除用户的孤儿 key
+  const orphanedKeys: string[] = [];
+  const validFollowerIds: string[] = [];
+  for (const key of followerKeys) {
+    const fid = key.split("/")[1];
+    const fu = await getUser(fid);
+    if (fu) {
+      validFollowerIds.push(fid);
+    } else {
+      orphanedKeys.push(key);
+    }
+  }
+
+  // 删除孤儿 key
+  for (const key of orphanedKeys) {
+    await del(key);
+  }
+
+  // 同样检查 following keys
+  const orphanedFollowingKeys: string[] = [];
+  const validFollowingIds: string[] = [];
+  for (const key of followingKeys) {
+    const tid = key.split("/")[2]?.replace(/\.json$/, "");
+    if (!tid) { orphanedFollowingKeys.push(key); continue; }
+    const tu = await getUser(tid);
+    if (tu) {
+      validFollowingIds.push(tid);
+    } else {
+      orphanedFollowingKeys.push(key);
+    }
+  }
+  for (const key of orphanedFollowingKeys) {
+    await del(key);
+  }
+
+  const newFollowers = validFollowerIds.length;
+  const newFollowing = validFollowingIds.length;
 
   await setJson(userKey(id), { ...u, followingCount: newFollowing, followersCount: newFollowers });
   return json({
     id,
     before: { followersCount: Number(u.followersCount || 0), followingCount: Number(u.followingCount || 0) },
     after: { followersCount: newFollowers, followingCount: newFollowing },
+    orphanedFollowers: orphanedKeys,
+    orphanedFollowing: orphanedFollowingKeys,
+    validFollowers: validFollowerIds,
+    validFollowing: validFollowingIds,
   });
 }
 
