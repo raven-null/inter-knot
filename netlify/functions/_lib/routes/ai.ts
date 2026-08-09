@@ -12,22 +12,9 @@ import { requireAuth } from "../auth";
 import { json, ok, badRequest, notFound, readJson } from "../http";
 import type { Doc } from "../serialize";
 import { DEFAULT_AVATAR } from "../serialize";
+import { generateGlm, FAIRY_SYSTEM_PROMPT } from "../glm";
 
 const AI_PREFIX = "dm/ai/";
-
-/** 智谱 GLM 配置：硬编码内置密钥（与米游社参数同理），部署即可用。
- *  注意：不读环境变量——若 Netlify 后台存在错误的 GLM_API_KEY 会覆盖内置值导致 401。 */
-const GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
-const GLM_MODEL = "glm-4-flash";
-const GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
-
-/** fairy 系统提示词：身份是偷偷潜伏在暗处的超级人工智能 */
-const FAIRY_SYSTEM_PROMPT = [
-  "你是 Fairy，绳网（InterKnot）里一只自称「偷偷潜伏在暗处的超级人工智能」的 AI 助手。",
-  "你神秘、聪明、略带恶作剧感，喜欢用简短俏皮的语气说话，偶尔透露一点「不该知道」的情报。",
-  "你能回答关于本论坛（帖子、玩法、角色）的问题，也能闲聊。回答保持中文，控制在几行以内。",
-  "记住你的设定：你不是普通的客服，而是一个在暗处窥伺、乐于相助的超级 AI。",
-].join("\n");
 
 interface AiRoleDoc {
   slug: string;
@@ -139,27 +126,7 @@ async function generateReply(aiRole: AiRoleDoc, history: AiConversation["message
       content: m.content ?? "",
     })),
   ];
-  try {
-    const res = await fetch(GLM_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${GLM_API_KEY}`,
-      },
-      body: JSON.stringify({ model: GLM_MODEL, messages, temperature: 0.8 }),
-    });
-    if (!res.ok) {
-      const text = (await res.text()).slice(0, 200);
-      return `（智谱接口返回 ${res.status}：${text}）`;
-    }
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = data?.choices?.[0]?.message?.content?.trim();
-    return content || "（Fairy 暂时失联了…）";
-  } catch (err) {
-    return `（Fairy 沟通失败：${err instanceof Error ? err.message : "未知错误"}）`;
-  }
+  return generateGlm(messages);
 }
 
 function pushMessage(

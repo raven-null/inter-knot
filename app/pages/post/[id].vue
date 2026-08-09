@@ -284,6 +284,24 @@ const sendComment = async () => {
           name: auth.user?.name || auth.user?.username || "我",
           avatar: auth.user?.avatar,
         };
+    // 评论区 @fairy 时后端同步返回 Fairy 回复，合并到本条评论的楼中楼
+    const fairyReplyRaw = (res as Record<string, unknown>).fairyReply as Record<string, unknown> | undefined;
+    const fairyAuthorRaw = (fairyReplyRaw?.author ?? {}) as Record<string, unknown>;
+    const localFairyReply = fairyReplyRaw?.documentId
+      ? {
+          id: String(fairyReplyRaw.documentId),
+          content: String(fairyReplyRaw.content || ""),
+          liked: false,
+          likesCount: 0,
+          createdAt: String(fairyReplyRaw.createdAt || ""),
+          author: {
+            documentId: String(fairyAuthorRaw.documentId || "aifairy"),
+            name: String(fairyAuthorRaw.name || "Fairy"),
+            avatar: String(fairyAuthorRaw.avatar || "/images/zzzicon_200x200.png"),
+          },
+          images: [],
+        }
+      : null;
     const localImages = commentImages.uploadTasks.value
       .filter((task) => task.status === "done" && task.serverUrl)
       .map((task) => ({ url: task.serverUrl! }));
@@ -322,6 +340,13 @@ const sendComment = async () => {
         isPinned: false,
         floor: maxFloor + 1,
       });
+    }
+    // Fairy 回复追加到本条评论的楼中楼
+    if (localFairyReply) {
+      const inserted = comments.value.find((c) => c.id === localId);
+      if (inserted) {
+        inserted.replies = [...(inserted.replies ?? []), localFairyReply];
+      }
     }
     const el = commentInputBoxRef.value?.querySelector("textarea, input") as HTMLTextAreaElement | null;
     if (el) {

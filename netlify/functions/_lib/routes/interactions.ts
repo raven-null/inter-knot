@@ -6,6 +6,7 @@ import { requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, readJson, queryParams } from "../http";
 import { DEFAULT_AVATAR, type Doc } from "../serialize";
 import { awardExp } from "../exp";
+import { FAIRY_DOC_ID, FAIRY_NAME, FAIRY_AVATAR } from "../glm";
 
 async function touchArticleCount(postId: string, patch: Doc): Promise<void> {
   const doc = await getJson<Doc>(postKey(postId));
@@ -218,6 +219,19 @@ export async function searchAuthors(req: Request): Promise<Response> {
   if (!q) return ok([]);
   const keys = await listKeys("users/");
   const result: Doc[] = [];
+  // Fairy AI：评论 @fairy 可与它对话（命中 fairy 关键词时置顶）
+  const fairyHit =
+    FAIRY_NAME.toLowerCase().includes(q) ||
+    "fairy".includes(q) ||
+    q.includes("fairy");
+  if (fairyHit) {
+    result.push({
+      documentId: FAIRY_DOC_ID,
+      name: FAIRY_NAME,
+      username: "fairy",
+      avatar: FAIRY_AVATAR,
+    });
+  }
   for (const key of keys) {
     if (key.includes("/by-email/")) continue;
     const u = await getJson<Doc>(key);
@@ -233,5 +247,5 @@ export async function searchAuthors(req: Request): Promise<Response> {
     }
     if (result.length >= limit) break;
   }
-  return ok(result);
+  return ok(result.slice(0, limit));
 }

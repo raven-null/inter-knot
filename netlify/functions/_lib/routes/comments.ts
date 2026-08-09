@@ -6,6 +6,18 @@ import { resolveUser, requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
 import { toComment, hydrateAuthorLevels, type Doc } from "../serialize";
 import { awardExp } from "../exp";
+import { generateGlm, FAIRY_COMMENT_PROMPT, FAIRY_DOC_ID, FAIRY_NAME, FAIRY_AVATAR } from "../glm";
+
+/** 提取正文里的 mention documentId 列表 */
+function mentionedDocIds(content: string): string[] {
+  const ids: string[] = [];
+  const re = /@\[([^\[\]\n]{1,40})\]\(([A-Za-z0-9]{6,32})\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    if (m[2]) ids.push(m[2]);
+  }
+  return ids;
+}
 
 async function getPostDoc(id: string): Promise<Doc | null> {
   return getJson<Doc>(postKey(id));
@@ -166,7 +178,59 @@ export async function create(req: Request): Promise<Response> {
 
   const node = toComment(doc, new Set());
   node!.replies = [];
-  return ok(node);
+
+  // ── 评论区 @fairy：生成 Fairy 楼中楼回复 ──────────────
+  let fairyReply: Doc | null = null;
+  if (mentionedDocIds(content).includes(FAIRY_DOC_ID)) {
+    const title = String(post.title || "无标题");
+    const text = String(post.text || post.body || "").slice(0, 800);
+    const replyText = await generateGlm([
+      { role: "system", content: FAIRY_COMMENT_PROMPT },
+      {
+        role: "user",
+        content: [
+          `帖子标题：${title}`,
+          text ? `帖子内容：${text}` : "",
+          `评论者 ${author?.name || viewer.username || "用户"} 在评论区 @了你：`,
+          content,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    ]);
+    const fairyCommentId = genId();
+    const fNow = new Date().toISOString();
+    const fairyDoc: Doc = {
+      id: fairyCommentId,
+      document_id: fairyCommentId,
+      post_id: postId,
+      author_id: FAIRY_DOC_ID,
+      parent_id: commentId,
+      content: replyText,
+      images: [],
+      is_anonymous: false,
+      is_pinned: false,
+      likes_count: 0,
+      floor: keys.length + 2,
+      created_at: fNow,
+      author_document_id: FAIRY_DOC_ID,
+      author_username: "fairy",
+      author_name: FAIRY_NAME,
+      author_avatar_url: FAIRY_AVATAR,
+      author_level: 7,
+      author_exp: 0,
+    };
+    const fKey = commentKey(postId, fairyCommentId);
+    await setJson(fKey, fairyDoc);
+    await setJson(KEYS.commentLookup(fairyCommentId), { post_id: postId, key: fKey });
+    await feedUpdate(postId, { comments_count: Number(post.comments_count || 0) + 1 });
+    fairyReply = toComment(fairyDoc, new Set());
+  }
+
+  return json({
+    data: node,
+    ...(fairyReply ? { fairyReply } : {}),
+  });
 }
 
 async function findComment(commentId: string): Promise<{ doc: Doc; key: string; postId: string } | null> {
