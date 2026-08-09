@@ -1852,7 +1852,7 @@ const handleMobileBack = () => {
                             <ChatBubbleOvalLeftEllipsisIcon v-else-if="n.type === 'comment'" class="ik-knock__notif-icon-svg" />
                             <UserPlusIcon v-else class="ik-knock__notif-icon-svg" />
                           </span>
-                          {{ notificationText(n) }}
+                          <span class="ik-knock__notif-text">{{ notificationText(n) }}</span>
                         </span>
                         <span v-if="notificationSnippet(n)" class="ik-knock__item-subtitle">
                           {{ notificationSnippet(n) }}
@@ -2604,8 +2604,17 @@ const handleMobileBack = () => {
   align-items: center;
   gap: 6px;
   color: #ddd;
-  line-height: 1.45;
-  white-space: normal;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  min-width: 0;
+}
+
+.ik-knock__notif-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ik-knock__notif-icon {
