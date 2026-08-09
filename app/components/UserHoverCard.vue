@@ -412,7 +412,7 @@ onBeforeUnmount(() => {
   margin-top: -26px;
   z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
@@ -454,6 +454,7 @@ onBeforeUnmount(() => {
 .ik-hovercard__name-row {
   cursor: pointer;
   min-width: 0;
+  margin-top: 26px;
 }
 
 .ik-hovercard__name {
@@ -472,6 +473,7 @@ onBeforeUnmount(() => {
 .ik-hovercard__follow {
   flex-shrink: 0;
   margin-left: auto;
+  margin-top: 26px;
   padding: 5px 18px;
   border: 1px solid var(--ik-primary, #bfff09);
   border-radius: 999px;
