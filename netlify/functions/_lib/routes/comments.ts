@@ -145,26 +145,27 @@ export async function create(req: Request): Promise<Response> {
   const now = new Date().toISOString();
   const keys = await listKeys(`comments/${postId}/`);
   const author = await getUser(viewer.userId);
+  const isAnonymous = bool(data.isAnonymous);
 
   const doc: Doc = {
     id: commentId,
     document_id: commentId,
     post_id: postId,
-    author_id: viewer.userId,
+    author_id: isAnonymous ? null : viewer.userId,
     parent_id: parentId || null,
     content,
     images,
-    is_anonymous: bool(data.isAnonymous),
+    is_anonymous: isAnonymous,
     is_pinned: false,
     likes_count: 0,
     floor: keys.length + 1,
     created_at: now,
-    author_document_id: viewer.userId,
-    author_username: author?.username || "",
-    author_name: author?.name || author?.username || "",
-    author_avatar_url: author?.avatar_url || "/images/default-avatar.webp",
-    author_level: author?.level ?? 1,
-    author_exp: author?.exp ?? 0,
+    author_document_id: isAnonymous ? null : viewer.userId,
+    author_username: isAnonymous ? "anonymous" : author?.username || "",
+    author_name: isAnonymous ? "匿名用户" : author?.name || author?.username || "",
+    author_avatar_url: isAnonymous ? "/images/default-avatar.webp" : author?.avatar_url || "/images/default-avatar.webp",
+    author_level: isAnonymous ? 1 : author?.level ?? 1,
+    author_exp: isAnonymous ? 0 : author?.exp ?? 0,
   };
 
   const key = commentKey(postId, commentId);
@@ -177,15 +178,16 @@ export async function create(req: Request): Promise<Response> {
   // 等级体系：发表评论 +3 绳网信用
   await awardExp(viewer.userId, 3);
 
-  // 通知：评论我的帖子 / 回复我的评论
+  // 通知：评论我的帖子 / 回复我的评论（匿名评论以「匿名用户」展示）
   const postAuthorId = String(post.author_document_id || "");
   const snippet = content.slice(0, 80);
+  const notifOpts = isAnonymous ? { anonymous: true } : undefined;
   if (postAuthorId && postAuthorId !== viewer.userId) {
     await pushNotification(postAuthorId, "comment", viewer.userId, {
       postId,
       postTitle: String(post.title || ""),
       snippet,
-    });
+    }, notifOpts);
   }
   if (parentId) {
     const parentLookup = await getJson<{ post_id: string; key: string }>(KEYS.commentLookup(parentId));
@@ -197,7 +199,7 @@ export async function create(req: Request): Promise<Response> {
         postTitle: String(post.title || ""),
         commentId: parentId,
         snippet,
-      });
+      }, notifOpts);
     }
   }
 

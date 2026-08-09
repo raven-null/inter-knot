@@ -46,16 +46,20 @@ async function actorInfo(documentId: string): Promise<AppNotification["actor"]> 
 /**
  * 写入一条通知。若 recipient 不存在或与 actor 相同则跳过。
  * limit：每个用户最多保留最近 N 条，超出删除最旧的。
+ * anonymous：演员身份匿名（如匿名评论），通知里以「匿名用户」展示。
  */
 export async function pushNotification(
   recipientId: string,
   type: NotificationType,
   actorId: string,
   target?: AppNotification["target"],
+  options?: { anonymous?: boolean },
 ): Promise<void> {
   if (!recipientId || !actorId || recipientId === actorId) return;
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const actor = await actorInfo(actorId);
+  const actor = options?.anonymous
+    ? { documentId: "", name: "匿名用户", username: "anonymous", avatar: DEFAULT_AVATAR }
+    : await actorInfo(actorId);
   const notif: AppNotification = {
     id,
     type,

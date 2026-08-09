@@ -5,6 +5,15 @@ import { getJson, userKey } from "./storage";
 
 export const DEFAULT_AVATAR = "/images/default-avatar.webp";
 
+/** 匿名作者：不携带任何真实身份信息（用于匿名帖子 / 匿名评论） */
+export const ANONYMOUS_AUTHOR = {
+  name: "匿名用户",
+  username: "anonymous",
+  avatar: DEFAULT_AVATAR,
+  level: 1,
+  exp: 0,
+};
+
 export type Doc = Record<string, unknown>;
 
 /**
@@ -112,14 +121,16 @@ export function toPost(doc: Doc | null | undefined, state: ViewerState = {}): Do
     updatedAt: String(doc.updated_at || ""),
     editedAt: undefined,
     author:
-      toAuthor({
-        document_id: doc.author_document_id,
-        username: doc.author_username,
-        name: doc.author_name,
-        avatar_url: doc.author_avatar_url,
-        level: doc.author_level,
-        exp: doc.author_exp,
-      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+      doc.is_anonymous === true
+        ? ANONYMOUS_AUTHOR
+        : toAuthor({
+            document_id: doc.author_document_id,
+            username: doc.author_username,
+            name: doc.author_name,
+            avatar_url: doc.author_avatar_url,
+            level: doc.author_level,
+            exp: doc.author_exp,
+          }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
   };
 }
 
@@ -142,14 +153,16 @@ export function toComment(doc: Doc | null | undefined, likedIds?: Set<string>): 
     pinnedAt: undefined,
     floor: doc.floor != null ? Number(doc.floor) : undefined,
     author:
-      toAuthor({
-        document_id: doc.author_document_id,
-        username: doc.author_username,
-        name: doc.author_name,
-        avatar_url: doc.author_avatar_url,
-        level: doc.author_level,
-        exp: doc.author_exp,
-      }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
+      doc.is_anonymous === true
+        ? ANONYMOUS_AUTHOR
+        : toAuthor({
+            document_id: doc.author_document_id,
+            username: doc.author_username,
+            name: doc.author_name,
+            avatar_url: doc.author_avatar_url,
+            level: doc.author_level,
+            exp: doc.author_exp,
+          }) || { name: "已注销", username: "unknown", avatar: DEFAULT_AVATAR, level: 1, exp: 0 },
   };
 }
 
