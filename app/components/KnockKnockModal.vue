@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from "vue";
+import { useMediaQuery } from "@vueuse/core";
 import {
   PhoneIcon,
   UserIcon,
@@ -32,8 +33,10 @@ import { useMentionInput } from "~/composables/useMentionInput";
 import type { MentionCandidate } from "~/composables/useMentionInput";
 import { useEmoteInsert } from "~/composables/useEmoteInsert";
 import type { Emote } from "~/composables/useEmotes";
+import { useCommentImages } from "~/composables/useCommentImages";
 import MentionPicker from "~/components/MentionPicker.vue";
 import EmotePicker from "~/components/EmotePicker.vue";
+import MobileEmotePicker from "~/components/MobileEmotePicker.vue";
 
 const { users: presenceUsers } = usePresence();
 
@@ -1273,85 +1276,76 @@ const handleInsertMention = () => {
   nextTick(() => composerRef.value?.focus());
 };
 
-// 将 mention/emote 的 keydown 处理挂载到 textarea
-let teardownMentionKeys: (() => void) | null = null;
-const attachMentionKeys = () => {
-  teardownMentionKeys?.();
-  teardownMentionKeys = null;
-  const el = composerTextarea.value;
-  if (!el) return;
-  const handler = (e: KeyboardEvent) => {
-    mention.onKeyDown(e);
-    emoteInsert.onKeyDown(e);
-  };
-  el.addEventListener("keydown", handler);
-  teardownMentionKeys = () => el.removeEventListener("keydown", handler);
-};
-watch(composerTextarea, () => nextTick(attachMentionKeys));
-
 // ── 表情 ───────────────────────────────────────────
 const emoteInsert = useEmoteInsert({
   text: draft,
   textareaRef: composerTextarea,
+  onInsert: (start, end, insertedLength) => {
+    const delta = insertedLength - (end - start);
+    mention.mentions.value = mention.mentions.value
+      .filter((m) => m.end <= start || m.start >= end)
+      .map((m) => (m.start >= end ? { ...m, start: m.start + delta, end: m.end + delta } : m));
+  },
 });
 const emotePickerVisible = ref(false);
 const emotePickerAnchor = ref<{ top: number; left: number; height: number } | null>(null);
-const toggleEmotePicker = () => {
+const isMobile = useMediaQuery("(max-width: 768px)");
+const toggleEmotePicker = (e?: MouseEvent) => {
   if (emotePickerVisible.value) {
     emotePickerVisible.value = false;
+    composerRef.value?.focus();
     return;
   }
-  const el = composerTextarea.value;
-  if (el) {
-    const rect = el.getBoundingClientRect();
+  if (e?.currentTarget) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     emotePickerAnchor.value = { top: rect.top, left: rect.left, height: rect.height };
+  } else {
+    const el = composerTextarea.value;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      emotePickerAnchor.value = { top: rect.top, left: rect.left, height: rect.height };
+    }
   }
   emotePickerVisible.value = true;
-};
-const onEmoteSelect = (emote: Emote) => {
-  emoteInsert.insertEmote(emote.code);
-  emotePickerVisible.value = false;
-  nextTick(() => composerRef.value?.focus());
-};
-const onEmojiSelect = (emoji: string) => {
-  const el = composerTextarea.value;
-  if (!el) return;
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  const text = draft.value;
-  draft.value = text.slice(0, start) + emoji + text.slice(end);
-  nextTick(() => {
-    el.selectionStart = el.selectionEnd = start + emoji.length;
-    composerRef.value?.focus();
-  });
-};
-
-// ── 图片上传 ─────────────────────────────────────
-const imageInputRef = ref<HTMLInputElement | null>(null);
-const uploadingImage = ref(false);
-const openImagePicker = () => imageInputRef.value?.click();
-const onImageSelected = async (e: Event) => {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  input.value = "";
-  const cid = activeConversationId.value;
-  if (!cid) return;
-  uploadingImage.value = true;
-  sendError.value = null;
-  try {
-    const uploaded = await api.uploadImage(file);
-    await sendMessage(cid, { content: uploaded.url, kind: "image" });
-    nextTick(() => {
-      const el = messagesRef.value;
-      if (el) scrollToBottom(el);
-    });
-  } catch (err) {
-    sendError.value = resolveErrorMessage(err, "发送图片失败");
-  } finally {
-    uploadingImage.value = false;
+  if (isMobile.value) {
+    composerTextarea.value?.blur();
   }
 };
+const onEmoteSelect = async (emote: Emote) => {
+  const ok = await emoteInsert.insertEmote(emote.code, { focus: !isMobile.value });
+  if (!ok) message.warning("表情数量已达上限");
+  if (!isMobile.value) emotePickerVisible.value = false;
+};
+const onEmojiSelect = async (emoji: string) => {
+  await emoteInsert.insertText(emoji, { focus: !isMobile.value });
+  if (!isMobile.value) emotePickerVisible.value = false;
+};
+
+// ── mention/emote keydown + input + selection 挂载 ──
+let teardownMentionListeners: (() => void) | null = null;
+const attachMentionToTextarea = () => {
+  teardownMentionListeners?.();
+  const el = composerTextarea.value;
+  if (!el) return;
+  const onInput = () => { mention.refresh(); emoteInsert.refresh(); };
+  const onKeyDown = (e: KeyboardEvent) => { mention.onKeyDown(e); emoteInsert.onKeyDown(e); };
+  const onSelect = () => { mention.refresh(); emoteInsert.refresh(); };
+  el.addEventListener("input", onInput);
+  el.addEventListener("keydown", onKeyDown);
+  el.addEventListener("click", onSelect);
+  el.addEventListener("keyup", onSelect);
+  teardownMentionListeners = () => {
+    el.removeEventListener("input", onInput);
+    el.removeEventListener("keydown", onKeyDown);
+    el.removeEventListener("click", onSelect);
+    el.removeEventListener("keyup", onSelect);
+  };
+};
+watch(composerTextarea, () => nextTick(attachMentionToTextarea));
+
+// ── 图片上传 ─────────────────────────────────────
+const commentImages = useCommentImages();
+const openImagePicker = () => commentImages.openImagePicker();
 
 // ── B 站视频 ───────────────────────────────────────
 const bilibiliDialogVisible = ref(false);
@@ -1479,26 +1473,46 @@ const onContextMenuAction = (action: "copy" | "edit" | "withdraw") => {
 
 const doSend = async () => {
   if (sending.value) return;
-  // 一次性快照所有响应式 ref——await 期间用户可能切会话 / 退出编辑态，
-  // 直接读 .value 会拿到 stale 数据，把消息发到错误的会话里。
+  if (commentImages.hasPendingUploads.value) {
+    sendError.value = "图片上传中，请稍候";
+    return;
+  }
+  if (commentImages.hasErroredUploads.value) {
+    sendError.value = "有图片上传失败，请重试或移除后再发送";
+    return;
+  }
   const cid = activeConversationId.value;
   if (!cid) return;
   const editingId = editingMessageId.value;
-  const newContent = (editingId ? editingDraft.value : draft.value).trim();
-  if (!newContent) return;
+  const rawContent = editingId ? editingDraft.value : draft.value;
+  // 序列化：mention range → `@[name](docId)`，emote 占位 → `:ik-xxx:`
+  const serialized = editingId ? rawContent.trim() : emoteInsert.serializeWith(mention.mentions.value).trim();
+  if (!serialized) return;
 
   sending.value = true;
   sendError.value = null;
   try {
     if (editingId) {
-      await editMessage(cid, editingId, newContent);
-      // 仅当用户还在原编辑态时才清理，避免 race 时把别人的编辑态清掉
+      await editMessage(cid, editingId, serialized);
       if (editingMessageId.value === editingId) cancelEdit();
     } else {
-      await sendMessage(cid, { content: newContent });
-      // 同样：仅当用户还在原会话时才清 draft
+      // 如果有待发送图片，逐条发送图片消息
+      const imageUrls = commentImages.uploadTasks.value
+        .filter((t) => t.status === "done" && t.serverUrl)
+        .map((t) => t.serverUrl!);
+      // 先发文字（如果有）
+      if (serialized) {
+        await sendMessage(cid, { content: serialized });
+      }
+      // 再发图片
+      for (const url of imageUrls) {
+        await sendMessage(cid, { content: url, kind: "image" });
+      }
       if (activeConversationId.value === cid) {
         draft.value = "";
+        commentImages.clearUploads();
+        mention.reset();
+        emoteInsert.reset();
         nextTick(() => {
           const el = messagesRef.value;
           if (el) scrollToBottom(el);
@@ -1618,6 +1632,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeyDown);
+  teardownMentionListeners?.();
+  teardownMentionListeners = null;
   if (autoScrollRaf != null) cancelAnimationFrame(autoScrollRaf);
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   if (scrollPauseTimer) clearTimeout(scrollPauseTimer);
@@ -2225,14 +2241,26 @@ const handleMobileBack = () => {
                       @pick-image="openImagePicker"
                       @insert-bilibili="handleInsertBilibili"
                     />
-                    <!-- 隐藏图片文件选择 -->
-                    <input
-                      ref="imageInputRef"
-                      type="file"
-                      accept="image/png,image/jpeg,image/gif,image/webp"
-                      hidden
-                      @change="onImageSelected"
-                    />
+                    <!-- 图片上传预览条 -->
+                    <div v-if="commentImages.uploadTasks.value.length" class="ik-knock__attachments">
+                      <div
+                        v-for="(task, index) in commentImages.uploadTasks.value"
+                        :key="task.localId"
+                        class="ik-knock__attachment"
+                      >
+                        <img :src="task.previewUrl" class="ik-knock__attachment-img" alt="" />
+                        <div v-if="task.status === 'uploading' || task.status === 'compressing'" class="ik-knock__attachment-progress">
+                          <div class="ik-knock__attachment-bar" :style="{ width: `${task.progress}%` }"></div>
+                        </div>
+                        <button
+                          v-if="task.status === 'error'"
+                          class="ik-knock__attachment-retry"
+                          title="重试"
+                          @click.stop="commentImages.retryUpload(task)"
+                        >↻</button>
+                        <button class="ik-knock__attachment-del" title="移除" @click.stop="commentImages.removeUpload(index)">×</button>
+                      </div>
+                    </div>
                     <!-- @ 提及浮层 -->
                     <MentionPicker
                       :visible="mention.pickerVisible.value"
@@ -2245,11 +2273,29 @@ const handleMobileBack = () => {
                     />
                     <!-- 表情选择面板 -->
                     <EmotePicker
+                      v-if="!isMobile"
                       :visible="emotePickerVisible"
                       :anchor="emotePickerAnchor"
                       @select="onEmoteSelect"
                       @select-emoji="onEmojiSelect"
                       @close="emotePickerVisible = false"
+                    />
+                    <MobileEmotePicker
+                      v-else
+                      :visible="emotePickerVisible"
+                      @select="onEmoteSelect"
+                      @select-emoji="onEmojiSelect"
+                      @close="emotePickerVisible = false"
+                    />
+                    <!-- 图片选择弹窗 -->
+                    <PostImagePickerModal
+                      v-if="commentImages.showImagePickerModal.value"
+                      :existing-ids="commentImages.existingUploadIds.value"
+                      :remaining="commentImages.remainingImageSlots.value"
+                      @close="commentImages.showImagePickerModal.value = false"
+                      @upload="commentImages.handleImagePickerUpload"
+                      @select="commentImages.handleImagePickerSelect"
+                      @delete="commentImages.removeUploadByServerId($event.documentId)"
                     />
                   </div>
                 </section>
@@ -3818,6 +3864,72 @@ const handleMobileBack = () => {
   background: rgba(255, 80, 80, 0.18);
   color: #ff5050;
 }
+
+/* ── 图片上传预览条 ── */
+.ik-knock__attachments {
+  display: flex;
+  gap: 6px;
+  padding: 6px 4px 0;
+  overflow-x: auto;
+}
+.ik-knock__attachment {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ik-knock__attachment-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ik-knock__attachment-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.4);
+}
+.ik-knock__attachment-bar {
+  height: 100%;
+  background: #fbfe00;
+  transition: width 100ms;
+}
+.ik-knock__attachment-retry {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border: 0;
+  color: #ff8080;
+  font-size: 20px;
+  cursor: pointer;
+}
+.ik-knock__attachment-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms;
+}
+.ik-knock__attachment:hover .ik-knock__attachment-del { opacity: 1; }
 
 /* ── B 站视频链接弹窗 ── */
 .ik-bilibili-dialog {
