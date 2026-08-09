@@ -274,31 +274,31 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Avatar + Name row (below banner) -->
+          <!-- Avatar (overlapping banner) -->
           <div class="ik-hovercard__avatar-row">
-            <div class="ik-hovercard__user">
-              <div class="ik-hovercard__avatar-wrap" @click="goProfile">
-                <img
-                  :src="profile.avatar || '/images/default-avatar.webp'"
-                  alt=""
-                  class="ik-hovercard__avatar"
-                  @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
-                />
-                <span v-if="showLevel && profile.level" class="ik-hovercard__level">
-                  {{ profile.level }}
-                </span>
-              </div>
-              <div class="ik-hovercard__info">
-                <div class="ik-hovercard__name-row" @click="goProfile">
-                  <span class="ik-hovercard__name">{{ profile.name || profile.login || "匿名用户" }}</span>
-                </div>
-                <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
-                <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
-              </div>
+            <div class="ik-hovercard__avatar-wrap" @click="goProfile">
+              <img
+                :src="profile.avatar || '/images/default-avatar.webp'"
+                alt=""
+                class="ik-hovercard__avatar"
+                @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+              />
+              <span v-if="showLevel && profile.level" class="ik-hovercard__level">
+                {{ profile.level }}
+              </span>
             </div>
           </div>
 
-          <!-- Follow button (below name row) -->
+          <!-- Name + signature (below avatar) -->
+          <div class="ik-hovercard__info">
+            <div class="ik-hovercard__name-row" @click="goProfile">
+              <span class="ik-hovercard__name">{{ profile.name || profile.login || "匿名用户" }}</span>
+            </div>
+            <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
+            <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
+          </div>
+
+          <!-- Follow button (below banner) -->
           <div v-if="canFollow" class="ik-hovercard__follow-row">
             <button
               type="button"
@@ -408,29 +408,18 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* ── Avatar row (below banner) ───────────────── */
+/* ── Avatar row (overlapping banner) ──────────── */
 .ik-hovercard__avatar-row {
   position: relative;
-  padding: 14px 16px 0;
+  padding: 0 16px;
+  margin-top: -26px;
   z-index: 1;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.ik-hovercard__user {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  flex: 1;
 }
 
 .ik-hovercard__avatar-wrap {
   position: relative;
   display: inline-block;
   cursor: pointer;
-  flex-shrink: 0;
 }
 
 .ik-hovercard__avatar {
@@ -462,8 +451,8 @@ onBeforeUnmount(() => {
 }
 
 .ik-hovercard__info {
+  padding: 8px 16px 0;
   min-width: 0;
-  flex: 1;
 }
 
 .ik-hovercard__name-row {
