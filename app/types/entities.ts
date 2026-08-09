@@ -224,6 +224,34 @@ export interface ZzzRoleBadge {
   regionName?: string;
 }
 
+/** 站内通知类型：点赞 / 评论 / 关注 */
+export type AppNotificationType = "like" | "comment" | "follow";
+
+/** 站内通知（/api/notifications） */
+export interface AppNotification {
+  id: string;
+  type: AppNotificationType;
+  actor: {
+    documentId: string;
+    name: string;
+    username: string;
+    avatar: string;
+  };
+  target?: {
+    postId?: string;
+    postTitle?: string;
+    commentId?: string;
+    snippet?: string;
+  };
+  createdAt: string;
+  read: boolean;
+}
+
+export interface NotificationsResult {
+  data: AppNotification[];
+  unreadCount: number;
+}
+
 /** 当前用户的米游社绑定信息 */
 export interface MihoyoBinding {
   aid: string;

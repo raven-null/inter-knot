@@ -6,6 +6,7 @@ import { requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, readJson, queryParams } from "../http";
 import { DEFAULT_AVATAR, type Doc } from "../serialize";
 import { awardExp } from "../exp";
+import { pushNotification } from "../notify";
 import { FAIRY_DOC_ID, FAIRY_NAME, FAIRY_AVATAR } from "../glm";
 
 async function touchArticleCount(postId: string, patch: Doc): Promise<void> {
@@ -51,10 +52,34 @@ export async function toggleLike(req: Request): Promise<Response> {
     // 等级体系：收到点赞 +1 绳网信用
     if (doc && String(doc.author_document_id) !== viewer.userId) {
       await awardExp(String(doc.author_document_id), 1);
+      // 通知：他人点赞了我的帖子
+      await pushNotification(
+        String(doc.author_document_id),
+        "like",
+        viewer.userId,
+        { postId: targetId, postTitle: String(doc.title || "") },
+      );
     }
     return json({ liked: true, likesCount: Number(fresh?.likes_count || 0) });
   }
   await touchCommentCount(targetId, 1);
+  // 通知：他人点赞了我的评论
+  const commentLookup = await getJson<{ key: string }>(KEYS.commentLookup(targetId));
+  if (commentLookup) {
+    const comment = await getJson<Doc>(commentLookup.key);
+    if (comment && String(comment.author_document_id) !== viewer.userId) {
+      await pushNotification(
+        String(comment.author_document_id),
+        "like",
+        viewer.userId,
+        {
+          postId: String(comment.post_id || ""),
+          commentId: targetId,
+          snippet: String(comment.content || "").slice(0, 80),
+        },
+      );
+    }
+  }
   return json({ liked: true, likesCount: 1 });
 }
 
@@ -118,6 +143,8 @@ export async function toggleFollow(req: Request): Promise<Response> {
     await setJson(key, { created_at: new Date().toISOString() });
     await updateUserCounts(authorDocumentId, { followersCount: 1 });
     await updateUserCounts(viewer.userId, { followingCount: 1 });
+    // 通知：他人关注了我
+    await pushNotification(authorDocumentId, "follow", viewer.userId);
   }
   const fresh = await getUser(authorDocumentId);
   return json({ following: !following, followersCount: Number(fresh?.followersCount || 0) });

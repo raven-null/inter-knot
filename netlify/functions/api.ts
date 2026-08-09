@@ -22,6 +22,7 @@ import * as emoteRoutes from "./_lib/routes/emotes";
 import * as mihoyoRoutes from "./_lib/routes/mihoyo";
 import * as aiRoutes from "./_lib/routes/ai";
 import * as dmRoutes from "./_lib/routes/dm";
+import * as notificationRoutes from "./_lib/routes/notifications";
 import * as stubRoutes from "./_lib/routes/stubs";
 
 export default async function handler(req: Request): Promise<Response> {
@@ -289,6 +290,13 @@ async function dispatch(req: Request): Promise<Response> {
     case "knock": {
       if (sub === "conversations" && isGet(req)) return stubRoutes.knockConversations();
       if (sub === "stream" && isGet(req)) return stubRoutes.knockStream();
+      return error(404, "接口不存在");
+    }
+
+    // ── 站内通知 ─────────────────────────────────────
+    case "notifications": {
+      if (isGet(req)) return notificationRoutes.list(req);
+      if (sub === "read-all" && isPost(req)) return notificationRoutes.readAll(req);
       return error(404, "接口不存在");
     }
 

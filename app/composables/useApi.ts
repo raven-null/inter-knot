@@ -2,6 +2,7 @@ import type { QueryClient, QueryKey } from "@tanstack/vue-query";
 import type { ApiClientError, Pagination } from "~/types/api";
 import type {
   AccountSecurity,
+  AppNotification,
   Author,
   Avatar,
   AvatarType,
@@ -16,6 +17,7 @@ import type {
   ExternalVideo,
   MihoyoBinding,
   NsfwStatus,
+  NotificationsResult,
   Post,
   PostCategory,
   ArticleFeed,
@@ -1893,6 +1895,21 @@ export function useApi() {
     };
   };
 
+  // ── 站内通知（/api/notifications） ─────────────
+
+  const getNotifications = async (): Promise<NotificationsResult> => {
+    const response = await $api("/api/notifications");
+    const data = (response || {}) as { data?: unknown; unreadCount?: unknown };
+    return {
+      data: Array.isArray(data.data) ? (data.data as AppNotification[]) : [],
+      unreadCount: Number(data.unreadCount || 0),
+    };
+  };
+
+  const markNotificationsRead = async (): Promise<void> => {
+    await $api("/api/notifications/read-all", { method: "POST", body: {} });
+  };
+
   const getPinnedArticles = async (
     limit?: number,
   ): Promise<{
@@ -2081,6 +2098,9 @@ export function useApi() {
     getMyProfileSettings,
     // 账号安全
     getMySecurity,
+    // 站内通知
+    getNotifications,
+    markNotificationsRead,
     getPinnedArticles,
     updatePinnedArticles,
     searchAuthors,

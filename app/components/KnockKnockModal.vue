@@ -5,6 +5,7 @@ import {
   UserIcon,
   UserGroupIcon,
   ChatBubbleLeftIcon,
+  BellIcon,
 } from "@heroicons/vue/24/solid";
 import {
   ChevronLeftIcon,
@@ -14,8 +15,12 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
   PlusIcon,
+  HeartIcon,
+  ChatBubbleOvalLeftEllipsisIcon,
+  UserPlusIcon,
+  ArrowRightIcon,
 } from "@heroicons/vue/24/outline";
-import type { AiRoleCard, DmConversationSummary, DmMessage } from "~/types/entities";
+import type { AiRoleCard, AppNotification, DmConversationSummary, DmMessage } from "~/types/entities";
 import { useMessage } from "zenless-ui";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { stripMentionsToPlain } from "~/utils/mention";
@@ -55,8 +60,8 @@ const {
 const historyBaselineIds = ref(new Set<string>());
 const aiRevealSessionReady = ref(false);
 
-/** 顶部 tab：通话 / 私聊 / 群聊（未来占位） */
-type KnockTab = "calls" | "contacts" | "groups";
+/** 顶部 tab：通话 / 私聊 / 群聊 / 通知 */
+type KnockTab = "calls" | "contacts" | "groups" | "notifications";
 
 const activeTab = ref<KnockTab>("contacts");
 
@@ -165,6 +170,8 @@ watch(visible, async (next) => {
   if (pendingTab === "calls" && showAi.value) {
     activeTab.value = "calls";
     await openCallsTab();
+  } else if (pendingTab === "notifications") {
+    selectNotificationsTab();
   }
 });
 
@@ -205,6 +212,84 @@ const activeConversation = computed<DmConversationSummary | null>(() => {
   if (!activeConversationId.value) return null;
   return allConversations.value.find((c) => c.documentId === activeConversationId.value) ?? null;
 });
+
+// ── 站内通知（点赞 / 评论 / 关注） ─────────────
+const notifications = ref<AppNotification[]>([]);
+const notificationsLoading = ref(false);
+const notificationsError = ref("");
+
+const loadNotifications = async () => {
+  if (!auth.isLogin) return;
+  notificationsLoading.value = true;
+  notificationsError.value = "";
+  try {
+    const res = await api.getNotifications();
+    notifications.value = res.data;
+    if (res.unreadCount > 0) {
+      void api.markNotificationsRead();
+      notifications.value = notifications.value.map((n) => ({ ...n, read: true }));
+    }
+  } catch (err) {
+    notificationsError.value = resolveErrorMessage(err, "加载通知失败");
+  } finally {
+    notificationsLoading.value = false;
+  }
+};
+
+/** 通知的展示文本 */
+const notificationText = (n: AppNotification): string => {
+  const name = n.actor?.name || n.actor?.username || "用户";
+  switch (n.type) {
+    case "like":
+      return n.target?.postTitle ? `${name} 赞了你的帖子「${n.target.postTitle}」` : `${name} 赞了你的内容`;
+    case "comment":
+      return n.target?.postTitle
+        ? `${name} 评论了你的帖子「${n.target.postTitle}」`
+        : `${name} 回复了你的评论`;
+    case "follow":
+      return `${name} 关注了你`;
+    default:
+      return `${name} 与你有了新互动`;
+  }
+};
+
+const notificationSnippet = (n: AppNotification): string =>
+  n.target?.snippet ? `「${n.target.snippet}」` : "";
+
+const formatNotifTime = (iso: string): string => {
+  if (!iso) return "";
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Date.now() - t;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  if (diff < minute) return "刚刚";
+  if (diff < hour) return `${Math.floor(diff / minute)} 分钟前`;
+  if (diff < day) return `${Math.floor(diff / hour)} 小时前`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)} 天前`;
+  return new Date(t).toLocaleDateString("zh-CN");
+};
+
+const openNotification = (n: AppNotification) => {
+  if (n.target?.postId) {
+    postModal.open(n.target.postId, {
+      preview: { title: n.target.postTitle || "" },
+      commentId: n.target.commentId,
+    });
+  } else if (n.actor?.documentId) {
+    goToProfile(`/profile/${n.actor.documentId}`);
+  }
+};
+
+/** 通知 Tab：渲染其列表，选中时清除未读 */
+const selectNotificationsTab = () => {
+  activeTab.value = "notifications";
+  activeConversationId.value = null;
+  activeAiSlug.value = null;
+  updateUrl("notifications");
+  void loadNotifications();
+};
 
 /** 当前会话是否为官方 AI 角色（决定是否显示会话管理按钮） */
 const isActiveAiConversation = computed<boolean>(() => {
@@ -1552,6 +1637,18 @@ const handleMobileBack = () => {
                     >
                       <UserGroupIcon class="ik-knock__tab-icon" aria-hidden="true" />
                     </button>
+                    <button
+                      v-if="auth.isLogin"
+                      type="button"
+                      role="tab"
+                      class="ik-knock__tab"
+                      :class="{ 'is-active': activeTab === 'notifications' }"
+                      :aria-selected="activeTab === 'notifications'"
+                      aria-label="通知"
+                      @click="selectNotificationsTab"
+                    >
+                      <BellIcon class="ik-knock__tab-icon" aria-hidden="true" />
+                    </button>
                   </div>
 
                   <!-- 私聊：原 DM 会话列表 -->
@@ -1662,7 +1759,7 @@ const handleMobileBack = () => {
 
                   <!-- 群聊 -->
                   <div
-                    v-else
+                    v-else-if="activeTab === 'groups'"
                     class="ik-knock__list"
                     role="listbox"
                   >
@@ -1720,6 +1817,64 @@ const handleMobileBack = () => {
                       class="ik-knock__list-empty"
                     >
                       <span>还没有群聊，点击上方「创建群聊」拉上朋友一起聊</span>
+                    </div>
+                  </div>
+
+                  <!-- 通知（点赞 / 评论 / 关注） -->
+                  <div
+                    v-else
+                    class="ik-knock__list"
+                    role="listbox"
+                  >
+                    <button
+                      v-for="n in notifications"
+                      :key="n.id"
+                      type="button"
+                      role="option"
+                      class="ik-knock__list-item ik-knock__notif-item"
+                      :class="{ 'is-unread': !n.read }"
+                      @click="openNotification(n)"
+                    >
+                      <span class="ik-knock__avatar" aria-hidden="true">
+                        <img
+                          v-if="n.actor?.avatar"
+                          :src="n.actor.avatar"
+                          :alt="n.actor?.name || ''"
+                          class="ik-knock__avatar-img"
+                          draggable="false"
+                        />
+                        <img v-else src="/images/default-avatar.webp" alt="" class="ik-knock__avatar-img" draggable="false" />
+                      </span>
+                      <span class="ik-knock__item-text">
+                        <span class="ik-knock__item-title ik-knock__notif-title">
+                          <span class="ik-knock__notif-icon" aria-hidden="true">
+                            <HeartIcon v-if="n.type === 'like'" class="ik-knock__notif-icon-svg" />
+                            <ChatBubbleOvalLeftEllipsisIcon v-else-if="n.type === 'comment'" class="ik-knock__notif-icon-svg" />
+                            <UserPlusIcon v-else class="ik-knock__notif-icon-svg" />
+                          </span>
+                          {{ notificationText(n) }}
+                        </span>
+                        <span v-if="notificationSnippet(n)" class="ik-knock__item-subtitle">
+                          {{ notificationSnippet(n) }}
+                        </span>
+                        <span class="ik-knock__notif-time">{{ formatNotifTime(n.createdAt) }}</span>
+                      </span>
+                      <span class="ik-knock__notif-arrow" aria-hidden="true">
+                        <ArrowRightIcon style="width:14px;height:14px" />
+                      </span>
+                    </button>
+                    <div
+                      v-if="!notifications.length && !notificationsLoading"
+                      class="ik-knock__list-empty"
+                    >
+                      <span v-if="notificationsError">{{ notificationsError }}</span>
+                      <span v-else>暂无新通知</span>
+                    </div>
+                    <div
+                      v-if="notificationsLoading"
+                      class="ik-knock__list-empty"
+                    >
+                      <span>加载中…</span>
                     </div>
                   </div>
 
@@ -1895,7 +2050,7 @@ const handleMobileBack = () => {
                     </div>
                     <!-- 占位：仅在非加载态时显示，避免切换会话时闪烁 -->
                     <div v-else-if="!activeMessageLoading" class="ik-knock__empty-pill">
-                      EMPTY
+                      {{ activeTab === 'notifications' ? '点击左侧通知查看详情' : 'EMPTY' }}
                     </div>
 
                     <!-- 输入框：仅在有选中会话且非匿名/系统会话时显示（Phase 4 拆分为 DmComposer） -->
@@ -2428,6 +2583,53 @@ const handleMobileBack = () => {
   padding: 24px 0;
   color: rgba(255, 255, 255, 0.4);
   font-size: 13px;
+}
+
+/* ── 通知 ─────────────────────────────────────────── */
+.ik-knock__notif-item {
+  align-items: flex-start;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+
+.ik-knock__notif-item.is-unread {
+  box-shadow:
+    inset 0 0 0 1px #000,
+    inset 0 0 0 5px #3a3a3a,
+    inset 3px 0 0 0 var(--ik-primary, #bfff09);
+}
+
+.ik-knock__notif-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ddd;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.ik-knock__notif-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.ik-knock__notif-icon-svg {
+  width: 14px;
+  height: 14px;
+  color: var(--ik-primary, #bfff09);
+}
+
+.ik-knock__notif-time {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ik-knock__notif-arrow {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* ── 群聊 ─────────────────────────────────────────── */

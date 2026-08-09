@@ -6,6 +6,7 @@ import { resolveUser, requireAuth } from "../auth";
 import { ok, json, badRequest, notFound, int, bool, readJson, queryParams } from "../http";
 import { toComment, hydrateAuthorLevels, type Doc } from "../serialize";
 import { awardExp } from "../exp";
+import { pushNotification } from "../notify";
 import { generateGlm, FAIRY_COMMENT_PROMPT, FAIRY_DOC_ID, FAIRY_NAME, FAIRY_AVATAR } from "../glm";
 
 /** 提取正文里的 mention documentId 列表 */
@@ -175,6 +176,30 @@ export async function create(req: Request): Promise<Response> {
   await updateUserStats(viewer.userId, { commentCount: 1 });
   // 等级体系：发表评论 +3 绳网信用
   await awardExp(viewer.userId, 3);
+
+  // 通知：评论我的帖子 / 回复我的评论
+  const postAuthorId = String(post.author_document_id || "");
+  const snippet = content.slice(0, 80);
+  if (postAuthorId && postAuthorId !== viewer.userId) {
+    await pushNotification(postAuthorId, "comment", viewer.userId, {
+      postId,
+      postTitle: String(post.title || ""),
+      snippet,
+    });
+  }
+  if (parentId) {
+    const parentLookup = await getJson<{ post_id: string; key: string }>(KEYS.commentLookup(parentId));
+    const parentDoc = parentLookup ? await getJson<Doc>(parentLookup.key) : null;
+    const parentAuthor = parentDoc ? String(parentDoc.author_document_id || "") : "";
+    if (parentAuthor && parentAuthor !== viewer.userId && parentAuthor !== postAuthorId) {
+      await pushNotification(parentAuthor, "comment", viewer.userId, {
+        postId,
+        postTitle: String(post.title || ""),
+        commentId: parentId,
+        snippet,
+      });
+    }
+  }
 
   const node = toComment(doc, new Set());
   node!.replies = [];
