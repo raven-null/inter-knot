@@ -28,6 +28,12 @@ import { stripEmotesToPlain } from "~/utils/emote";
 import { extractCitations, extractRelatedPosts, isWorkflowSettled } from "~/utils/workflow";
 import type { BubbleRender, EnrichedMessage } from "~/utils/dm-view";
 import type DmComposer from "~/components/DmComposer.vue";
+import { useMentionInput } from "~/composables/useMentionInput";
+import type { MentionCandidate } from "~/composables/useMentionInput";
+import { useEmoteInsert } from "~/composables/useEmoteInsert";
+import type { Emote } from "~/composables/useEmotes";
+import MentionPicker from "~/components/MentionPicker.vue";
+import EmotePicker from "~/components/EmotePicker.vue";
 
 const { users: presenceUsers } = usePresence();
 
@@ -1247,6 +1253,134 @@ const sending = ref(false);
 const sendError = ref<string | null>(null);
 /** DmComposer 实例（Phase 4 拆分）：自动增高/字数提示/Enter 发送已内聚到子组件 */
 const composerRef = ref<InstanceType<typeof DmComposer> | null>(null);
+const composerTextarea = computed((): HTMLTextAreaElement | null => {
+  const comp = composerRef.value as any;
+  return comp?.textarea?.value ?? comp?.$el?.querySelector?.("textarea") ?? null;
+});
+
+// ── @ 提及 ───────────────────────────────────────
+const mention = useMentionInput({
+  text: draft,
+  textareaRef: composerTextarea,
+  search: (q: string) => api.searchAuthors(q),
+});
+const onMentionSelect = (candidate: MentionCandidate) => {
+  mention.selectCandidate(candidate);
+  nextTick(() => composerRef.value?.focus());
+};
+const handleInsertMention = () => {
+  mention.insertAtTrigger();
+  nextTick(() => composerRef.value?.focus());
+};
+
+// 将 mention/emote 的 keydown 处理挂载到 textarea
+let teardownMentionKeys: (() => void) | null = null;
+const attachMentionKeys = () => {
+  teardownMentionKeys?.();
+  teardownMentionKeys = null;
+  const el = composerTextarea.value;
+  if (!el) return;
+  const handler = (e: KeyboardEvent) => {
+    mention.onKeyDown(e);
+    emoteInsert.onKeyDown(e);
+  };
+  el.addEventListener("keydown", handler);
+  teardownMentionKeys = () => el.removeEventListener("keydown", handler);
+};
+watch(composerTextarea, () => nextTick(attachMentionKeys));
+
+// ── 表情 ───────────────────────────────────────────
+const emoteInsert = useEmoteInsert({
+  text: draft,
+  textareaRef: composerTextarea,
+});
+const emotePickerVisible = ref(false);
+const emotePickerAnchor = ref<{ top: number; left: number; height: number } | null>(null);
+const toggleEmotePicker = () => {
+  if (emotePickerVisible.value) {
+    emotePickerVisible.value = false;
+    return;
+  }
+  const el = composerTextarea.value;
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    emotePickerAnchor.value = { top: rect.top, left: rect.left, height: rect.height };
+  }
+  emotePickerVisible.value = true;
+};
+const onEmoteSelect = (emote: Emote) => {
+  emoteInsert.insertEmote(emote.code);
+  emotePickerVisible.value = false;
+  nextTick(() => composerRef.value?.focus());
+};
+const onEmojiSelect = (emoji: string) => {
+  const el = composerTextarea.value;
+  if (!el) return;
+  const start = el.selectionStart;
+  const end = el.selectionEnd;
+  const text = draft.value;
+  draft.value = text.slice(0, start) + emoji + text.slice(end);
+  nextTick(() => {
+    el.selectionStart = el.selectionEnd = start + emoji.length;
+    composerRef.value?.focus();
+  });
+};
+
+// ── 图片上传 ─────────────────────────────────────
+const imageInputRef = ref<HTMLInputElement | null>(null);
+const uploadingImage = ref(false);
+const openImagePicker = () => imageInputRef.value?.click();
+const onImageSelected = async (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  input.value = "";
+  const cid = activeConversationId.value;
+  if (!cid) return;
+  uploadingImage.value = true;
+  sendError.value = null;
+  try {
+    const uploaded = await api.uploadImage(file);
+    await sendMessage(cid, { content: uploaded.url, kind: "image" });
+    nextTick(() => {
+      const el = messagesRef.value;
+      if (el) scrollToBottom(el);
+    });
+  } catch (err) {
+    sendError.value = resolveErrorMessage(err, "发送图片失败");
+  } finally {
+    uploadingImage.value = false;
+  }
+};
+
+// ── B 站视频 ───────────────────────────────────────
+const bilibiliDialogVisible = ref(false);
+const bilibiliUrl = ref("");
+const handleInsertBilibili = () => {
+  bilibiliUrl.value = "";
+  bilibiliDialogVisible.value = true;
+};
+const confirmBilibili = async () => {
+  const url = bilibiliUrl.value.trim();
+  if (!url) return;
+  const cid = activeConversationId.value;
+  if (!cid) return;
+  bilibiliDialogVisible.value = false;
+  sending.value = true;
+  sendError.value = null;
+  try {
+    await sendMessage(cid, { content: url });
+    draft.value = "";
+    nextTick(() => {
+      const el = messagesRef.value;
+      if (el) scrollToBottom(el);
+    });
+  } catch (err) {
+    sendError.value = resolveErrorMessage(err, "发送失败");
+  } finally {
+    sending.value = false;
+  }
+};
 
 /** 当前正在编辑的消息 documentId（null 表示无）；编辑时输入框临时改为修改模式 */
 const editingMessageId = ref<string | null>(null);
@@ -2080,13 +2214,79 @@ const handleMobileBack = () => {
                       :error="sendError"
                       :streaming="!!activeStreamingMessageId"
                       :stopping="stoppingAi"
+                      :mention-at-limit="mention.isAtLimit.value"
+                      :emote-at-limit="emoteInsert.isAtLimit.value"
                       @send="doSend"
                       @stop="handleStopAi"
                       @cancel-edit="cancelEdit"
                       @typing="handleComposerTyping"
+                      @insert-mention="handleInsertMention"
+                      @toggle-emote="toggleEmotePicker"
+                      @pick-image="openImagePicker"
+                      @insert-bilibili="handleInsertBilibili"
+                    />
+                    <!-- 隐藏图片文件选择 -->
+                    <input
+                      ref="imageInputRef"
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp"
+                      hidden
+                      @change="onImageSelected"
+                    />
+                    <!-- @ 提及浮层 -->
+                    <MentionPicker
+                      :visible="mention.pickerVisible.value"
+                      :loading="mention.pickerLoading.value"
+                      :results="mention.pickerResults.value"
+                      :active-index="mention.pickerActiveIndex.value"
+                      :anchor="mention.pickerAnchor.value"
+                      @select="onMentionSelect"
+                      @hover="(i: number) => mention.pickerActiveIndex.value = i"
+                    />
+                    <!-- 表情选择面板 -->
+                    <EmotePicker
+                      :visible="emotePickerVisible"
+                      :anchor="emotePickerAnchor"
+                      @select="onEmoteSelect"
+                      @select-emoji="onEmojiSelect"
+                      @close="emotePickerVisible = false"
                     />
                   </div>
                 </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- B 站视频链接弹窗 -->
+  <Teleport to="body">
+    <Transition name="ik-overlay">
+      <div v-if="bilibiliDialogVisible" class="ik-overlay" @mousedown.self="bilibiliDialogVisible = false">
+        <div class="ik-overlay__stripe" aria-hidden="true"></div>
+        <div class="ik-bilibili-dialog">
+          <div class="ik-bilibili-dialog__outer">
+            <div class="ik-bilibili-dialog__inner">
+              <div class="ik-bilibili-dialog__header">
+                <span class="ik-bilibili-dialog__title">发送 B 站视频</span>
+                <button class="ik-dialog__close" aria-label="关闭" @click="bilibiliDialogVisible = false">
+                  <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
+                </button>
+              </div>
+              <div class="ik-bilibili-dialog__body">
+                <input
+                  v-model="bilibiliUrl"
+                  class="ik-bilibili-dialog__input"
+                  placeholder="粘贴 B 站视频链接（b23.tv / bilibili.com/video/...）"
+                  @keydown.enter.prevent="confirmBilibili"
+                />
+                <button
+                  class="ik-bilibili-dialog__btn"
+                  :disabled="!bilibiliUrl.trim()"
+                  @click="confirmBilibili"
+                >发送</button>
               </div>
             </div>
           </div>
@@ -3617,6 +3817,87 @@ const handleMobileBack = () => {
 .ik-knock__context-menu-item--danger:focus-visible {
   background: rgba(255, 80, 80, 0.18);
   color: #ff5050;
+}
+
+/* ── B 站视频链接弹窗 ── */
+.ik-bilibili-dialog {
+  position: relative;
+  z-index: 1;
+  width: 420px;
+  max-width: 92%;
+}
+.ik-bilibili-dialog__outer {
+  width: 100%;
+  padding: 3px;
+  background: #2D2C2D;
+  border-radius: 18px 0 18px 18px;
+  overflow: hidden;
+}
+.ik-bilibili-dialog__inner {
+  width: 100%;
+  background: #141414;
+  border: 3px solid #000;
+  border-radius: 16px 0 16px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ik-bilibili-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: url("/images/tab-bg-point.webp") repeat, linear-gradient(180deg, #161616 0%, #080808 100%);
+}
+.ik-bilibili-dialog__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-bilibili-dialog__body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ik-bilibili-dialog__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 140ms;
+}
+.ik-bilibili-dialog__input:focus {
+  border-color: #fbfe00;
+}
+.ik-bilibili-dialog__input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+}
+.ik-bilibili-dialog__btn {
+  align-self: flex-end;
+  padding: 8px 24px;
+  border: 0;
+  border-radius: 8px;
+  background: #fbfe00;
+  color: #000;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms;
+}
+.ik-bilibili-dialog__btn:hover:not(:disabled) {
+  background: #e8eb00;
+}
+.ik-bilibili-dialog__btn:disabled {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
 }
 
 </style>
