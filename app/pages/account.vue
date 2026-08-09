@@ -77,7 +77,6 @@ const onMenuChange = (name: string | number) => {
 };
 
 // ── 米游社绑定 ─────────────────────────────
-const mihoyoDebugText = ref("");
 const mihoyo = useMihoyoQr({
   isActive: () => activeMenuKey.value === "mihoyo" && !mihoyoBinding.value,
   width: 200,
@@ -85,12 +84,7 @@ const mihoyo = useMihoyoQr({
     if (res.mode !== "bind") return;
     if (res.binding?.zzzUid) {
       setMihoyoBinding(res.binding);
-      if (res.debug) {
-        mihoyoDebugText.value = JSON.stringify(res.debug);
-        message.success("绑定成功（角色信息状态见下方）");
-      } else {
-        message.success("米游社账号绑定成功");
-      }
+      message.success("米游社账号绑定成功");
       return;
     }
     // 后端确认但未返回绑定数据：主动重拉一次
@@ -102,7 +96,6 @@ const mihoyo = useMihoyoQr({
     if (mihoyoBinding.value?.zzzUid) {
       message.success("米游社账号绑定成功");
     } else {
-      mihoyoDebugText.value = res.debug ? JSON.stringify(res.debug) : "";
       message.error("扫码已确认，但绑定数据未同步，请刷新重试");
     }
   },
@@ -133,16 +126,6 @@ const mihoyoMetaText = computed(() => {
   if (mihoyoLoading.value) return "加载中";
   return mihoyoBinding.value ? (mihoyoBinding.value.zzzNickname || "已绑定") : "未绑定";
 });
-
-// 绑定成功或加载后，若有诊断信息则展示
-watch(
-  () => mihoyoBinding.value,
-  (b) => {
-    const dbg = (b as Record<string, unknown> | null)?. _debug as Record<string, unknown> | undefined;
-    mihoyoDebugText.value = dbg ? JSON.stringify(dbg) : "";
-  },
-  { immediate: true },
-);
 
 const unbindMihoyo = async () => {
   await unbindMihoyoAction();
@@ -382,7 +365,6 @@ useHead({ title: "账号中心" });
                 >
                   {{ mihoyoUnbinding ? "解绑中…" : "解除绑定" }}
                 </z-button>
-                <pre v-if="mihoyoDebugText" class="ik-ac-mihoyo-debug">{{ mihoyoDebugText }}</pre>
               </template>
 
               <template v-else>
@@ -408,7 +390,6 @@ useHead({ title: "账号中心" });
                 <p class="ik-ac-qr-status" :class="`is-${mihoyoQrStatus}`">
                   {{ mihoyoQrStatusText }}
                 </p>
-                <pre v-if="mihoyoDebugText" class="ik-ac-mihoyo-debug">{{ mihoyoDebugText }}</pre>
                 <z-button class="ik-ac-mihoyo-qr-refresh-btn" :disabled="mihoyoQrStatus === 'loading'" @click="startMihoyoQr">
                   刷新二维码
                 </z-button>
@@ -902,21 +883,6 @@ useHead({ title: "账号中心" });
   align-self: center;
   min-width: 140px;
   font-weight: 800;
-}
-
-.ik-ac-mihoyo-debug {
-  margin: 4px 0 0;
-  padding: 10px;
-  max-height: 120px;
-  overflow: auto;
-  font-size: 11px;
-  line-height: 1.5;
-  color: #ffb3b3;
-  background: rgba(255, 0, 0, 0.06);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  border-radius: 8px;
-  white-space: pre-wrap;
-  word-break: break-all;
 }
 
 /* ── 黑名单 ── */
