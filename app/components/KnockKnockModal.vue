@@ -1696,7 +1696,7 @@ const handleMobileBack = () => {
                             <span class="ik-knock__online-dot" aria-hidden="true" />在线
                           </template>
                           <template v-else>
-                            {{ conversationPreview(item) || "暂无消息" }}
+                            <span class="ik-knock__offline-dot" aria-hidden="true" />不在线
                           </template>
                         </span>
                       </span>
@@ -2932,6 +2932,14 @@ const handleMobileBack = () => {
   height: 7px;
   border-radius: 50%;
   background: #4ade80;
+  flex-shrink: 0;
+}
+
+.ik-knock__offline-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6b7280;
   flex-shrink: 0;
 }
 
