@@ -89,15 +89,17 @@ export async function pushNotification(
 /** 每个用户最多保留 MAX 条通知，超出删除最旧的（按创建时间） */
 async function prune(recipientId: string, max = 100): Promise<void> {
   const keys = await listKeys(`notifications/${recipientId}/`);
-  if (keys.length <= max) return;
+  // 过滤掉 _settings.json 等非通知文件
+  const notifKeys = keys.filter((key) => !key.endsWith("/_settings.json") && !key.endsWith("_settings.json"));
+  if (notifKeys.length <= max) return;
   const docs = await Promise.all(
-    keys.map(async (key) => {
+    notifKeys.map(async (key) => {
       const d = await getJson<AppNotification>(key);
       return { key, createdAt: d?.createdAt || "" };
     }),
   );
   docs.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const overflow = docs.slice(0, keys.length - max);
+  const overflow = docs.slice(0, notifKeys.length - max);
   for (const { key } of overflow) {
     try {
       const { del } = await import("./storage");
@@ -111,8 +113,10 @@ async function prune(recipientId: string, max = 100): Promise<void> {
 /** 读取某用户的通知列表（最新在前） */
 export async function listNotifications(recipientId: string): Promise<AppNotification[]> {
   const keys = await listKeys(`notifications/${recipientId}/`);
+  // 过滤掉 _settings.json 等非通知文件
+  const notifKeys = keys.filter((key) => !key.endsWith("/_settings.json") && !key.endsWith("_settings.json"));
   const docs = await Promise.all(
-    keys.map(async (key) => getJson<AppNotification>(key)),
+    notifKeys.map(async (key) => getJson<AppNotification>(key)),
   );
   return docs
     .filter((d): d is AppNotification => !!d)
