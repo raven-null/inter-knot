@@ -107,6 +107,7 @@ export async function presencePing(req: Request): Promise<Response> {
       return true;
     })
     .map((s) => ({
+      userId: Number(s.userId || 0),
       username: String(s.username),
       name: String(s.name || s.username),
       avatar: String(s.avatar || DEFAULT_AVATAR),

@@ -29,6 +29,8 @@ import { extractCitations, extractRelatedPosts, isWorkflowSettled } from "~/util
 import type { BubbleRender, EnrichedMessage } from "~/utils/dm-view";
 import type DmComposer from "~/components/DmComposer.vue";
 
+const { users: presenceUsers } = usePresence();
+
 const {
   visible,
   close,
@@ -788,6 +790,13 @@ const conversationPreview = (conv: DmConversationSummary): string => {
   if (last.kind === "system") return last.content || "";
   // notification 走后端预渲染的 content（"赞了你的评论" / 评论正文 等）
   return last.content || "";
+};
+
+/** 判断对端是否在线（通过 userId 匹配 presence 心跳数据） */
+const isPeerOnline = (conv: DmConversationSummary): boolean => {
+  const uid = conv.peer?.userId;
+  if (!uid) return false;
+  return presenceUsers.value.some((u) => u.userId === uid);
 };
 
 /** 消息流容器，用于切换会话时自动滚到底部 */
@@ -1683,7 +1692,12 @@ const handleMobileBack = () => {
                       <span class="ik-knock__item-text">
                         <span class="ik-knock__item-title">{{ item.peer?.name || item.title || "未知会话" }}</span>
                         <span class="ik-knock__item-subtitle">
-                          {{ conversationPreview(item) || "暂无消息" }}
+                          <template v-if="isPeerOnline(item)">
+                            <span class="ik-knock__online-dot" aria-hidden="true" />在线
+                          </template>
+                          <template v-else>
+                            {{ conversationPreview(item) || "暂无消息" }}
+                          </template>
                         </span>
                       </span>
                       <span
@@ -2908,6 +2922,17 @@ const handleMobileBack = () => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ik-knock__online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  flex-shrink: 0;
 }
 
 /* ── Main column ───────────────────────────────── */
