@@ -220,14 +220,14 @@ const handleOpen = (e: MouseEvent) => {
                 type="button"
                 class="ik-card__cover-arrow ik-card__cover-arrow--prev"
                 aria-label="上一张"
-                @click.stop="goCover(-1)"
+                @click.stop.prevent="goCover(-1)"
               >‹</button>
               <span class="ik-card__cover-count">{{ coverIndex + 1 }}/{{ coverList.length }}</span>
               <button
                 type="button"
                 class="ik-card__cover-arrow ik-card__cover-arrow--next"
                 aria-label="下一张"
-                @click.stop="goCover(1)"
+                @click.stop.prevent="goCover(1)"
               >›</button>
             </div>
           </Transition>
@@ -347,18 +347,17 @@ const handleOpen = (e: MouseEvent) => {
   padding: 0;
   border: none;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
+  background: transparent;
   color: #fff;
   font-size: 20px;
   font-weight: 900;
   line-height: 1;
   cursor: pointer;
-  transition: background-color 160ms ease, transform 160ms ease;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  transition: transform 160ms ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 .ik-card__cover-arrow:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: transparent;
   transform: scale(1.08);
 }
 .ik-card__cover-arrow:active {
@@ -368,7 +367,7 @@ const handleOpen = (e: MouseEvent) => {
   flex-shrink: 0;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
+  background: transparent;
   color: #fff;
   font-size: 12px;
   font-weight: 700;
@@ -376,6 +375,7 @@ const handleOpen = (e: MouseEvent) => {
   letter-spacing: 0.5px;
   user-select: none;
   pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
 .ik-cover-nav-enter-active,
