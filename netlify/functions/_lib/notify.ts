@@ -1,15 +1,16 @@
-/** 站内通知：点赞 / 评论 / 关注 写入与读取（基于 Netlify Blobs）
+/** 站内通知：点赞 / 评论 / @提及 / 关注 写入与读取（基于 Netlify Blobs）
  *
  * 存储：
  * - 每条通知存 `notifications/<recipientId>/<id>.json`
  * - 列表用 listKeys("notifications/<recipientId>/") 扫描（当前规模足够）
+ * - 免打扰设置存 `notifications/<recipientId>/_settings.json`
  */
 
 import { getJson, setJson, listKeys } from "./storage";
 import { getUser } from "./feed";
 import { DEFAULT_AVATAR, type Doc } from "./serialize";
 
-export type NotificationType = "like" | "comment" | "follow";
+export type NotificationType = "like" | "comment" | "mention" | "follow";
 
 export interface AppNotification {
   id: string;
@@ -30,6 +31,14 @@ export interface AppNotification {
   read: boolean;
 }
 
+/** 通知免打扰设置 */
+export interface NotificationSettings {
+  /** 全局免打扰：开启后不接收任何通知 */
+  muted: boolean;
+  /** 按类型免打扰 */
+  mutedTypes: Partial<Record<NotificationType, boolean>>;
+}
+
 const notifKey = (recipientId: string, id: string) => `notifications/${recipientId}/${id}.json`;
 
 /** 读取演员用户信息，用于通知里展示头像 / 昵称 */
@@ -47,6 +56,7 @@ async function actorInfo(documentId: string): Promise<AppNotification["actor"]> 
  * 写入一条通知。若 recipient 不存在或与 actor 相同则跳过。
  * limit：每个用户最多保留最近 N 条，超出删除最旧的。
  * anonymous：演员身份匿名（如匿名评论），通知里以「匿名用户」展示。
+ * 会检查免打扰设置，如果用户对该类型通知设置了免打扰则跳过。
  */
 export async function pushNotification(
   recipientId: string,
@@ -56,6 +66,10 @@ export async function pushNotification(
   options?: { anonymous?: boolean },
 ): Promise<void> {
   if (!recipientId || !actorId || recipientId === actorId) return;
+  // 检查免打扰设置
+  const settings = await getNotificationSettings(recipientId);
+  if (settings.muted) return;
+  if (settings.mutedTypes?.[type]) return;
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const actor = options?.anonymous
     ? { documentId: "", name: "匿名用户", username: "anonymous", avatar: DEFAULT_AVATAR }
@@ -121,6 +135,31 @@ export async function markAllRead(recipientId: string): Promise<void> {
     const doc = await getJson<AppNotification>(key);
     if (!doc) await del(key);
   }
+}
+
+// ── 通知免打扰设置 ──────────────────────────────────────
+
+const settingsKey = (recipientId: string) => `notifications/${recipientId}/_settings.json`;
+
+/** 读取用户的通知免打扰设置 */
+export async function getNotificationSettings(recipientId: string): Promise<NotificationSettings> {
+  const saved = await getJson<NotificationSettings>(settingsKey(recipientId));
+  if (saved) return saved;
+  return { muted: false, mutedTypes: {} };
+}
+
+/** 更新用户的通知免打扰设置 */
+export async function updateNotificationSettings(
+  recipientId: string,
+  patch: Partial<NotificationSettings>,
+): Promise<NotificationSettings> {
+  const current = await getNotificationSettings(recipientId);
+  const next: NotificationSettings = {
+    muted: typeof patch.muted === "boolean" ? patch.muted : current.muted,
+    mutedTypes: { ...current.mutedTypes, ...patch.mutedTypes },
+  };
+  await setJson(settingsKey(recipientId), next);
+  return next;
 }
 
 export type { Doc };

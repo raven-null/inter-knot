@@ -298,6 +298,8 @@ async function dispatch(req: Request): Promise<Response> {
 
     // ── 站内通知 ─────────────────────────────────────
     case "notifications": {
+      if (sub === "settings" && isGet(req)) return notificationRoutes.getSettings(req);
+      if (sub === "settings" && isPatch(req)) return notificationRoutes.patchSettings(req);
       if (isGet(req)) return notificationRoutes.list(req);
       if (sub === "read-all" && isPost(req)) return notificationRoutes.readAll(req);
       return error(404, "接口不存在");

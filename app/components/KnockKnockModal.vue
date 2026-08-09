@@ -20,8 +20,10 @@ import {
   ChatBubbleOvalLeftEllipsisIcon,
   UserPlusIcon,
   ArrowRightIcon,
+  BellSlashIcon,
+  AtSymbolIcon,
 } from "@heroicons/vue/24/outline";
-import type { AiRoleCard, AppNotification, DmConversationSummary, DmMessage } from "~/types/entities";
+import type { AiRoleCard, AppNotification, AppNotificationType, NotificationSettings, DmConversationSummary, DmMessage } from "~/types/entities";
 import { useMessage } from "zenless-ui";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { stripMentionsToPlain } from "~/utils/mention";
@@ -224,10 +226,12 @@ const activeConversation = computed<DmConversationSummary | null>(() => {
   return allConversations.value.find((c) => c.documentId === activeConversationId.value) ?? null;
 });
 
-// ── 站内通知（点赞 / 评论 / 关注） ─────────────
+// ── 站内通知（点赞 / 评论 / @提及 / 关注） ─────────────
 const notifications = ref<AppNotification[]>([]);
 const notificationsLoading = ref(false);
 const notificationsError = ref("");
+const notifSettings = ref<NotificationSettings>({ muted: false, mutedTypes: {} });
+const showNotifSettings = ref(false);
 
 const loadNotifications = async () => {
   if (!auth.isLogin) return;
@@ -236,6 +240,7 @@ const loadNotifications = async () => {
   try {
     const res = await api.getNotifications();
     notifications.value = res.data;
+    notifSettings.value = res.settings;
     if (res.unreadCount > 0) {
       void api.markNotificationsRead();
       notifications.value = notifications.value.map((n) => ({ ...n, read: true }));
@@ -257,6 +262,10 @@ const notificationText = (n: AppNotification): string => {
       return n.target?.postTitle
         ? `${name} 评论了你的帖子「${n.target.postTitle}」`
         : `${name} 回复了你的评论`;
+    case "mention":
+      return n.target?.postTitle
+        ? `${name} 在帖子「${n.target.postTitle}」中 @了你`
+        : `${name} 在评论中 @了你`;
     case "follow":
       return `${name} 关注了你`;
     default:
@@ -290,6 +299,28 @@ const openNotification = (n: AppNotification) => {
     });
   } else if (n.actor?.documentId) {
     goToProfile(`/profile/${n.actor.documentId}`);
+  }
+};
+
+/** 免打扰设置：切换全局免打扰 */
+const toggleNotifMuted = async () => {
+  try {
+    const next = await api.updateNotificationSettings({ muted: !notifSettings.value.muted });
+    notifSettings.value = next;
+  } catch {
+    message.error("设置失败");
+  }
+};
+
+/** 免打扰设置：切换某类型免打扰 */
+const toggleNotifTypeMuted = async (type: AppNotificationType) => {
+  try {
+    const mutedTypes = { ...notifSettings.value.mutedTypes };
+    mutedTypes[type] = !mutedTypes[type];
+    const next = await api.updateNotificationSettings({ mutedTypes });
+    notifSettings.value = next;
+  } catch {
+    message.error("设置失败");
   }
 };
 
@@ -1991,12 +2022,74 @@ const handleMobileBack = () => {
                     </div>
                   </div>
 
-                  <!-- 通知（点赞 / 评论 / 关注） -->
+                  <!-- 通知（点赞 / 评论 / @提及 / 关注） -->
                   <div
                     v-else
                     class="ik-knock__list"
                     role="listbox"
                   >
+                    <!-- 通知头部：免打扰设置按钮 -->
+                    <div class="ik-knock__notif-header">
+                      <span class="ik-knock__notif-header-title">通知</span>
+                      <button
+                        type="button"
+                        class="ik-knock__notif-settings-btn"
+                        :class="{ 'is-muted': notifSettings.muted }"
+                        :aria-label="notifSettings.muted ? '关闭免打扰' : '开启免打扰'"
+                        :title="notifSettings.muted ? '已开启免打扰' : '免打扰'"
+                        @click="toggleNotifMuted"
+                      >
+                        <BellSlashIcon v-if="notifSettings.muted" class="ik-knock__notif-settings-icon" />
+                        <BellIcon v-else class="ik-knock__notif-settings-icon" />
+                      </button>
+                    </div>
+                    <!-- 免打扰详细设置面板 -->
+                    <div v-if="showNotifSettings && !notifSettings.muted" class="ik-knock__notif-settings-panel">
+                      <div class="ik-knock__notif-settings-row">
+                        <span>点赞通知</span>
+                        <button
+                          type="button"
+                          class="ik-knock__notif-toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.like }"
+                          @click="toggleNotifTypeMuted('like')"
+                        >
+                          {{ notifSettings.mutedTypes?.like ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-knock__notif-settings-row">
+                        <span>评论通知</span>
+                        <button
+                          type="button"
+                          class="ik-knock__notif-toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.comment }"
+                          @click="toggleNotifTypeMuted('comment')"
+                        >
+                          {{ notifSettings.mutedTypes?.comment ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-knock__notif-settings-row">
+                        <span>@提及通知</span>
+                        <button
+                          type="button"
+                          class="ik-knock__notif-toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.mention }"
+                          @click="toggleNotifTypeMuted('mention')"
+                        >
+                          {{ notifSettings.mutedTypes?.mention ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                      <div class="ik-knock__notif-settings-row">
+                        <span>关注通知</span>
+                        <button
+                          type="button"
+                          class="ik-knock__notif-toggle"
+                          :class="{ 'is-off': notifSettings.mutedTypes?.follow }"
+                          @click="toggleNotifTypeMuted('follow')"
+                        >
+                          {{ notifSettings.mutedTypes?.follow ? '已屏蔽' : '接收' }}
+                        </button>
+                      </div>
+                    </div>
                     <button
                       v-for="n in notifications"
                       :key="n.id"
@@ -2021,6 +2114,7 @@ const handleMobileBack = () => {
                           <span class="ik-knock__notif-icon" aria-hidden="true">
                             <HeartIcon v-if="n.type === 'like'" class="ik-knock__notif-icon-svg" />
                             <ChatBubbleOvalLeftEllipsisIcon v-else-if="n.type === 'comment'" class="ik-knock__notif-icon-svg" />
+                            <AtSymbolIcon v-else-if="n.type === 'mention'" class="ik-knock__notif-icon-svg" />
                             <UserPlusIcon v-else class="ik-knock__notif-icon-svg" />
                           </span>
                           <span class="ik-knock__notif-text">{{ notificationText(n) }}</span>
@@ -2906,6 +3000,96 @@ const handleMobileBack = () => {
   flex-shrink: 0;
   margin-top: 4px;
   color: rgba(255, 255, 255, 0.3);
+}
+
+/* ── 通知免打扰设置 ──────────────────────────────── */
+.ik-knock__notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 4px;
+}
+
+.ik-knock__notif-header-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.ik-knock__notif-settings-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.ik-knock__notif-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.ik-knock__notif-settings-btn.is-muted {
+  color: #ff6b6b;
+}
+
+.ik-knock__notif-settings-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.ik-knock__notif-settings-panel {
+  margin: 0 12px 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ik-knock__notif-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ik-knock__notif-settings-row:not(:last-child) {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ik-knock__notif-toggle {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(191, 255, 9, 0.2);
+  color: #BFFF09;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.ik-knock__notif-toggle:hover {
+  background: rgba(191, 255, 9, 0.3);
+}
+
+.ik-knock__notif-toggle.is-off {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.ik-knock__notif-toggle.is-off:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* ── 群聊 ─────────────────────────────────────────── */

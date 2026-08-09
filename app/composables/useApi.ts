@@ -17,6 +17,7 @@ import type {
   ExternalVideo,
   MihoyoBinding,
   NsfwStatus,
+  NotificationSettings,
   NotificationsResult,
   Post,
   PostCategory,
@@ -1923,17 +1924,43 @@ export function useApi() {
 
   // ── 站内通知（/api/notifications） ─────────────
 
-  const getNotifications = async (): Promise<NotificationsResult> => {
+  const getNotifications = async (): Promise<NotificationsResult & { settings: NotificationSettings }> => {
     const response = await $api("/api/notifications");
-    const data = (response || {}) as { data?: unknown; unreadCount?: unknown };
+    const data = (response || {}) as { data?: unknown; unreadCount?: unknown; settings?: unknown };
+    const rawSettings = (data.settings || {}) as Partial<NotificationSettings>;
     return {
       data: Array.isArray(data.data) ? (data.data as AppNotification[]) : [],
       unreadCount: Number(data.unreadCount || 0),
+      settings: {
+        muted: Boolean(rawSettings.muted),
+        mutedTypes: rawSettings.mutedTypes || {},
+      },
     };
   };
 
   const markNotificationsRead = async (): Promise<void> => {
     await $api("/api/notifications/read-all", { method: "POST", body: {} });
+  };
+
+  const getNotificationSettings = async (): Promise<NotificationSettings> => {
+    const data = (await $api("/api/notifications/settings")) as Partial<NotificationSettings>;
+    return {
+      muted: Boolean(data.muted),
+      mutedTypes: data.mutedTypes || {},
+    };
+  };
+
+  const updateNotificationSettings = async (
+    patch: Partial<NotificationSettings>,
+  ): Promise<NotificationSettings> => {
+    const data = (await $api("/api/notifications/settings", {
+      method: "PATCH",
+      body: patch,
+    })) as Partial<NotificationSettings>;
+    return {
+      muted: Boolean(data.muted),
+      mutedTypes: data.mutedTypes || {},
+    };
   };
 
   const getPinnedArticles = async (
@@ -2130,6 +2157,8 @@ export function useApi() {
     // 站内通知
     getNotifications,
     markNotificationsRead,
+    getNotificationSettings,
+    updateNotificationSettings,
     getPinnedArticles,
     updatePinnedArticles,
     searchAuthors,

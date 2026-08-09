@@ -224,8 +224,8 @@ export interface ZzzRoleBadge {
   regionName?: string;
 }
 
-/** 站内通知类型：点赞 / 评论 / 关注 */
-export type AppNotificationType = "like" | "comment" | "follow";
+/** 站内通知类型：点赞 / 评论 / @提及 / 关注 */
+export type AppNotificationType = "like" | "comment" | "mention" | "follow";
 
 /** 站内通知（/api/notifications） */
 export interface AppNotification {
@@ -250,6 +250,14 @@ export interface AppNotification {
 export interface NotificationsResult {
   data: AppNotification[];
   unreadCount: number;
+}
+
+/** 通知免打扰设置 */
+export interface NotificationSettings {
+  /** 全局免打扰：开启后不接收任何通知 */
+  muted: boolean;
+  /** 按类型免打扰 */
+  mutedTypes: Partial<Record<AppNotificationType, boolean>>;
 }
 
 /** 当前用户的米游社绑定信息 */

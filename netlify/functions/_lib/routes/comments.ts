@@ -203,6 +203,26 @@ export async function create(req: Request): Promise<Response> {
     }
   }
 
+  // 通知：@提及的用户（排除帖子作者和评论作者，避免重复通知）
+  const mentionedIds = mentionedDocIds(content);
+  const notifiedIds = new Set<string>([viewer.userId, postAuthorId]);
+  if (parentId) {
+    const parentLookup = await getJson<{ post_id: string; key: string }>(KEYS.commentLookup(parentId));
+    const parentDoc = parentLookup ? await getJson<Doc>(parentLookup.key) : null;
+    const parentAuthor = parentDoc ? String(parentDoc.author_document_id || "") : "";
+    if (parentAuthor) notifiedIds.add(parentAuthor);
+  }
+  for (const mentionedId of mentionedIds) {
+    if (notifiedIds.has(mentionedId)) continue;
+    await pushNotification(mentionedId, "mention", viewer.userId, {
+      postId,
+      postTitle: String(post.title || ""),
+      commentId,
+      snippet,
+    }, notifOpts);
+    notifiedIds.add(mentionedId);
+  }
+
   const node = toComment(doc, new Set());
   node!.replies = [];
 
