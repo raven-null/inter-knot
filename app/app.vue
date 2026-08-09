@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import PostOverlay from "~/components/PostOverlay.vue";
 import { OVERLAY_KNOCK_KEY, overlayHistoryState } from "~/utils/overlay-history";
+import { useVideoMuted } from "~/composables/useVideoMuted";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -10,6 +11,9 @@ const gpuAccelerated = useGpuAccelerated();
 
 if (import.meta.client) {
   auth.hydrateFromStorage();
+
+  // 预取「自动静音播放视频」偏好
+  useVideoMuted().load();
 
   // 登录态恢复后预取账号中心数据，刷新时先从本地缓存恢复再静默更新
   if (auth.isLogin) {

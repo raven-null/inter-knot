@@ -76,6 +76,8 @@ export async function meProfile(req: Request): Promise<Response> {
     isAdmin: viewer.isAdmin,
     // 包含 secret_key 供前端展示/复制
     secretKey: user.secret_key ? String(user.secret_key) : null,
+    // 打开帖子时自动静音播放视频（默认开启）
+    videoAutoplayMuted: user.video_autoplay_muted !== false,
   });
 }
 

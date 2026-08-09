@@ -1873,13 +1873,27 @@ export function useApi() {
     return { profileHidden: data.profileHidden === true };
   };
 
-  const getMyProfileSettings = async (): Promise<{ profileHidden: boolean }> => {
+  const updateMyVideoMuted = async (videoAutoplayMuted: boolean): Promise<{ videoAutoplayMuted: boolean }> => {
+    const response = await $api("/api/me/profile/video-muted", {
+      method: "PUT",
+      body: { videoAutoplayMuted },
+    });
+    const data = response as Record<string, unknown>;
+    invalidate(qk.me.self);
+    invalidate(qk.me.profile);
+    return { videoAutoplayMuted: data.videoAutoplayMuted === true };
+  };
+
+  const getMyProfileSettings = async (): Promise<{ profileHidden: boolean; videoAutoplayMuted: boolean }> => {
     return cachedRead(
       qk.me.profile,
       async () => {
         const response = await $api("/api/me/profile");
         const data = response as Record<string, unknown>;
-        return { profileHidden: data.profileHidden === true };
+        return {
+          profileHidden: data.profileHidden === true,
+          videoAutoplayMuted: data.videoAutoplayMuted !== false,
+        };
       },
       STALE_ME,
     );
@@ -2095,6 +2109,7 @@ export function useApi() {
     updateMyName,
     updateMyBio,
     updateMyVisibility,
+    updateMyVideoMuted,
     getMyProfileSettings,
     // 账号安全
     getMySecurity,

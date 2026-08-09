@@ -185,6 +185,7 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "profile" && sub2 === "name" && isPut(req)) return meRoutes.updateName(req);
       if (sub === "profile" && sub2 === "bio" && isPut(req)) return meRoutes.updateBio(req);
       if (sub === "profile" && sub2 === "visibility" && isPut(req)) return meRoutes.updateVisibility(req);
+      if (sub === "profile" && sub2 === "video-muted" && isPut(req)) return meRoutes.updateVideoMuted(req);
       if (sub === "profile" && sub2 === "pinned-articles" && isGet(req)) return meRoutes.pinnedArticles(req);
       if (sub === "profile" && sub2 === "pinned-articles" && isPut(req)) return meRoutes.updatePinnedArticles(req);
       if (sub === "security" && isGet(req)) return meRoutes.security(req);

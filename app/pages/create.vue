@@ -299,10 +299,7 @@ async function onVideoDialogConfirm(raw: string) {
 }
 
 function openVideoDialog() {
-  if (uploadTasks.value.length > 0) {
-    message.error("已上传图片的帖子不能再添加视频");
-    return;
-  }
+  // 允许图片与视频混合发布：不再限制已有图片时添加视频
   isVideoDialogVisible.value = true;
 }
 
@@ -472,10 +469,6 @@ function openImagePicker() {
     loginDialog.open();
     return;
   }
-  if (externalVideos.value.length > 0) {
-    message.error("已添加视频，不能再上传图片");
-    return;
-  }
   if (remainingCoverSlots.value <= 0) {
     message.error(`帖子最多上传 ${maxCoverImages} 张图片`);
     return;
@@ -484,18 +477,10 @@ function openImagePicker() {
 }
 
 function handleImagePickerUpload(files: File[]) {
-  if (externalVideos.value.length > 0) {
-    message.error("已添加视频，不能再上传图片");
-    return;
-  }
   handleFileSelect(files);
 }
 
 function handleImagePickerSelect(uploads: UploadedFile[]) {
-  if (externalVideos.value.length > 0) {
-    message.error("已添加视频，不能再上传图片");
-    return;
-  }
   const existing = new Set(existingUploadIds.value);
   const remaining = remainingCoverSlots.value;
   const available = uploads
@@ -541,10 +526,6 @@ async function executeUploadTask(task: UploadTask) {
 }
 
 function handleFileSelect(files: FileList | File[]) {
-  if (externalVideos.value.length > 0) {
-    message.error("已添加视频，不能再上传图片");
-    return;
-  }
   const fileArray = Array.from(files);
   const remaining = maxCoverImages - uploadTasks.value.length;
 
@@ -1343,7 +1324,7 @@ if (import.meta.client) {
               <CoverImageAddButton
                 v-if="uploadTasks.length < maxCoverImages"
                 :is-dragging="isDragging"
-                :disabled="activeMediaType === 'video' || externalVideos.length > 0"
+                :disabled="activeMediaType === 'video'"
                 @mouseenter="onMediaEnter('image')"
                 @mouseleave="onMediaLeave('image')"
                 @focus="onMediaEnter('image')"
@@ -1351,7 +1332,7 @@ if (import.meta.client) {
                 @click="openImagePicker"
               />
               <CoverVideoAddButton
-                v-if="externalVideos.length < MAX_EXTERNAL_VIDEOS && uploadTasks.length === 0"
+                v-if="externalVideos.length < MAX_EXTERNAL_VIDEOS"
                 :is-dragging="false"
                 :disabled="activeMediaType === 'image'"
                 @mouseenter="onMediaEnter('video')"
@@ -1443,7 +1424,7 @@ if (import.meta.client) {
           type="button"
           class="ik-mobile-cover-add"
           aria-label="添加图片"
-          :disabled="activeMediaType === 'video' || externalVideos.length > 0"
+          :disabled="activeMediaType === 'video'"
           @mouseenter="onMediaEnter('image')"
           @mouseleave="onMediaLeave('image')"
           @focus="onMediaEnter('image')"
@@ -1453,7 +1434,7 @@ if (import.meta.client) {
           <PhotoIcon class="ik-mobile-cover-add__icon" />
         </button>
         <button
-          v-if="externalVideos.length < MAX_EXTERNAL_VIDEOS && uploadTasks.length === 0"
+          v-if="externalVideos.length < MAX_EXTERNAL_VIDEOS"
           type="button"
           class="ik-mobile-cover-add"
           aria-label="添加视频"

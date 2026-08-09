@@ -38,6 +38,15 @@ export async function updateVisibility(req: Request): Promise<Response> {
   return json({ profileHidden: profileHidden === true });
 }
 
+/** 更新「打开帖子时自动静音播放视频」偏好 */
+export async function updateVideoMuted(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const { videoAutoplayMuted } = await readJson<{ videoAutoplayMuted?: boolean }>(req);
+  const u = await userDoc(viewer.userId);
+  await setJson(userKey(viewer.userId), { ...u, video_autoplay_muted: videoAutoplayMuted === true });
+  return json({ videoAutoplayMuted: videoAutoplayMuted === true });
+}
+
 export async function security(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const u = await userDoc(viewer.userId);

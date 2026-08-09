@@ -2,6 +2,7 @@
 import { useMessage } from "zenless-ui";
 import { watch } from "vue";
 import { resolveErrorMessage } from "~/utils/api-error";
+import { useVideoMuted } from "~/composables/useVideoMuted";
 
 const props = defineProps<{
   currentName?: string;
@@ -178,6 +179,22 @@ const openSocial = () => {
   openSub('social');
 };
 
+const videoMutedSetting = useVideoMuted();
+const togglingVideoMuted = ref(false);
+
+const toggleVideoMuted = async (next: boolean) => {
+  if (togglingVideoMuted.value) return;
+  togglingVideoMuted.value = true;
+  try {
+    await videoMutedSetting.update(next);
+    message.success(next ? "已开启自动静音播放" : "已关闭自动静音播放");
+  } catch {
+    message.error("保存失败");
+  } finally {
+    togglingVideoMuted.value = false;
+  }
+};
+
 const closeSocial = () => {
   closeSub();
 };
@@ -270,6 +287,8 @@ const SCROLL_LOCK_TOKEN = Symbol("profile-settings-modal");
 onMounted(() => {
   window.addEventListener("keydown", handleKeydown);
   acquire(SCROLL_LOCK_TOKEN);
+  // 预取「自动静音播放视频」偏好，论坛设置弹窗打开时即有正确状态
+  void videoMutedSetting.load();
 });
 
 onBeforeUnmount(() => {
@@ -304,7 +323,7 @@ onBeforeUnmount(() => {
               <z-button @click="openEditName">修改用户名</z-button>
               <z-button @click="openEditBio">修改签名</z-button>
               <z-button @click="openPinned">修改帖子展示</z-button>
-              <z-button @click="openSocial">社交设置</z-button>
+              <z-button @click="openSocial">论坛设置</z-button>
               <z-button @click="openAccountCenter">账号中心</z-button>
               <z-button @click="openLogout">退出登录</z-button>
             </div>
@@ -421,7 +440,7 @@ onBeforeUnmount(() => {
             <div class="ik-dialog__outer">
               <div class="ik-dialog__inner">
                 <div class="ik-dialog__header">
-                  <span class="ik-dialog__title">社交设置</span>
+                  <span class="ik-dialog__title">论坛设置</span>
                   <button class="ik-dialog__close" aria-label="关闭" @click="closeSocial">
                     <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
                   </button>
@@ -439,6 +458,19 @@ onBeforeUnmount(() => {
                       <z-switch
                         v-model="publicSwitch"
                         :disabled="togglingHidden"
+                      />
+                    </div>
+                    <div class="ik-social__row">
+                      <div class="ik-social__text">
+                        <span class="ik-social__label">自动静音播放视频</span>
+                        <span class="ik-social__desc">
+                          打开帖子时视频自动静音播放；关闭后需手动点击播放。
+                        </span>
+                      </div>
+                      <z-switch
+                        :model-value="videoMutedSetting.value"
+                        :disabled="togglingVideoMuted"
+                        @update:model-value="toggleVideoMuted"
                       />
                     </div>
                   </div>
