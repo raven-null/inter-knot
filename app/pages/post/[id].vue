@@ -7,12 +7,16 @@ import { isNotFoundError, isUserBlockedError, resolveErrorMessage } from "~/util
 import { useRenderedBody } from "~/composables/useRenderedBody";
 import { formatTime } from "~/utils/time";
 import { toCanonicalUrl, toThumbUrl } from "~/utils/image";
-import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon } from "@heroicons/vue/24/outline";
+import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/vue/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/vue/24/solid";
 import { useMentionInput } from "~/composables/useMentionInput";
 import { useEmoteInsert } from "~/composables/useEmoteInsert";
 import { useCommentSeek } from "~/composables/useCommentSeek";
-import PostMediaCarousel from "~/components/PostMediaCarousel.vue";
+import BilibiliPlayer from "~/components/BilibiliPlayer.vue";
+import EmblaCarousel from "embla-carousel";
+import type { EmblaCarouselType } from "embla-carousel";
+
+const DEFAULT_COVER_IMAGE = "/images/default-cover.webp";
 
 const { isOpen: isGalleryOpen, isLoading: isGalleryLoading, loadingProgress: galleryProgress, openGallery, preload: preloadGallery, destroy: destroyPreview } = useLightGallery();
 
@@ -134,6 +138,113 @@ const covers = computed(() => post.value?.covers ?? []);
 const hasCovers = computed(() => covers.value.length > 0);
 const isCommentEditorActive = computed(() => commentInputFocused.value);
 const postLikeCount = computed(() => post.value?.likesCount ?? 0);
+
+const firstCover = computed(() => covers.value[0] ?? null);
+const firstCoverDisplayUrl = computed(() =>
+  firstCover.value?.url ? toCanonicalUrl(firstCover.value.url) : DEFAULT_COVER_IMAGE,
+);
+const coverAspectRatio = computed(() => {
+  const c = firstCover.value;
+  if (c?.width && c?.height && c.width > 0 && c.height > 0) return c.width / c.height;
+  return 16 / 9;
+});
+
+// ── 封面多图轮播（与帖子弹窗一致） ────────────────
+const coverIndex = ref(0);
+const emblaRef = shallowRef<HTMLElement | null>(null);
+const emblaApi = shallowRef<EmblaCarouselType | undefined>();
+
+const syncEmblaState = () => {
+  const api = emblaApi.value;
+  if (!api) return;
+  coverIndex.value = api.selectedScrollSnap();
+  expandLoadWindow();
+};
+
+const destroyEmbla = () => {
+  if (emblaApi.value) {
+    emblaApi.value.destroy();
+    emblaApi.value = undefined;
+  }
+};
+
+const initEmbla = (el: HTMLElement) => {
+  destroyEmbla();
+  emblaApi.value = EmblaCarousel(el, {
+    loop: false,
+    align: "start",
+    dragThreshold: 6,
+  });
+  emblaApi.value.on("select", syncEmblaState);
+  emblaApi.value.on("reInit", syncEmblaState);
+  syncEmblaState();
+};
+
+watch(emblaRef, (el, _, onCleanup) => {
+  if (el) initEmbla(el);
+  onCleanup(() => destroyEmbla());
+}, { flush: "post" });
+
+// 已批准加载的封面索引集合：只有命中其中的图片才会真正请求 src。
+const loadedCoverIndices = ref<Set<number>>(new Set([0, 1, 2]));
+const LOAD_WINDOW_RADIUS = 2;
+
+const expandLoadWindow = () => {
+  const i = coverIndex.value;
+  const total = covers.value.length;
+  if (total === 0) return;
+  const next = new Set(loadedCoverIndices.value);
+  let changed = false;
+  for (let k = i - LOAD_WINDOW_RADIUS; k <= i + LOAD_WINDOW_RADIUS; k++) {
+    if (k >= 0 && k < total && !next.has(k)) {
+      next.add(k);
+      changed = true;
+    }
+  }
+  if (changed) loadedCoverIndices.value = next;
+};
+
+const resetLoadWindow = () => {
+  loadedCoverIndices.value = new Set([0, 1, 2]);
+};
+
+// 命中加载窗口的图片才允许真正请求 src
+const isCoverNearby = (i: number) =>
+  i === coverIndex.value || loadedCoverIndices.value.has(i);
+
+const goCover = (index: number) => {
+  const api = emblaApi.value;
+  if (!api) return;
+  const total = covers.value.length;
+  if (total <= 1) return;
+  const target = Math.min(Math.max(index, 0), total - 1);
+  api.scrollTo(target);
+};
+
+// 拦截滚轮：水平滚轮（deltaX）转成外层垂直滚动，避免误判为切图。
+const onCoverWheel = (e: WheelEvent) => {
+  if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  const parent = scrollRef.value;
+  if (parent) parent.scrollTop += e.deltaX;
+};
+
+// 帖子切换时重置封面索引
+watch(() => postId.value, () => {
+  coverIndex.value = 0;
+  resetLoadWindow();
+  nextTick(() => {
+    emblaApi.value?.scrollTo(0, true);
+  });
+});
+
+// 封面列表变化后重新初始化 Embla
+watch(covers, () => {
+  nextTick(() => {
+    emblaApi.value?.reInit();
+    expandLoadWindow();
+  });
+});
 
 const syncCommentInputHeight = async () => {
   await nextTick();
@@ -961,13 +1072,102 @@ onBeforeUnmount(() => {
           <!-- 左栏：封面 + 正文 -->
           <div class="ik-page__left">
             <div class="ik-page__left-scroll" ref="scrollRef">
-              <!-- 封面 / 视频（统一轮播：图片与视频一起滑动） -->
+              <!-- 封面 / 视频 -->
               <div class="ik-page__cover-wrap" v-if="hasCovers || post.externalVideos?.length">
-                <PostMediaCarousel
-                  :covers="covers"
-                  :videos="post.externalVideos || []"
-                  :on-image-click="openCoverPreview"
-                />
+                <template v-if="hasCovers">
+                  <!-- 单张封面 -->
+                  <div
+                    v-if="covers.length === 1"
+                    class="ik-page__cover-border"
+                    :style="{ aspectRatio: String(coverAspectRatio) }"
+                  >
+                    <img
+                      :src="firstCoverDisplayUrl"
+                      :alt="post.title"
+                      class="ik-page__cover"
+                      @click="openCoverPreview()"
+                      @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                    />
+                  </div>
+
+                  <!-- 多图轮播 -->
+                  <div
+                    v-else
+                    class="ik-page__cover-border ik-page__cover-border--carousel"
+                    :style="{ aspectRatio: String(coverAspectRatio) }"
+                  >
+                    <div
+                      ref="emblaRef"
+                      class="ik-page__cover-scroller"
+                      @wheel="onCoverWheel"
+                    >
+                      <div class="ik-page__cover-track">
+                        <div
+                          v-for="(c, i) in covers"
+                          :key="c.url + i"
+                          class="ik-page__cover-slide"
+                        >
+                          <img
+                            :src="isCoverNearby(i) ? toCanonicalUrl(c.url) : undefined"
+                            :alt="`${post.title} - ${i + 1}`"
+                            class="ik-page__cover"
+                            :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
+                            decoding="async"
+                            draggable="false"
+                            @click="openCoverPreview(i)"
+                            @error="($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      v-show="coverIndex > 0"
+                      type="button"
+                      class="ik-page__cover-nav ik-page__cover-nav--prev"
+                      aria-label="上一张"
+                      @click.stop="goCover(coverIndex - 1)"
+                    >
+                      <ChevronLeftIcon style="width:20px;height:20px" />
+                    </button>
+                    <button
+                      v-show="coverIndex < covers.length - 1"
+                      type="button"
+                      class="ik-page__cover-nav ik-page__cover-nav--next"
+                      aria-label="下一张"
+                      @click.stop="goCover(coverIndex + 1)"
+                    >
+                      <ChevronRightIcon style="width:20px;height:20px" />
+                    </button>
+
+                    <div class="ik-page__cover-dots">
+                      <button
+                        v-for="(_, i) in covers"
+                        :key="i"
+                        type="button"
+                        class="ik-page__cover-dot"
+                        :class="{ 'ik-page__cover-dot--active': i === coverIndex }"
+                        :aria-label="`第 ${i + 1} 张`"
+                        :aria-current="i === coverIndex ? 'true' : undefined"
+                        @click.stop="goCover(i)"
+                      />
+                    </div>
+
+                    <span class="ik-page__cover-count ik-page__cover-count--top">
+                      {{ coverIndex + 1 }} / {{ covers.length }}
+                    </span>
+                  </div>
+                </template>
+                <template v-else-if="post.externalVideos?.length">
+                  <div
+                    v-for="(video, idx) in post.externalVideos"
+                    :key="`video-${idx}`"
+                    class="ik-page__cover-border"
+                    :style="{ aspectRatio: String(coverAspectRatio) }"
+                  >
+                    <BilibiliPlayer :video="video" />
+                  </div>
+                </template>
               </div>
 
               <!-- 正文 -->
@@ -984,9 +1184,16 @@ onBeforeUnmount(() => {
                   class="ik-page__content"
                   v-html="bodyHtml"
                 ></div>
-                <p v-else-if="!hasCovers && !post.externalVideos?.length" class="ik-page__content" style="color: #808080">
+                <p v-else-if="!post.externalVideos?.length" class="ik-page__content" style="color: #808080">
                   这里空空如也～
                 </p>
+                <div v-if="hasCovers && post.externalVideos?.length" class="ik-page__videos">
+                  <BilibiliPlayer
+                    v-for="(video, idx) in post.externalVideos"
+                    :key="`video-${idx}`"
+                    :video="video"
+                  />
+                </div>
               </div>
             </div>
           </div>

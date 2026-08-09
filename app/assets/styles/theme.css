@@ -381,13 +381,6 @@ button:disabled,
   border-color: var(--ik-primary) !important;
 }
 
-/* 灯箱图片始终适配视口，不需要滚动查看完整图片 */
-.lg-image {
-  max-width: 95vw !important;
-  max-height: 92vh !important;
-  object-fit: contain !important;
-}
-
 /* 自动播放按钮 active 状态 */
 .lg-autoplay-button:hover .lg-icon {
   color: var(--ik-primary);

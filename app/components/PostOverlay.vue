@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowReactive, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowReactive, shallowRef, watch } from "vue";
 import type { ComponentPublicInstance } from "vue";
 import { useMediaQuery } from "@vueuse/core";
 import { useMessage } from "zenless-ui";
+import EmblaCarousel from "embla-carousel";
+import type { EmblaCarouselType } from "embla-carousel";
 import type { Author, Comment, Post } from "~/types/entities";
 import type { PostPreview } from "~/composables/usePostModal";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { useRenderedBody } from "~/composables/useRenderedBody";
 import { formatTime } from "~/utils/time";
-import { StarIcon, AtSymbolIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon } from "@heroicons/vue/24/outline";
+import { StarIcon, AtSymbolIcon, ChevronLeftIcon, ChevronRightIcon, EyeIcon, EyeSlashIcon, PhotoIcon, EllipsisVerticalIcon, FaceSmileIcon } from "@heroicons/vue/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/vue/24/solid";
 import { useMentionInput } from "~/composables/useMentionInput";
 import type { MentionCandidate, MentionAnchor, MentionRange, DisplaySegment } from "~/composables/useMentionInput";
@@ -19,6 +21,7 @@ import { useCommentSeek } from "~/composables/useCommentSeek";
 import { toThumbUrl, toCanonicalUrl } from "~/utils/image";
 
 // 静态导入子组件以避免运行时链式异步解析带来的视觉卡顿和加载迟滞
+import BilibiliPlayer from "./BilibiliPlayer.vue";
 import UserHoverCard from "./UserHoverCard.vue";
 import IkZzzMarquee from "./IkZzzMarquee.vue";
 import CommentItem from "./CommentItem.vue";
@@ -26,7 +29,8 @@ import MentionHighlightOverlay from "./MentionHighlightOverlay.vue";
 import MentionPicker from "./MentionPicker.vue";
 import EmotePicker from "./EmotePicker.vue";
 import MobileEmotePicker from "./MobileEmotePicker.vue";
-import PostMediaCarousel from "./PostMediaCarousel.vue";
+
+const DEFAULT_COVER_IMAGE = "/images/default-cover.webp";
 
 const { isOpen: isGalleryOpen, isLoading: isGalleryLoading, loadingProgress: galleryProgress, openGallery, preload: preloadGallery, destroy: destroyPreview } = useLightGallery();
 
@@ -213,16 +217,48 @@ const syncCommentInputHeight = async () => {
   textarea.style.height = `${Math.min(textarea.scrollHeight, 62)}px`;
 };
 
+const firstCover = computed(() => covers.value[0] ?? null);
 const previewCover = computed(() => {
   const cover = props.preview?.cover?.trim();
   // 预览图仅作为 blur-up 占位，统一走缩略图，避免首页卡片传入大原图
   // 时 decode() 占用过多资源导致弹窗入场掉帧。
   return cover ? toThumbUrl(cover) : null;
 });
+const coverPreviewSrc = (i: number) => {
+  const cover = covers.value[i];
+  if (!cover) return undefined;
+  return (i === 0 && previewCover.value) || toThumbUrl(cover.url, 360) || undefined;
+};
+
+// 弹窗封面直接显示原图，与放大预览保持一致；
+// 入场占位图仍用缩略图做 blur-up，避免首屏 decode 大图掉帧。
+const coverDisplaySrc = (url: string | undefined) => {
+  if (!url) return url;
+  return toCanonicalUrl(url);
+};
 const loadedPreviewImageRef = ref<HTMLImageElement | null>(null);
 const setLoadedPreviewImage = (el: Element | ComponentPublicInstance | null) => {
   loadedPreviewImageRef.value = el instanceof HTMLImageElement ? el : null;
 };
+
+// 真实图片解码完成的索引集合：用于在解码完成前继续显示骨架屏，
+// 避免"骨架结束 → 黑色封面框 → 图片淡入"的中间黑屏。
+const loadedCoverImages = ref<Set<number>>(new Set());
+const isCoverImageLoaded = (i: number) => loadedCoverImages.value.has(i);
+const onCoverImageLoad = (i: number) => {
+  if (!loadedCoverImages.value.has(i)) {
+    loadedCoverImages.value = new Set([...loadedCoverImages.value, i]);
+  }
+};
+const coverAspectRatio = computed(() => {
+  const c = firstCover.value;
+  if (c?.width && c?.height && c.width > 0 && c.height > 0) return c.width / c.height;
+  // 无图片封面但有 B 站视频时，按 16:9 展示播放器。
+  if (post.value?.externalVideos?.length && !hasCovers.value) return 16 / 9;
+  // 无真实封面时优先沿用骨架阶段使用的 coverHint，避免骨架→默认占位图之间的高度跳动。
+  if (props.coverHint && props.coverHint > 0) return props.coverHint;
+  return 643 / 408;
+});
 
 const openCoverPreview = (index = 0) => {
   const images = covers.value.map((c) => ({
@@ -233,6 +269,111 @@ const openCoverPreview = (index = 0) => {
   }));
   if (images.length) openGallery(images, Math.min(Math.max(index, 0), images.length - 1));
 };
+
+/* ── 封面轮播 ─────────────────────────────────── */
+const coverIndex = ref(0);
+const emblaRef = shallowRef<HTMLElement | null>(null);
+const emblaApi = shallowRef<EmblaCarouselType | undefined>();
+
+// 手动管理 Embla 生命周期：v-else 里轮播容器在 covers 拿到后才渲染，
+// 直接用 useEmblaCarousel 的 onMounted 会导致实例始终无法创建。
+const syncEmblaState = () => {
+  const api = emblaApi.value;
+  if (!api) return;
+  coverIndex.value = api.selectedScrollSnap();
+  expandLoadWindow();
+};
+
+const destroyEmbla = () => {
+  if (emblaApi.value) {
+    emblaApi.value.destroy();
+    emblaApi.value = undefined;
+  }
+};
+
+const initEmbla = (el: HTMLElement) => {
+  destroyEmbla();
+  emblaApi.value = EmblaCarousel(el, {
+    loop: false,
+    align: "start",
+    dragThreshold: 6,
+  });
+  emblaApi.value.on("select", syncEmblaState);
+  emblaApi.value.on("reInit", syncEmblaState);
+  syncEmblaState();
+};
+
+watch(emblaRef, (el, _, onCleanup) => {
+  if (el) initEmbla(el);
+  onCleanup(() => destroyEmbla());
+}, { flush: "post" });
+
+// 已批准加载的封面索引集合：只有命中其中的图片才会真正请求 src。
+// 设计目的：让新图的网络请求 + 解码不要砸在切换动画的同一帧里。
+// 切换动画由 Embla 在合成器线程驱动，但相邻图仍按需加载，避免一次性拉取全部。
+const loadedCoverIndices = ref<Set<number>>(new Set([0, 1, 2]));
+const LOAD_WINDOW_RADIUS = 2;
+
+const expandLoadWindow = () => {
+  const i = coverIndex.value;
+  const total = covers.value.length;
+  if (total === 0) return;
+  const next = new Set(loadedCoverIndices.value);
+  let changed = false;
+  for (let k = i - LOAD_WINDOW_RADIUS; k <= i + LOAD_WINDOW_RADIUS; k++) {
+    if (k >= 0 && k < total && !next.has(k)) {
+      next.add(k);
+      changed = true;
+    }
+  }
+  if (changed) loadedCoverIndices.value = next;
+};
+
+const resetLoadWindow = () => {
+  // 重置到初始窗口（前三张），与首次进入时一致
+  loadedCoverIndices.value = new Set([0, 1, 2]);
+};
+
+// 命中加载窗口、或正好是当前焦点的图片，才允许真正请求 src。
+const isCoverNearby = (i: number) =>
+  i === coverIndex.value || loadedCoverIndices.value.has(i);
+
+const goCover = (index: number) => {
+  const api = emblaApi.value;
+  if (!api) return;
+  const total = covers.value.length;
+  if (total <= 1) return;
+  const target = Math.min(Math.max(index, 0), total - 1);
+  api.scrollTo(target);
+};
+
+// 拦截滚轮：只拦截会被横向滑动吞掉的那部分（平板/鼠标水平滚轮），
+// 转换为外层弹窗的垂直滚动，避免被误判为切图。
+// 垂直滚轮（deltaY）不拦截——交给浏览器原生平滑滚动处理，避免"瞬移"感。
+const onCoverWheel = (e: WheelEvent) => {
+  if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+  e.preventDefault();
+  const parent = scrollRef.value;
+  if (parent) parent.scrollTop += e.deltaX;
+};
+
+// 切换帖子时重置封面索引并将轮播滚回起点
+watch(() => props.postId, () => {
+  coverIndex.value = 0;
+  resetLoadWindow();
+  loadedCoverImages.value = new Set();
+  nextTick(() => {
+    emblaApi.value?.scrollTo(0, true);
+  });
+});
+
+// 封面列表变化后重新初始化 Embla，并立即扩张当前索引的加载窗口
+watch(covers, () => {
+  nextTick(() => {
+    emblaApi.value?.reInit();
+    expandLoadWindow();
+  });
+});
 
 /* ── 数据加载 ──────────────────────────────────── */
 const loadPost = async () => {
@@ -1032,7 +1173,6 @@ onBeforeUnmount(() => {
                     >
                       <div v-if="previewCover" class="ik-dialog__cover-preview">
                         <img
-                          :ref="setLoadedPreviewImage"
                           :src="previewCover"
                           alt=""
                           class="ik-dialog__cover-preview-image"
@@ -1082,14 +1222,151 @@ onBeforeUnmount(() => {
                 <div class="ik-dialog__left">
                   <div class="ik-dialog__left-scroll" ref="scrollRef">
                     <!-- 封面 / 视频 -->
-                    <!-- 封面 / 视频（统一轮播：图片与视频一起滑动） -->
                     <div class="ik-dialog__cover-wrap">
-                      <PostMediaCarousel
-                        v-if="hasCovers || post.externalVideos?.length"
-                        :covers="covers"
-                        :videos="post.externalVideos || []"
-                        :on-image-click="openCoverPreview"
-                      />
+                      <div
+                        class="ik-dialog__cover-border"
+                        :style="{ aspectRatio: String(coverAspectRatio) }"
+                      >
+                        <!-- 单张封面 -->
+                        <template v-if="hasCovers && covers.length === 1">
+                          <div v-if="coverPreviewSrc(0)" class="ik-dialog__cover-preview">
+                            <img
+                              :ref="setLoadedPreviewImage"
+                              :src="coverPreviewSrc(0)"
+                              alt=""
+                              class="ik-dialog__cover-preview-image"
+                              aria-hidden="true"
+                              :decoding="isCompact ? 'async' : 'sync'"
+                            />
+                          </div>
+                          <NsfwImage
+                            :src="firstCover ? coverDisplaySrc(firstCover.url) : DEFAULT_COVER_IMAGE"
+                            :status="firstCover?.nsfwStatus"
+                            :alt="post.title"
+                            img-class="ik-dialog__cover"
+                            loading="eager"
+                            decoding="async"
+                            @load="onCoverImageLoad(0)"
+                            @click="openCoverPreview(0)"
+                            @error="onCoverImageLoad(0); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                          />
+                          <div
+                            v-if="!isCoverImageLoaded(0) && !coverPreviewSrc(0)"
+                            class="ik-skel ik-dialog__cover-skel"
+                            aria-hidden="true"
+                          ></div>
+                        </template>
+
+                        <!-- 多图轮播 -->
+                        <template v-else-if="hasCovers">
+                          <div
+                            ref="emblaRef"
+                            class="ik-dialog__cover-scroller"
+                            @wheel="onCoverWheel"
+                          >
+                            <div class="ik-dialog__cover-track">
+                              <div
+                                v-for="(c, i) in covers"
+                                :key="c.url + i"
+                                class="ik-dialog__cover-slide"
+                              >
+                                <div
+                                  v-if="coverPreviewSrc(i)"
+                                  class="ik-dialog__cover-preview"
+                                >
+                                  <img
+                                    :ref="i === 0 ? setLoadedPreviewImage : undefined"
+                                    :src="isCoverNearby(i) ? coverPreviewSrc(i) : undefined"
+                                    alt=""
+                                    class="ik-dialog__cover-preview-image"
+                                    aria-hidden="true"
+                                    :decoding="i === 0 && !isCompact ? 'sync' : 'async'"
+                                  />
+                                </div>
+                                <NsfwImage
+                                  :src="isCoverNearby(i) ? coverDisplaySrc(c.url) : undefined"
+                                  :status="c.nsfwStatus"
+                                  :alt="`${post.title} - ${i + 1}`"
+                                  img-class="ik-dialog__cover"
+                                  :loading="isCoverNearby(i) ? 'eager' : 'lazy'"
+                                  decoding="async"
+                                  draggable="false"
+                                  @load="onCoverImageLoad(i)"
+                                  @click="openCoverPreview(i)"
+                                  @error="onCoverImageLoad(i); ($event.target as HTMLImageElement).src = DEFAULT_COVER_IMAGE"
+                                />
+                                <div
+                                  v-if="!isCoverImageLoaded(i) && (!isCoverNearby(i) || !coverPreviewSrc(i))"
+                                  class="ik-skel ik-dialog__cover-skel"
+                                  aria-hidden="true"
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            v-show="coverIndex > 0"
+                            type="button"
+                            class="ik-dialog__cover-nav ik-dialog__cover-nav--prev"
+                            aria-label="上一张"
+                            @click.stop="goCover(coverIndex - 1)"
+                          >
+                            <ChevronLeftIcon style="width:20px;height:20px" />
+                          </button>
+                          <button
+                            v-show="coverIndex < covers.length - 1"
+                            type="button"
+                            class="ik-dialog__cover-nav ik-dialog__cover-nav--next"
+                            aria-label="下一张"
+                            @click.stop="goCover(coverIndex + 1)"
+                          >
+                            <ChevronRightIcon style="width:20px;height:20px" />
+                          </button>
+
+                          <div class="ik-dialog__cover-dots">
+                            <button
+                              v-for="(_, i) in covers"
+                              :key="i"
+                              type="button"
+                              class="ik-dialog__cover-dot"
+                              :class="{ 'ik-dialog__cover-dot--active': i === coverIndex }"
+                              :aria-label="`第 ${i + 1} 张`"
+                              :aria-current="i === coverIndex ? 'true' : undefined"
+                              @click.stop="goCover(i)"
+                            />
+                          </div>
+
+                          <span class="ik-dialog__cover-count ik-dialog__cover-count--top">
+                            {{ coverIndex + 1 }} / {{ covers.length }}
+                          </span>
+                        </template>
+
+                        <!-- 无图片封面但有 B 站视频：在封面区域直接放播放器 -->
+                        <template v-else-if="post.externalVideos?.length">
+                          <BilibiliPlayer
+                            v-for="(video, idx) in post.externalVideos"
+                            :key="`video-${idx}`"
+                            :video="video"
+                          />
+                        </template>
+
+                        <!-- 默认占位图 -->
+                        <template v-else>
+                          <NsfwImage
+                            :src="DEFAULT_COVER_IMAGE"
+                            alt="default cover"
+                            img-class="ik-dialog__cover"
+                            loading="eager"
+                            decoding="async"
+                            @load="onCoverImageLoad(0)"
+                          />
+                          <div
+                            v-if="!isCoverImageLoaded(0)"
+                            class="ik-skel ik-dialog__cover-skel"
+                            aria-hidden="true"
+                          ></div>
+                        </template>
+                      </div>
                     </div>
 
                     <!-- 正文 -->
@@ -1106,9 +1383,16 @@ onBeforeUnmount(() => {
                         class="ik-dialog__content"
                         v-html="bodyHtml"
                       ></div>
-                      <p v-else-if="!hasCovers && !post.externalVideos?.length" class="ik-dialog__content" style="color: #808080">
+                      <p v-else-if="!post.externalVideos?.length" class="ik-dialog__content" style="color: #808080">
                         这里空空如也～
                       </p>
+                      <div v-if="hasCovers && post.externalVideos?.length" class="ik-dialog__videos">
+                        <BilibiliPlayer
+                          v-for="(video, idx) in post.externalVideos"
+                          :key="`video-${idx}`"
+                          :video="video"
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
