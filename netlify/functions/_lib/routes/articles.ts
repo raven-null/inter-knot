@@ -134,6 +134,12 @@ async function listPosts(req: Request, opts: ListOptions): Promise<Response> {
   }
 
   const total = posts.length;
+  // 置顶帖排最前，其余按原有顺序（信息流本身按时间倒序）
+  posts.sort((a, b) => {
+    const pa = a.is_pinned === true ? 1 : 0;
+    const pb = b.is_pinned === true ? 1 : 0;
+    return pb - pa;
+  });
   const page = posts.slice(opts.start, opts.start + opts.limit);
   const state = await viewerState(viewer, page.map((p) => String(p.document_id)));
   const hydrated = await hydrateAuthorLevels(page);
