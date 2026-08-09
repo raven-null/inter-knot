@@ -214,10 +214,16 @@ export async function createGroup(req: Request): Promise<Response> {
   return json({ data: toSummary(conv, viewer.userId) });
 }
 
+/** 取 URL 中倒数第 n 段（1 = 最后一段，2 = 倒数第二段），已去 query */
+function urlSegment(req: Request, fromEnd: number): string {
+  const segs = req.url.split("?")[0]!.split("/").filter(Boolean);
+  return decodeURIComponent(segs[segs.length - fromEnd] || "");
+}
+
 /** 群聊邀请成员（body: { memberIds: number[] }） */
 export async function addGroupMembers(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const conv = await loadConv(id);
   if (!conv) return notFound("会话不存在");
   if (conv.kind !== "group") return badRequest("仅群聊可邀请");
@@ -267,7 +273,7 @@ async function resolveConvForMember(id: string, userId: string): Promise<DmConve
 /** GET /api/dm/conversations/:id/messages —— 消息列表（desc） */
 export async function messages(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const conv = await resolveConvForMember(id, viewer.userId);
   if (!conv) return notFound("会话不存在");
   const list = conv.messages.map(toMessage).reverse();
@@ -277,7 +283,7 @@ export async function messages(req: Request): Promise<Response> {
 /** POST /api/dm/conversations/:id/messages —— 发送消息 */
 export async function sendMessage(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const { content, kind, replyTo } = await readJson<{ content?: string; kind?: string; replyTo?: string }>(req);
   const text = String(content || "").trim();
   if (!text) return badRequest("消息不能为空");
@@ -325,7 +331,7 @@ export async function sendMessage(req: Request): Promise<Response> {
 /** PATCH /api/dm/conversations/:id/read —— 标记已读 */
 export async function readConversation(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const conv = await resolveConvForMember(id, viewer.userId);
   if (!conv) return notFound("会话不存在");
   conv.lastReadAt[viewer.userId] = new Date().toISOString();
@@ -336,7 +342,7 @@ export async function readConversation(req: Request): Promise<Response> {
 /** PATCH /api/dm/conversations/:id —— 更新偏好（muted/pinned/title） */
 export async function updateConversation(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const { muted, pinned, title } = await readJson<{ muted?: boolean; pinned?: boolean; title?: string }>(req);
   const conv = await resolveConvForMember(id, viewer.userId);
   if (!conv) return notFound("会话不存在");
@@ -356,7 +362,7 @@ export async function updateConversation(req: Request): Promise<Response> {
 /** POST /api/dm/conversations/:id/leave —— 离开/删除会话 */
 export async function leaveConversation(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
-  const id = req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "";
+  const id = urlSegment(req, 2);
   const conv = await resolveConvForMember(id, viewer.userId);
   if (!conv) return notFound("会话不存在");
   // 群聊：移除自己；私聊：删除整会话 + 反查索引
