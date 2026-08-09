@@ -183,7 +183,6 @@ inter-knot/
 ├── nuxt.config.ts                # Nuxt 配置
 ├── package.json                  # 项目依赖
 ├── tsconfig.json                 # TypeScript 配置
-├── AGENTS.md                     # AI 助手开发约定
 ├── README.md                     # 项目说明
 └── SECURITY.md                   # 安全说明
 ```
@@ -257,10 +256,6 @@ inter-knot/
 - `POST /api/admin/users` - 创建用户
 - `PATCH /api/admin/users/:id` - 更新用户
 - `DELETE /api/admin/users/:id` - 删除用户
-
-## 开发约定
-
-详见 [AGENTS.md](./AGENTS.md)
 
 ## 更新日志
 
