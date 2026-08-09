@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { PaperAirplaneIcon, StopIcon, AtSymbolIcon, FaceSmileIcon, PhotoIcon, FilmIcon } from "@heroicons/vue/24/solid";
+import { PaperAirplaneIcon, StopIcon, FaceSmileIcon, PhotoIcon, FilmIcon } from "@heroicons/vue/24/solid";
 
 const props = defineProps<{
   disabled: boolean;
@@ -10,8 +10,6 @@ const props = defineProps<{
   error: string | null;
   streaming: boolean;
   stopping: boolean;
-  /** @ 提及是否达到上限 */
-  mentionAtLimit?: boolean;
   /** 表情是否达到上限 */
   emoteAtLimit?: boolean;
 }>();
@@ -21,7 +19,6 @@ const emit = defineEmits<{
   (e: "stop"): void;
   (e: "cancel-edit"): void;
   (e: "typing"): void;
-  (e: "insert-mention"): void;
   (e: "toggle-emote"): void;
   (e: "pick-image"): void;
   (e: "insert-bilibili"): void;
@@ -131,16 +128,6 @@ defineExpose({
     </div>
     <!-- 工具栏 -->
     <div v-if="!editing" class="ik-knock__toolbar">
-      <button
-        type="button"
-        class="ik-knock__toolbar-btn"
-        aria-label="@ 提及用户"
-        :disabled="disabled || mentionAtLimit"
-        title="@ 提及用户"
-        @click="emit('insert-mention')"
-      >
-        <AtSymbolIcon class="ik-knock__toolbar-icon" />
-      </button>
       <button
         type="button"
         class="ik-knock__toolbar-btn"

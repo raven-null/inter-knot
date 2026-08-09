@@ -29,12 +29,9 @@ import { stripEmotesToPlain } from "~/utils/emote";
 import { extractCitations, extractRelatedPosts, isWorkflowSettled } from "~/utils/workflow";
 import type { BubbleRender, EnrichedMessage } from "~/utils/dm-view";
 import type DmComposer from "~/components/DmComposer.vue";
-import { useMentionInput } from "~/composables/useMentionInput";
-import type { MentionCandidate } from "~/composables/useMentionInput";
 import { useEmoteInsert } from "~/composables/useEmoteInsert";
 import type { Emote } from "~/composables/useEmotes";
 import { useCommentImages } from "~/composables/useCommentImages";
-import MentionPicker from "~/components/MentionPicker.vue";
 import EmotePicker from "~/components/EmotePicker.vue";
 import MobileEmotePicker from "~/components/MobileEmotePicker.vue";
 
@@ -1256,30 +1253,12 @@ watch(composerRef, (comp) => {
   }
 });
 
-// ── @ 提及 ───────────────────────────────────────
-const mention = useMentionInput({
-  text: draft,
-  textareaRef: composerTextarea,
-  search: (q: string) => api.searchAuthors(q),
-});
-const onMentionSelect = (candidate: MentionCandidate) => {
-  mention.selectCandidate(candidate);
-  nextTick(() => composerRef.value?.focus());
-};
-const handleInsertMention = () => {
-  mention.insertAtTrigger();
-  nextTick(() => composerRef.value?.focus());
-};
-
 // ── 表情 ───────────────────────────────────────────
 const emoteInsert = useEmoteInsert({
   text: draft,
   textareaRef: composerTextarea,
   onInsert: (start, end, insertedLength) => {
-    const delta = insertedLength - (end - start);
-    mention.mentions.value = mention.mentions.value
-      .filter((m) => m.end <= start || m.start >= end)
-      .map((m) => (m.start >= end ? { ...m, start: m.start + delta, end: m.end + delta } : m));
+    // 表情插入回调，无需处理 mention
   },
 });
 const emotePickerVisible = ref(false);
@@ -1316,27 +1295,27 @@ const onEmojiSelect = async (emoji: string) => {
   if (!isMobile.value) emotePickerVisible.value = false;
 };
 
-// ── mention/emote keydown + input + selection 挂载 ──
-let teardownMentionListeners: (() => void) | null = null;
-const attachMentionToTextarea = () => {
-  teardownMentionListeners?.();
+// ── emote keydown + input + selection 挂载 ──
+let teardownEmoteListeners: (() => void) | null = null;
+const attachEmoteToTextarea = () => {
+  teardownEmoteListeners?.();
   const el = composerTextarea.value;
   if (!el) return;
-  const onInput = () => { mention.refresh(); emoteInsert.refresh(); };
-  const onKeyDown = (e: KeyboardEvent) => { mention.onKeyDown(e); emoteInsert.onKeyDown(e); };
-  const onSelect = () => { mention.refresh(); emoteInsert.refresh(); };
+  const onInput = () => { emoteInsert.refresh(); };
+  const onKeyDown = (e: KeyboardEvent) => { emoteInsert.onKeyDown(e); };
+  const onSelect = () => { emoteInsert.refresh(); };
   el.addEventListener("input", onInput);
   el.addEventListener("keydown", onKeyDown);
   el.addEventListener("click", onSelect);
   el.addEventListener("keyup", onSelect);
-  teardownMentionListeners = () => {
+  teardownEmoteListeners = () => {
     el.removeEventListener("input", onInput);
     el.removeEventListener("keydown", onKeyDown);
     el.removeEventListener("click", onSelect);
     el.removeEventListener("keyup", onSelect);
   };
 };
-watch(composerTextarea, () => nextTick(attachMentionToTextarea));
+watch(composerTextarea, () => nextTick(attachEmoteToTextarea));
 
 // ── 图片上传 ─────────────────────────────────────
 const commentImages = useCommentImages();
@@ -1480,8 +1459,8 @@ const doSend = async () => {
   if (!cid) return;
   const editingId = editingMessageId.value;
   const rawContent = editingId ? editingDraft.value : draft.value;
-  // 序列化：mention range → `@[name](docId)`，emote 占位 → `:ik-xxx:`
-  const serialized = editingId ? rawContent.trim() : emoteInsert.serializeWith(mention.mentions.value).trim();
+  // 序列化：emote 占位 → `:ik-xxx:`
+  const serialized = editingId ? rawContent.trim() : emoteInsert.serializeWith([]).trim();
   if (!serialized) return;
 
   sending.value = true;
@@ -1506,7 +1485,6 @@ const doSend = async () => {
       if (activeConversationId.value === cid) {
         draft.value = "";
         commentImages.clearUploads();
-        mention.reset();
         emoteInsert.reset();
         nextTick(() => {
           const el = messagesRef.value;
@@ -1627,8 +1605,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", onKeyDown);
-  teardownMentionListeners?.();
-  teardownMentionListeners = null;
+  teardownEmoteListeners?.();
+  teardownEmoteListeners = null;
   if (autoScrollRaf != null) cancelAnimationFrame(autoScrollRaf);
   if (autoScrollTimer) clearTimeout(autoScrollTimer);
   if (scrollPauseTimer) clearTimeout(scrollPauseTimer);
@@ -2212,13 +2190,11 @@ const handleMobileBack = () => {
                       :error="sendError"
                       :streaming="!!activeStreamingMessageId"
                       :stopping="stoppingAi"
-                      :mention-at-limit="mention.isAtLimit.value"
                       :emote-at-limit="emoteInsert.isAtLimit.value"
                       @send="doSend"
                       @stop="handleStopAi"
                       @cancel-edit="cancelEdit"
                       @typing="handleComposerTyping"
-                      @insert-mention="handleInsertMention"
                       @toggle-emote="toggleEmotePicker"
                       @pick-image="openImagePicker"
                       @insert-bilibili="handleInsertBilibili"
@@ -2243,16 +2219,6 @@ const handleMobileBack = () => {
                         <button class="ik-knock__attachment-del" title="移除" @click.stop="commentImages.removeUpload(index)">×</button>
                       </div>
                     </div>
-                    <!-- @ 提及浮层 -->
-                    <MentionPicker
-                      :visible="mention.pickerVisible.value"
-                      :loading="mention.pickerLoading.value"
-                      :results="mention.pickerResults.value"
-                      :active-index="mention.pickerActiveIndex.value"
-                      :anchor="mention.pickerAnchor.value"
-                      @select="onMentionSelect"
-                      @hover="(i: number) => mention.pickerActiveIndex.value = i"
-                    />
                     <!-- 表情选择面板 -->
                     <EmotePicker
                       v-if="!isMobile"
