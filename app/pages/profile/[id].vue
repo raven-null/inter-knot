@@ -43,19 +43,17 @@ const profileId = computed(() => String(route.params.id || ""));
 
 const PROFILE_ARTICLES_MAX = 6;
 
-/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读 / 关注 / 粉丝 */
+/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读（关注/粉丝通过统计区域触发） */
 const profileTab = ref<"works" | "favorites" | "history" | "following" | "followers">("works");
 
 const profileTabs = computed(() => {
-  const tabs: Array<{ key: "works" | "favorites" | "history" | "following" | "followers"; label: string }> = [
+  const tabs: Array<{ key: "works" | "favorites" | "history"; label: string }> = [
     { key: "works", label: "发布作品" },
   ];
   if (profile.value?.isSelf) {
     tabs.push({ key: "favorites", label: "收藏夹" });
     tabs.push({ key: "history", label: "历史阅读" });
   }
-  tabs.push({ key: "following", label: "关注" });
-  tabs.push({ key: "followers", label: "粉丝" });
   return tabs;
 });
 
@@ -408,11 +406,15 @@ onMounted(async () => {
   }
 });
 
-// 切换 Tab 时按需加载关注/粉丝列表
-watch(profileTab, (tab) => {
-  if (tab === "following") void loadFollowing();
-  else if (tab === "followers") void loadFollowers();
-});
+// 点击统计区域的「关注」/「粉丝」触发：加载列表并切换到对应视图
+const showFollowing = () => {
+  profileTab.value = "following";
+  void loadFollowing();
+};
+const showFollowers = () => {
+  profileTab.value = "followers";
+  void loadFollowers();
+};
 
 // 统计信息（浏览/评论/点赞/关注/粉丝）定期刷新：避免长时间停留时数据陈旧。
 const PROFILE_REFRESH_MS = 15_000;
@@ -605,12 +607,12 @@ onBeforeUnmount(() => {
               <span class="ik-stat__num">{{ formatNumber(profile.stats.totalLikes) }}</span>
             </span>
             <span class="ik-stat__sep">-</span>
-            <span class="ik-stat">
+            <span class="ik-stat ik-stat--clickable" @click="showFollowing">
               <span class="ik-stat__label">关注</span>
               <span class="ik-stat__num">{{ formatNumber(profile.followingCount ?? 0) }}</span>
             </span>
             <span class="ik-stat__sep">-</span>
-            <span class="ik-stat">
+            <span class="ik-stat ik-stat--clickable" @click="showFollowers">
               <span class="ik-stat__label">粉丝</span>
               <span class="ik-stat__num">{{ formatNumber(profile.followersCount ?? 0) }}</span>
             </span>
@@ -750,6 +752,10 @@ onBeforeUnmount(() => {
 
       <!-- ── 关注 ────────────────────────── -->
       <section v-else-if="profileTab === 'following'" class="ik-profile-section">
+        <div class="ik-profile-section__header">
+          <button class="ik-profile-back" @click="profileTab = 'works'">← 返回</button>
+          <span class="ik-profile-section__title">关注</span>
+        </div>
         <template v-if="followingLoading && !followingUsers.length">
           <div v-for="n in 4" :key="n" class="ik-follow-skel">
             <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
@@ -785,6 +791,10 @@ onBeforeUnmount(() => {
 
       <!-- ── 粉丝 ────────────────────────── -->
       <section v-else-if="profileTab === 'followers'" class="ik-profile-section">
+        <div class="ik-profile-section__header">
+          <button class="ik-profile-back" @click="profileTab = 'works'">← 返回</button>
+          <span class="ik-profile-section__title">粉丝</span>
+        </div>
         <template v-if="followerLoading && !followerUsers.length">
           <div v-for="n in 4" :key="n" class="ik-follow-skel">
             <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
@@ -1183,6 +1193,14 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+.ik-stat--clickable {
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+.ik-stat--clickable:hover {
+  opacity: 0.7;
+}
+
 /* Banner footer */
 .ik-banner-footer {
   padding: 8px 34px;
@@ -1368,6 +1386,29 @@ onBeforeUnmount(() => {
   font-weight: 900;
   color: #fff;
   letter-spacing: 0.5px;
+}
+
+.ik-profile-section__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ik-profile-back {
+  padding: 6px 12px;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: transparent;
+  color: #ccc;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.ik-profile-back:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 /* ── Responsive ─────────────────────────────── */
