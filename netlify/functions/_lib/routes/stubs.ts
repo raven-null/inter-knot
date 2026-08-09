@@ -78,6 +78,7 @@ export async function presencePing(req: Request): Promise<Response> {
       const u = await getJson<Record<string, unknown>>(`users/${viewer.userId}.json`);
       info = {
         userId: viewer.userId,
+        uid: Number(u?.uid || 0),
         username: viewer.username,
         name: u?.name || viewer.username,
         avatar: u?.avatar_url || DEFAULT_AVATAR,
@@ -107,7 +108,7 @@ export async function presencePing(req: Request): Promise<Response> {
       return true;
     })
     .map((s) => ({
-      userId: Number(s.userId || 0),
+      userId: Number(s.uid || 0),
       username: String(s.username),
       name: String(s.name || s.username),
       avatar: String(s.avatar || DEFAULT_AVATAR),
