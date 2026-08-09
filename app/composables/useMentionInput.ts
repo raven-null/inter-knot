@@ -29,6 +29,7 @@ export interface MentionCandidate {
   name: string;
   username: string | null;
   avatar: string | null;
+  uid?: number;
 }
 
 export interface MentionRange {

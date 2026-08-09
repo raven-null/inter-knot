@@ -2029,6 +2029,7 @@ export function useApi() {
         avatar: typeof avatarUrl === "string" && avatarUrl
           ? normalizeMediaUrl(avatarUrl, apiBaseUrl)
           : null,
+        uid: typeof item.uid === "number" ? item.uid : undefined,
       };
     });
   };

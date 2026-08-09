@@ -214,6 +214,30 @@ export async function listFollows(req: Request): Promise<Response> {
   });
 }
 
+/** 修复 followersCount / followingCount：用实际 key 数量覆盖用户表中的计数 */
+export async function syncFollowCounts(req: Request): Promise<Response> {
+  const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
+  const userId = decodeURIComponent(segments[segments.length - 2] || "");
+  if (!userId) return badRequest("缺少 userId");
+
+  const user = await getUser(userId);
+  if (!user) return notFound("用户不存在");
+
+  const followingKeys = await listKeys(`follows/${userId}/`);
+  const allKeys = await listKeys("follows/");
+  const followerCount = allKeys.filter((k) => {
+    const p = k.split("/");
+    return p.length === 3 && p[2] === `${userId}.json`;
+  }).length;
+
+  await setJson(`users/${userId}.json`, {
+    ...user,
+    followingCount: followingKeys.length,
+    followersCount: followerCount,
+  });
+  return json({ followersCount: followerCount, followingCount: followingKeys.length });
+}
+
 // ── 拉黑 ───────────────────────────────────────────────
 export async function toggleUserBlock(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
@@ -293,7 +317,7 @@ export async function checkReports(req: Request): Promise<Response> {
   return ok(result);
 }
 
-// ── 作者搜索（@ 提及） ───────────────────────────────
+// ── 作者搜索（@ 提及 / UID 搜索） ─────────────────────
 export async function searchAuthors(req: Request): Promise<Response> {
   const qp = queryParams(req);
   const q = (qp.get("q") || "").trim().toLowerCase();
@@ -314,19 +338,37 @@ export async function searchAuthors(req: Request): Promise<Response> {
       avatar: FAIRY_AVATAR,
     });
   }
+  // 判断是否为纯数字（UID 搜索）
+  const isUidSearch = /^\d+$/.test(q);
+  const searchUid = isUidSearch ? Number(q) : null;
   for (const key of keys) {
     const u = await getJson<Doc>(key);
     if (!u) continue;
     const name = String(u.name || u.username || "");
-    if (String(u.username || "").toLowerCase().includes(q) || name.toLowerCase().includes(q)) {
+    const uid = Number(u.uid || 0);
+    // 匹配条件：用户名/昵称包含搜索词，或者 UID 精确匹配
+    const nameMatch = String(u.username || "").toLowerCase().includes(q) || name.toLowerCase().includes(q);
+    const uidMatch = searchUid !== null && uid === searchUid;
+    if (nameMatch || uidMatch) {
       result.push({
         documentId: String(u.document_id),
         name,
         username: String(u.username || ""),
         avatar: String(u.avatar_url || DEFAULT_AVATAR),
+        uid: uid || undefined,
       });
     }
     if (result.length >= limit) break;
+  }
+  // UID 精确匹配时优先排序
+  if (isUidSearch) {
+    result.sort((a, b) => {
+      const aUid = Number(a.uid || 0);
+      const bUid = Number(b.uid || 0);
+      if (aUid === searchUid) return -1;
+      if (bUid === searchUid) return 1;
+      return 0;
+    });
   }
   return ok(result.slice(0, limit));
 }

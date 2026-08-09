@@ -101,6 +101,7 @@ const {
   stopAiStream,
   regenerateAiReply,
   workflowEventsOf,
+  openDirectConversation,
 } = useDmConversations();
 
 const AI_SLUG_STORAGE_KEY = "ik-knock-ai-slug";
@@ -294,6 +295,73 @@ const aiCharacterRows = computed(() =>
     return { card, unread };
   }),
 );
+
+// ── 私聊 UID 搜索 ──────────────────────────────────────
+const contactSearchQuery = ref("");
+const contactSearchResults = ref<any[]>([]);
+const contactSearchLoading = ref(false);
+let contactSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+const doContactSearch = async () => {
+  const q = contactSearchQuery.value.trim();
+  if (!q) {
+    contactSearchResults.value = [];
+    return;
+  }
+  contactSearchLoading.value = true;
+  try {
+    const results = await api.searchAuthors(q);
+    contactSearchResults.value = (results || []).filter(
+      (u: any) => u.documentId !== auth.user?.authorId,
+    );
+  } catch {
+    contactSearchResults.value = [];
+  } finally {
+    contactSearchLoading.value = false;
+  }
+};
+
+const debouncedContactSearch = () => {
+  if (contactSearchTimer) clearTimeout(contactSearchTimer);
+  contactSearchTimer = setTimeout(() => {
+    void doContactSearch();
+  }, 300);
+};
+
+const clearContactSearch = () => {
+  contactSearchQuery.value = "";
+  contactSearchResults.value = [];
+  if (contactSearchTimer) {
+    clearTimeout(contactSearchTimer);
+    contactSearchTimer = null;
+  }
+};
+
+const startChatWithUser = async (user: any) => {
+  if (!user.documentId) return;
+  clearContactSearch();
+  // 查找是否已有与该用户的会话
+  const existing = allConversations.value.find(
+    (c) => c.kind === "direct" && c.peer?.userId === user.uid,
+  );
+  if (existing) {
+    handleConversationClick(existing.documentId);
+    return;
+  }
+  // 创建新会话
+  try {
+    if (!user.uid) {
+      message.error("无法获取用户 UID");
+      return;
+    }
+    const { summary } = await openDirectConversation(user.uid);
+    if (summary?.documentId) {
+      handleConversationClick(summary.documentId);
+    }
+  } catch (err) {
+    message.error("创建会话失败");
+  }
+};
 
 // ── 群聊 ─────────────────────────────────────────────
 const groupConversations = computed(() =>
@@ -1731,6 +1799,62 @@ const handleMobileBack = () => {
                     class="ik-knock__list"
                     role="listbox"
                   >
+                    <!-- UID 搜索框 -->
+                    <div class="ik-knock__search-box">
+                      <MagnifyingGlassIcon class="ik-knock__search-icon" aria-hidden="true" />
+                      <input
+                        v-model="contactSearchQuery"
+                        type="text"
+                        class="ik-knock__search-input"
+                        placeholder="输入 UID 或用户名搜索…"
+                        @input="debouncedContactSearch"
+                        @keydown.enter="doContactSearch"
+                      />
+                      <button
+                        v-if="contactSearchQuery"
+                        type="button"
+                        class="ik-knock__search-clear"
+                        aria-label="清空"
+                        @click="clearContactSearch"
+                      >
+                        <XMarkIcon class="ik-knock__search-clear-icon" />
+                      </button>
+                    </div>
+                    <!-- 搜索结果 -->
+                    <template v-if="contactSearchResults.length">
+                      <div class="ik-knock__search-hint">搜索结果</div>
+                      <button
+                        v-for="user in contactSearchResults"
+                        :key="user.documentId"
+                        type="button"
+                        role="option"
+                        class="ik-knock__list-item"
+                        @click="startChatWithUser(user)"
+                      >
+                        <span class="ik-knock__avatar" aria-hidden="true">
+                          <img
+                            :src="user.avatar || '/images/default-avatar.webp'"
+                            :alt="user.name || ''"
+                            class="ik-knock__avatar-img"
+                            draggable="false"
+                            @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+                          />
+                        </span>
+                        <span class="ik-knock__item-text">
+                          <span class="ik-knock__item-title">{{ user.name || '未知用户' }}</span>
+                          <span class="ik-knock__item-subtitle">
+                            {{ user.uid ? `UID: ${user.uid}` : (user.username ? `@${user.username}` : '') }}
+                          </span>
+                        </span>
+                      </button>
+                    </template>
+                    <template v-else-if="contactSearchQuery && !contactSearchLoading">
+                      <div class="ik-knock__search-hint">未找到用户</div>
+                    </template>
+                    <template v-else-if="contactSearchLoading">
+                      <div class="ik-knock__search-hint">搜索中…</div>
+                    </template>
+                    <template v-else>
                     <button
                       v-for="item in conversations"
                       :key="item.documentId"
@@ -1774,13 +1898,14 @@ const handleMobileBack = () => {
                       </span>
                     </button>
                     <div
-                      v-if="!conversations.length"
+                      v-if="!conversations.length && !contactSearchQuery"
                       class="ik-knock__list-empty"
                     >
                       <span v-if="contactsListLoading">加载中…</span>
                       <span v-else-if="loadError">{{ loadError }}</span>
                       <span v-else>暂无消息</span>
                     </div>
+                    </template>
                   </div>
 
                   <!-- AI 角色（通话 Tab） -->
@@ -2556,6 +2681,71 @@ const handleMobileBack = () => {
   line-height: 1;
   border: 1px solid #000;
   pointer-events: none;
+}
+
+/* ── 搜索框 ──────────────────────────────────────── */
+.ik-knock__search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  margin-bottom: 4px;
+}
+
+.ik-knock__search-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ik-knock__search-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.ik-knock__search-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ik-knock__search-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 140ms;
+}
+
+.ik-knock__search-clear:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ik-knock__search-clear-icon {
+  width: 12px;
+  height: 12px;
+}
+
+.ik-knock__search-hint {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
 }
 
 /* 列表 */
