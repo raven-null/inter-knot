@@ -194,6 +194,62 @@ export async function updateUser(req: Request): Promise<Response> {
   return json({ success: true });
 }
 
+/** 修复指定用户的 followersCount / followingCount（用实际 key 数量覆盖） */
+export async function fixFollowCounts(req: Request): Promise<Response> {
+  await requireAdmin(req);
+  const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
+  if (!id) return badRequest("缺少用户 id");
+
+  const u = await getUser(id);
+  if (!u) return notFound("用户不存在");
+
+  const followingKeys = await listKeys(`follows/${id}/`);
+  const allKeys = await listKeys("follows/");
+  const actualFollowers = allKeys.filter((k) => {
+    const p = k.split("/");
+    return p.length === 3 && p[2] === `${id}.json`;
+  }).length;
+
+  const newFollowing = followingKeys.length;
+  const newFollowers = actualFollowers;
+  const deltaFollowing = newFollowing - Number(u.followingCount || 0);
+  const deltaFollowers = newFollowers - Number(u.followersCount || 0);
+
+  await setJson(userKey(id), { ...u, followingCount: newFollowing, followersCount: newFollowers });
+  return json({
+    id,
+    before: { followersCount: Number(u.followersCount || 0), followingCount: Number(u.followingCount || 0) },
+    after: { followersCount: newFollowers, followingCount: newFollowing },
+    delta: { followersCount: deltaFollowers, followingCount: deltaFollowing },
+  });
+}
+
+/** 一次性修复：扫描 follow key 实际数量并重置 followersCount/followingCount（无需鉴权） */
+export async function fixFollowCountsOnce(req: Request): Promise<Response> {
+  const id = decodeURIComponent(req.url.split("?")[0]!.split("/").filter(Boolean).pop() || "");
+  if (!id) return badRequest("缺少用户 id");
+
+  const u = await getUser(id);
+  if (!u) return notFound("用户不存在");
+
+  const followingKeys = await listKeys(`follows/${id}/`);
+  const allKeys = await listKeys("follows/");
+  const actualFollowers = allKeys.filter((k) => {
+    const p = k.split("/");
+    return p.length === 3 && p[2] === `${id}.json`;
+  }).length;
+
+  const newFollowing = followingKeys.length;
+  const newFollowers = actualFollowers;
+
+  await setJson(userKey(id), { ...u, followingCount: newFollowing, followersCount: newFollowers });
+  return json({
+    id,
+    before: { followersCount: Number(u.followersCount || 0), followingCount: Number(u.followingCount || 0) },
+    after: { followersCount: newFollowers, followingCount: newFollowing },
+  });
+}
+
 /** 彻底删除用户及其关联数据（DELETE /api/admin/users/:id） */
 export async function deleteUser(req: Request): Promise<Response> {
   const admin = await requireAdmin(req);

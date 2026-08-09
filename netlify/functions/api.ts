@@ -243,6 +243,8 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "emotes" && sub2 === "groups" && s.length === 5 && isDelete(req)) return emoteRoutes.deleteGroup(req);
       if (sub === "settings" && isGet(req)) return adminRoutes.settings(req);
       if (sub === "settings" && isPut(req)) return adminRoutes.updateSettings(req);
+      if (sub === "fix-follow-counts" && s.length === 4 && isPost(req)) return adminRoutes.fixFollowCounts(req);
+      if (sub === "fix-follow-counts-once" && s.length === 4 && isGet(req)) return adminRoutes.fixFollowCountsOnce(req);
       return error(404, "接口不存在");
     }
 
