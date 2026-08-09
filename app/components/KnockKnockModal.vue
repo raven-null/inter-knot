@@ -34,6 +34,8 @@ const auth = useAuthStore();
 const postModal = usePostModal();
 const loginDialog = useLoginDialog();
 const confirmDialog = useConfirmDialog();
+const { settings: siteSettings } = useSiteSettings();
+const showAi = computed(() => siteSettings.value.showAi === true);
 const { characters: aiCharacters, loading: aiCharactersLoading, error: aiCharactersError, refresh: refreshAiCharacters } = useAiCharacters();
 const {
   displayText: aiDisplayText,
@@ -137,6 +139,11 @@ watch(visible, async (next) => {
         ? aiCharacters.value.find((c) => c.boundUser?.id === peerUid)
         : undefined;
     if (conv && (conv.peer?.isAiAgent || aiCard)) {
+      if (!showAi.value) {
+        activeTab.value = "contacts";
+        updateUrl("contacts");
+        return;
+      }
       activeTab.value = "calls";
       activeAiSlug.value = aiCard?.slug ?? null;
       activeConversationId.value = pendingDm;
@@ -149,7 +156,7 @@ watch(visible, async (next) => {
     return;
   }
   const pendingTab = consumePendingKnockTab();
-  if (pendingTab === "calls") {
+  if (pendingTab === "calls" && showAi.value) {
     activeTab.value = "calls";
     await openCallsTab();
   }
@@ -1400,6 +1407,7 @@ const handleMobileBack = () => {
                 <aside class="ik-knock__sidebar">
                   <div class="ik-knock__tabs" role="tablist" aria-label="敲敲分类">
                     <button
+                      v-if="showAi"
                       type="button"
                       role="tab"
                       class="ik-knock__tab"

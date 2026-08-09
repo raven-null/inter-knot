@@ -433,6 +433,7 @@ export async function settings(req: Request): Promise<Response> {
     showCreate: s.showCreate !== false,
     showAdmin: s.showAdmin !== false,
     showLevel: s.showLevel === true,
+    showAi: s.showAi === true,
   });
 }
 
@@ -448,6 +449,7 @@ export async function publicSettings(): Promise<Response> {
     showCreate: s.showCreate !== false,
     showAdmin: s.showAdmin !== false,
     showLevel: s.showLevel === true,
+    showAi: s.showAi === true,
   });
 }
 
@@ -464,6 +466,7 @@ export async function updateSettings(req: Request): Promise<Response> {
     showCreate?: boolean;
     showAdmin?: boolean;
     showLevel?: boolean;
+    showAi?: boolean;
   }>(req);
   const s = (await getJson<Doc>(KEYS.settings)) || {};
   await setJson(KEYS.settings, {
@@ -478,6 +481,7 @@ export async function updateSettings(req: Request): Promise<Response> {
     showCreate: body.showCreate ?? s.showCreate,
     showAdmin: body.showAdmin ?? s.showAdmin,
     showLevel: body.showLevel ?? s.showLevel,
+    showAi: body.showAi ?? s.showAi,
   });
   return json({ success: true });
 }

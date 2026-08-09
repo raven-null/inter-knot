@@ -13,6 +13,7 @@ export interface SiteSettings {
   showCreate: boolean;
   showAdmin: boolean;
   showLevel: boolean;
+  showAi: boolean;
 }
 
 const DEFAULTS: SiteSettings = {
@@ -24,6 +25,7 @@ const DEFAULTS: SiteSettings = {
   showCreate: true,
   showAdmin: true,
   showLevel: false,
+  showAi: false,
 };
 
 let loaded = false;

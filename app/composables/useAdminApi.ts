@@ -210,6 +210,7 @@ export interface AdminSettings {
   showCreate?: boolean;
   showAdmin?: boolean;
   showLevel?: boolean;
+  showAi?: boolean;
 }
 
 export interface EmoteManifest {
