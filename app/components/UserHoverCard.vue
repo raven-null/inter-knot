@@ -274,7 +274,7 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Avatar + Name row (overlapping banner) -->
+          <!-- Avatar + Name row (below banner) -->
           <div class="ik-hovercard__avatar-row">
             <div class="ik-hovercard__user">
               <div class="ik-hovercard__avatar-wrap" @click="goProfile">
@@ -296,8 +296,11 @@ onBeforeUnmount(() => {
                 <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
               </div>
             </div>
+          </div>
+
+          <!-- Follow button (below name row) -->
+          <div v-if="canFollow" class="ik-hovercard__follow-row">
             <button
-              v-if="canFollow"
               type="button"
               class="ik-hovercard__follow"
               :class="{ 'is-following': profile.isFollowing }"
@@ -405,11 +408,10 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* ── Avatar row (overlapping banner) ──────────── */
+/* ── Avatar row (below banner) ───────────────── */
 .ik-hovercard__avatar-row {
   position: relative;
-  padding: 0 16px;
-  margin-top: -26px;
+  padding: 14px 16px 0;
   z-index: 1;
   display: flex;
   align-items: flex-start;
@@ -498,10 +500,15 @@ onBeforeUnmount(() => {
   color: rgba(255, 255, 255, 0.3);
 }
 
+.ik-hovercard__follow-row {
+  display: flex;
+  justify-content: flex-start;
+  padding: 10px 16px 0;
+}
+
 .ik-hovercard__follow {
   flex-shrink: 0;
-  margin-top: 8px;
-  padding: 5px 14px;
+  padding: 5px 18px;
   border: 1px solid var(--ik-primary, #bfff09);
   border-radius: 999px;
   background: transparent;
