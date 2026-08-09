@@ -162,8 +162,8 @@ export async function checkFollows(req: Request): Promise<Response> {
 /** GET /api/follows/:userId/:type — type = "following" | "followers" */
 export async function listFollows(req: Request): Promise<Response> {
   const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
-  const userId = segments[1] || "";
-  const type = segments[2] || "following";
+  const userId = segments[2] || "";
+  const type = segments[3] || "following";
   if (!userId) return badRequest("缺少 userId");
 
   if (type === "following") {
