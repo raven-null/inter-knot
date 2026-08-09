@@ -47,14 +47,13 @@ const mediaItems = computed<MediaItem[]>(() => {
 const total = computed(() => mediaItems.value.length);
 const hasMultiple = computed(() => total.value > 1);
 
-// 当前展示项的宽高比：图片用实际尺寸，视频默认 16:9，首图兜底。
-// 容器高度随当前项动态变化，确保图片完整展示。
-const currentAspectRatio = computed(() => {
-  const item = mediaItems.value[mediaIndex.value];
-  if (!item) return 16 / 9;
-  if (item.kind === "video") return 16 / 9;
-  const c = item.cover;
-  if (c?.width && c?.height && c.width > 0 && c.height > 0) return c.width / c.height;
+// 固定宽高比：用首张封面的实际尺寸，无尺寸信息时兜底 16:9。
+// 所有图片/视频共用同一个容器尺寸，保持视觉一致。
+const containerAspectRatio = computed(() => {
+  const first = props.covers[0];
+  if (first?.width && first?.height && first.width > 0 && first.height > 0) {
+    return first.width / first.height;
+  }
   return 16 / 9;
 });
 
@@ -141,7 +140,7 @@ watch(mediaItems, () => {
 <template>
   <div
     class="ik-media-carousel"
-    :style="{ aspectRatio: String(currentAspectRatio) }"
+    :style="{ aspectRatio: String(containerAspectRatio) }"
   >
     <!-- 单媒体直接展示 -->
     <template v-if="!hasMultiple">
@@ -227,7 +226,6 @@ watch(mediaItems, () => {
   border: 4px solid #313132;
   overflow: hidden;
   background: #0a0a0a;
-  transition: aspect-ratio 200ms ease;
 }
 
 .ik-media-carousel__scroller {
@@ -259,7 +257,7 @@ watch(mediaItems, () => {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   cursor: var(--ik-cursor-pointer);
 }
 
