@@ -24,7 +24,6 @@ const newTag = ref({ name: "", slug: "" });
 const savingForum = ref(false);
 const saveAnnounceDone = ref(false);
 const loading = ref(true);
-// 正在删除的标签 documentId（按钮 loading 态）
 const deletingTag = ref<string | null>(null);
 
 /* ── 表情包管理 ─────────────────────────────── */
@@ -34,6 +33,15 @@ const newGroupName = ref("");
 const emoteSaving = ref(false);
 const deletingEmote = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+
+/* ── Tab 切换 ─────────────────────────────────── */
+const activeTab = ref<"toggles" | "tags" | "emotes" | "announcement">("toggles");
+const tabs = [
+  { key: "toggles" as const, label: "功能开关" },
+  { key: "tags" as const, label: "标签管理" },
+  { key: "emotes" as const, label: "表情包" },
+  { key: "announcement" as const, label: "公告" },
+];
 
 const emoteGroups = computed(() => emotes.value.groups.map((g) => g.name));
 
@@ -275,7 +283,6 @@ const addTag = async () => {
     message.warning("请填写标签名称与标识");
     return;
   }
-  // slug 冲突检测：已存在同名标识时提示，避免重复
   if (tags.value.some((c) => c.slug === slug)) {
     message.error(`已存在标识为「${slug}」的标签`);
     return;
@@ -298,25 +305,40 @@ onMounted(async () => {
 
 <template>
   <div class="ik-admin-page">
+    <!-- 页头 -->
     <div class="ik-forum-header">
       <AdminBackButton />
       <div class="ik-forum-header__text">
         <h2 class="ik-forum-header__title">论坛设置</h2>
-        <p class="ik-forum-header__desc">管理导航开关、标签（版块）、表情包与首页公告</p>
+        <p class="ik-forum-header__desc">管理导航开关、标签、表情包与公告</p>
       </div>
     </div>
 
+    <!-- Tab 导航 -->
+    <div class="ik-forum-tabs">
+      <button
+        v-for="t in tabs"
+        :key="t.key"
+        class="ik-forum-tab"
+        :class="{ 'is-active': activeTab === t.key }"
+        @click="activeTab = t.key"
+      >
+        {{ t.label }}
+      </button>
+    </div>
+
     <div v-if="loading" class="ik-admin-loading">加载中…</div>
-    <div v-else class="ik-admin-grid ik-admin-grid--settings">
-      <!-- 导航栏功能开关 -->
-      <AdminCard>
+
+    <template v-else>
+      <!-- 功能开关 -->
+      <AdminCard v-if="activeTab === 'toggles'">
         <template #title>
           <span class="ik-forum-card-title">导航栏功能开关</span>
           <AdminBadge tone="blue">{{ NAV_SWITCHES.filter((s) => forumSettings[s.key]).length }}/{{ NAV_SWITCHES.length }} 开启</AdminBadge>
         </template>
-        <div class="ik-forum-settings__switches">
-          <label v-for="s in NAV_SWITCHES" :key="s.key" class="ik-forum-settings__switch">
-            <span class="ik-forum-settings__switch-text">
+        <div class="ik-forum-switches">
+          <label v-for="s in NAV_SWITCHES" :key="s.key" class="ik-forum-switch">
+            <span class="ik-forum-switch__text">
               <b>{{ s.label }}</b>
               <em>{{ s.desc }}</em>
             </span>
@@ -326,158 +348,99 @@ onMounted(async () => {
       </AdminCard>
 
       <!-- 标签管理 -->
-      <AdminCard>
+      <AdminCard v-if="activeTab === 'tags'">
         <template #title>
-          <span class="ik-forum-card-title">标签管理（版块）</span>
+          <span class="ik-forum-card-title">标签管理</span>
           <AdminBadge>{{ tags.length }} 个标签</AdminBadge>
         </template>
 
-        <!-- 新增表单 -->
         <div class="ik-forum-tag-add">
-          <input
-            v-model="newTag.name"
-            class="ik-admin-input"
-            placeholder="名称（如：闲聊）"
-            @keyup.enter="addTag"
-          />
-          <input
-            v-model="newTag.slug"
-            class="ik-admin-input"
-            placeholder="标识（如：chat）"
-            @keyup.enter="addTag"
-          />
-          <button class="ik-admin-btn ik-admin-btn--primary" @click="addTag">新增标签</button>
+          <input v-model="newTag.name" class="ik-admin-input" placeholder="名称（如：闲聊）" @keyup.enter="addTag" />
+          <input v-model="newTag.slug" class="ik-admin-input" placeholder="标识（如：chat）" @keyup.enter="addTag" />
+          <button class="ik-admin-btn ik-admin-btn--primary" @click="addTag">新增</button>
         </div>
 
-        <!-- 标签列表 -->
         <div v-if="tags.length" class="ik-forum-tag-list">
           <div v-for="c in tags" :key="c.documentId" class="ik-forum-tag-row">
-            <div class="ik-forum-tag-row__main">
-              <div class="ik-forum-tag-row__name">
+            <div class="ik-forum-tag-row__info">
+              <span class="ik-forum-tag-row__name">
                 {{ c.name }}
                 <AdminBadge v-if="c.adminOnly" tone="yellow">管理</AdminBadge>
-              </div>
+              </span>
               <code class="ik-forum-tag-row__slug">{{ c.slug }}</code>
             </div>
             <AdminBadge :tone="c.isHidden ? 'red' : 'green'">{{ c.isHidden ? "已隐藏" : "显示中" }}</AdminBadge>
             <div class="ik-forum-tag-row__actions">
-              <button
-                class="ik-admin-btn"
-                :title="c.isHidden ? '点击显示该标签' : '点击隐藏该标签'"
-                @click="toggleTag(c)"
-              >{{ c.isHidden ? "显示" : "隐藏" }}</button>
-              <button
-                class="ik-admin-btn ik-admin-btn--danger"
-                :disabled="deletingTag === c.documentId"
-                @click="removeTag(c)"
-              >{{ deletingTag === c.documentId ? "删除中…" : "删除" }}</button>
+              <button class="ik-admin-btn" @click="toggleTag(c)">{{ c.isHidden ? "显示" : "隐藏" }}</button>
+              <button class="ik-admin-btn ik-admin-btn--danger" :disabled="deletingTag === c.documentId" @click="removeTag(c)">
+                {{ deletingTag === c.documentId ? "…" : "删除" }}
+              </button>
             </div>
           </div>
         </div>
         <div v-else class="ik-admin-empty">暂无标签，请在上方新增</div>
       </AdminCard>
 
-      <!-- 表情包管理 -->
-      <AdminCard>
+      <!-- 表情包 -->
+      <AdminCard v-if="activeTab === 'emotes'">
         <template #title>
           <span class="ik-forum-card-title">表情包管理</span>
           <AdminBadge>{{ emotes.emotes.length }} 个表情</AdminBadge>
         </template>
 
-        <!-- 新增表单 -->
-        <div class="ik-emote-add">
-          <label class="ik-emote-add__file">
-            <input
-              ref="fileInputRef"
-              type="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
-              hidden
-              @change="onEmoteFileChange"
-            />
-            <img
-              v-if="newEmote.dataUrl"
-              :src="newEmote.dataUrl"
-              alt="预览"
-              class="ik-emote-add__preview"
-            />
-            <span v-else class="ik-emote-add__placeholder">选择图片</span>
+        <!-- 上传区 -->
+        <div class="ik-emote-upload">
+          <label class="ik-emote-upload__drop">
+            <input ref="fileInputRef" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden @change="onEmoteFileChange" />
+            <img v-if="newEmote.dataUrl" :src="newEmote.dataUrl" alt="预览" class="ik-emote-upload__preview" />
+            <span v-else class="ik-emote-upload__hint">点击选择图片</span>
           </label>
-          <div class="ik-emote-add__fields">
-            <div class="ik-emote-add__row">
-              <input
-                v-model="newEmote.code"
-                class="ik-admin-input"
-                placeholder="代码（如 ik-smile）"
-                @keyup.enter="addEmote"
-              />
-              <input
-                v-model="newEmote.name"
-                class="ik-admin-input"
-                placeholder="名称（如：微笑）"
-                @keyup.enter="addEmote"
-              />
-            </div>
-            <div class="ik-emote-add__row">
-              <select v-model="newEmote.group" class="ik-admin-input ik-emote-add__select">
+          <div class="ik-emote-upload__fields">
+            <input v-model="newEmote.code" class="ik-admin-input" placeholder="代码（如 ik-smile）" @keyup.enter="addEmote" />
+            <input v-model="newEmote.name" class="ik-admin-input" placeholder="名称（如：微笑）" @keyup.enter="addEmote" />
+            <div class="ik-emote-upload__row">
+              <select v-model="newEmote.group" class="ik-admin-input">
                 <option v-for="g in emoteGroups" :key="g" :value="g">{{ g }}</option>
               </select>
               <button class="ik-admin-btn ik-admin-btn--primary" :disabled="emoteSaving" @click="addEmote">
-                {{ emoteSaving ? "上传中…" : "添加表情" }}
+                {{ emoteSaving ? "上传中…" : "添加" }}
               </button>
             </div>
           </div>
         </div>
 
-        <!-- 表情列表 -->
+        <!-- 表情网格 -->
         <div v-if="emotes.emotes.length" class="ik-emote-grid">
-          <div v-for="e in emotes.emotes" :key="e.code" class="ik-emote-item">
-            <img :src="e.url" :alt="e.name" class="ik-emote-item__img" loading="lazy" />
-            <div class="ik-emote-item__meta">
-              <span class="ik-emote-item__name">{{ e.name }}</span>
-              <code class="ik-emote-item__code">{{ e.code }}</code>
-              <span class="ik-emote-item__group">{{ e.group }}</span>
+          <div v-for="e in emotes.emotes" :key="e.code" class="ik-emote-card">
+            <img :src="e.url" :alt="e.name" class="ik-emote-card__img" loading="lazy" />
+            <div class="ik-emote-card__info">
+              <span class="ik-emote-card__name">{{ e.name }}</span>
+              <code class="ik-emote-card__code">:{{ e.code }}:</code>
             </div>
-            <button
-              class="ik-admin-btn ik-admin-btn--danger ik-emote-item__del"
-              :disabled="deletingEmote === e.code"
-              @click="removeEmote(e)"
-            >{{ deletingEmote === e.code ? "删除中…" : "删除" }}</button>
+            <span class="ik-emote-card__group">{{ e.group }}</span>
+            <button class="ik-emote-card__del" :disabled="deletingEmote === e.code" @click="removeEmote(e)" title="删除">×</button>
           </div>
         </div>
-        <div v-else class="ik-admin-empty">暂无表情，请上传第一个表情包</div>
+        <div v-else class="ik-admin-empty">暂无表情，请上传第一个</div>
 
         <!-- 分组管理 -->
         <div class="ik-emote-groups">
           <div class="ik-emote-groups__head">分组管理</div>
-          <div class="ik-forum-tag-add">
-            <input
-              v-model="newGroupName"
-              class="ik-admin-input"
-              placeholder="新分组名称（如：摸鱼）"
-              @keyup.enter="addGroup"
-            />
-            <button class="ik-admin-btn" @click="addGroup">新增分组</button>
+          <div class="ik-emote-groups__add">
+            <input v-model="newGroupName" class="ik-admin-input" placeholder="新分组名称（如：摸鱼）" @keyup.enter="addGroup" />
+            <button class="ik-admin-btn" @click="addGroup">新增</button>
           </div>
           <div class="ik-emote-groups__list">
-            <span
-              v-for="g in emotes.groups"
-              :key="g.name"
-              class="ik-emote-groups__chip"
-            >
+            <span v-for="g in emotes.groups" :key="g.name" class="ik-emote-groups__chip">
               {{ g.name }}
-              <button
-                v-if="g.name !== '通用'"
-                class="ik-emote-groups__chip-del"
-                title="删除分组"
-                @click="removeGroup(g.name)"
-              >×</button>
+              <button v-if="g.name !== '通用'" class="ik-emote-groups__chip-del" title="删除分组" @click="removeGroup(g.name)">×</button>
             </span>
           </div>
         </div>
       </AdminCard>
 
-      <!-- 公告编写 -->
-      <AdminCard>
+      <!-- 公告 -->
+      <AdminCard v-if="activeTab === 'announcement'">
         <template #title>
           <span class="ik-forum-card-title">公告编写</span>
           <AdminBadge v-if="forumSettings.announcement.trim()" tone="green">已启用</AdminBadge>
@@ -485,20 +448,20 @@ onMounted(async () => {
         </template>
         <textarea
           v-model="forumSettings.announcement"
-          class="ik-admin-input ik-forum-announcement"
-          rows="4"
+          class="ik-admin-input ik-forum-announce"
+          rows="6"
           placeholder="首页顶部展示的公告内容，留空则不显示"
         ></textarea>
-        <div class="ik-forum-announcement__foot">
-          <span class="ik-forum-announcement__count">{{ forumSettings.announcement.length }} 字</span>
-          <div class="ik-forum-announcement__actions">
-            <span v-if="saveAnnounceDone" class="ik-forum-announcement__saved">已保存 ✓</span>
+        <div class="ik-forum-announce__foot">
+          <span class="ik-forum-announce__count">{{ forumSettings.announcement.length }} 字</span>
+          <div class="ik-forum-announce__right">
+            <span v-if="saveAnnounceDone" class="ik-forum-announce__saved">已保存 ✓</span>
             <button class="ik-admin-btn ik-admin-btn--primary" :disabled="savingForum" @click="saveAnnouncement">
               {{ savingForum ? "保存中…" : "保存公告" }}
             </button>
           </div>
         </div>
       </AdminCard>
-    </div>
+    </template>
   </div>
 </template>

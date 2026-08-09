@@ -437,117 +437,64 @@
   padding-top: 8px;
 }
 
-/* ── 论坛设置卡片 ── */
-.ik-forum-settings__grid {
+/* ── 论坛设置页 ── */
+
+/* Tab 导航 */
+.ik-forum-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
+  gap: 4px;
+  border-bottom: 1px solid #262626;
+  margin-bottom: 16px;
 }
-.ik-forum-settings__block-title {
-  margin: 0 0 10px;
+.ik-forum-tab {
+  padding: 8px 16px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--ik-primary, #bfff09);
-}
-.ik-forum-settings__switches {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ik-forum-settings__switch {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  background: #181818;
-  border: 1px solid #262626;
-  border-radius: 8px;
-  cursor: pointer;
-}
-.ik-forum-settings__switch-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.ik-forum-settings__switch-text b {
-  font-size: 13px;
-}
-.ik-forum-settings__switch-text em {
-  font-style: normal;
-  font-size: 11px;
   color: #8a8a8a;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 160ms, border-color 160ms;
 }
-.ik-forum-settings__tags {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.ik-forum-settings__tag {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: #181818;
-  border: 1px solid #262626;
-  border-radius: 8px;
-}
-.ik-forum-settings__tag-name {
-  font-weight: 700;
-  font-size: 13px;
-}
-.ik-forum-settings__tag-slug {
-  flex: 1;
-  color: var(--ik-primary, #bfff09);
-  font-size: 12px;
-  font-family: monospace;
-}
-.ik-forum-settings__tag-add {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-.ik-forum-settings__tag-add .ik-admin-input {
-  min-width: 0;
-  flex: 1;
+.ik-forum-tab:hover { color: #ccc; }
+.ik-forum-tab.is-active {
+  color: #fff;
+  border-bottom-color: var(--ik-primary, #bfff09);
 }
 
-.ik-admin-grid--settings {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  align-items: start;
-}
-
-/* ── 论坛设置页：页头 ── */
-.ik-forum-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 4px 0 2px;
-}
-.ik-forum-header__text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.ik-forum-header__title {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 900;
-  letter-spacing: 0.03em;
-}
-.ik-forum-header__desc {
-  margin: 0;
-  font-size: 12px;
-  color: var(--ik-muted, #9a9a9a);
-}
-
-/* 卡片标题行：标题 + 徽章 */
 .ik-forum-card-title {
   margin-right: 8px;
 }
 
-/* ── 标签管理：新增表单 ── */
+/* 功能开关 */
+.ik-forum-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ik-forum-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 160ms;
+}
+.ik-forum-switch:hover { border-color: #333; }
+.ik-forum-switch__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ik-forum-switch__text b { font-size: 13px; }
+.ik-forum-switch__text em { font-style: normal; font-size: 11px; color: #666; }
+
+/* 标签管理 */
 .ik-forum-tag-add {
   display: flex;
   gap: 8px;
@@ -557,8 +504,6 @@
   flex: 1;
   min-width: 0;
 }
-
-/* ── 标签管理：列表 ── */
 .ik-forum-tag-list {
   display: flex;
   flex-direction: column;
@@ -571,36 +516,31 @@
   padding: 10px 12px;
   background: #181818;
   border: 1px solid #262626;
-  border-radius: 10px 10px 0 10px;
+  border-radius: 10px;
   transition: border-color 160ms ease, background 160ms ease;
 }
 .ik-forum-tag-row:hover {
   background: #1c1c1c;
   border-color: #313131;
 }
-.ik-forum-tag-row__main {
+.ik-forum-tag-row__info {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
 }
 .ik-forum-tag-row__name {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   font-weight: 700;
   font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .ik-forum-tag-row__slug {
-  color: var(--ik-primary, #bfff09);
-  font-size: 12px;
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 11px;
+  color: #666;
+  background: #141414;
+  padding: 2px 6px;
+  border-radius: 4px;
   white-space: nowrap;
 }
 .ik-forum-tag-row__actions {
@@ -609,221 +549,206 @@
   flex-shrink: 0;
 }
 
-/* ── 公告编写 ── */
-.ik-forum-announcement {
+/* 表情包上传区 */
+.ik-emote-upload {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #141414;
+  border: 1px dashed #2a2a2a;
+  border-radius: 10px;
+}
+.ik-emote-upload__drop {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 160ms;
+}
+.ik-emote-upload__drop:hover { border-color: #444; }
+.ik-emote-upload__preview { width: 100%; height: 100%; object-fit: cover; }
+.ik-emote-upload__hint { font-size: 11px; color: #666; text-align: center; line-height: 1.4; }
+.ik-emote-upload__fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ik-emote-upload__row {
+  display: flex;
+  gap: 8px;
+}
+.ik-emote-upload__row .ik-admin-input { flex: 1; }
+
+/* 表情网格 */
+.ik-emote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.ik-emote-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 8px;
+  background: #141414;
+  border: 1px solid #1e1e1e;
+  border-radius: 8px;
+  transition: border-color 160ms;
+}
+.ik-emote-card:hover { border-color: #333; }
+.ik-emote-card__img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.ik-emote-card__info {
+  text-align: center;
+  min-width: 0;
+  width: 100%;
+}
+.ik-emote-card__name {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-emote-card__code {
+  display: block;
+  font-size: 10px;
+  color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ik-emote-card__group {
+  font-size: 10px;
+  color: #555;
+  background: #1a1a1a;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.ik-emote-card__del {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #666;
+  background: rgba(0,0,0,0.5);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms, color 160ms;
+}
+.ik-emote-card:hover .ik-emote-card__del { opacity: 1; }
+.ik-emote-card__del:hover { color: #ff6b6b; }
+
+/* 表情分组 */
+.ik-emote-groups {
+  border-top: 1px solid #1e1e1e;
+  padding-top: 14px;
+}
+.ik-emote-groups__head {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8a8a8a;
+  margin-bottom: 8px;
+}
+.ik-emote-groups__add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.ik-emote-groups__add .ik-admin-input { flex: 1; }
+.ik-emote-groups__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ik-emote-groups__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+  background: #1a1a1a;
+  border: 1px solid #262626;
+  border-radius: 6px;
+}
+.ik-emote-groups__chip-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 13px;
+  color: #888;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 140ms;
+}
+.ik-emote-groups__chip-del:hover { color: #ff6b6b; }
+
+/* 公告 */
+.ik-forum-announce {
   width: 100%;
   resize: vertical;
   font-family: inherit;
+  line-height: 1.6;
 }
-.ik-forum-announcement__foot {
+.ik-forum-announce__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin-top: 10px;
 }
-.ik-forum-announcement__count {
+.ik-forum-announce__count {
   font-size: 12px;
-  color: var(--ik-muted, #9a9a9a);
+  color: #9a9a9a;
   font-variant-numeric: tabular-nums;
 }
-.ik-forum-announcement__actions {
+.ik-forum-announce__right {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.ik-forum-announcement__saved {
+.ik-forum-announce__saved {
   color: #7ee787;
   font-size: 12px;
 }
 
 @media (max-width: 600px) {
-  .ik-forum-tag-add {
-    flex-direction: column;
-  }
-  .ik-forum-tag-row {
-    flex-wrap: wrap;
-  }
-  .ik-forum-tag-row__actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-  .ik-forum-announcement__foot {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-
-/* ── 表情包管理 ── */
-.ik-emote-add {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.ik-emote-add__file {
-  flex: 0 0 auto;
-  width: 64px;
-  height: 64px;
-  border: 1px dashed #3a3a3a;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-.ik-emote-add__file:hover {
-  border-color: var(--ik-primary, #bfff09);
-  background: rgba(191, 255, 9, 0.06);
-}
-.ik-emote-add__preview {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #101010;
-}
-.ik-emote-add__placeholder {
-  font-size: 11px;
-  color: #8a8a8a;
-  text-align: center;
-  padding: 0 4px;
-}
-.ik-emote-add__fields {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ik-emote-add__row {
-  display: flex;
-  gap: 8px;
-}
-.ik-emote-add__row .ik-admin-input {
-  flex: 1;
-  min-width: 0;
-}
-.ik-emote-add__select {
-  flex: 1;
-  min-width: 0;
-  appearance: none;
-  background-color: #141414;
-}
-
-/* 表情网格 */
-.ik-emote-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-.ik-emote-item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 8px;
-  background: #181818;
-  border: 1px solid #262626;
-  border-radius: 10px 10px 0 10px;
-  transition: border-color 160ms ease, background 160ms ease;
-}
-.ik-emote-item:hover {
-  background: #1c1c1c;
-  border-color: #313131;
-}
-.ik-emote-item__img {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-}
-.ik-emote-item__meta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  max-width: 100%;
-}
-.ik-emote-item__name {
-  font-size: 12px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.ik-emote-item__code {
-  font-size: 10px;
-  color: var(--ik-primary, #bfff09);
-  font-family: monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 100%;
-}
-.ik-emote-item__group {
-  font-size: 10px;
-  color: #6a6a6a;
-}
-.ik-emote-item__del {
-  padding: 4px 10px;
-  font-size: 11px;
-}
-
-/* 分组管理 */
-.ik-emote-groups {
-  border-top: 1px solid #262626;
-  padding-top: 12px;
-}
-.ik-emote-groups__head {
-  font-size: 12px;
-  font-weight: 700;
-  color: #8a8a8a;
-  margin-bottom: 8px;
-}
-.ik-emote-groups__list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.ik-emote-groups__chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #1c1c1c;
-  border: 1px solid #2e2e2e;
-  font-size: 12px;
-  color: #c8c8c8;
-}
-.ik-emote-groups__chip-del {
-  border: none;
-  background: transparent;
-  color: #8a8a8a;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-  transition: color 140ms ease;
-}
-.ik-emote-groups__chip-del:hover {
-  color: #ff6b6b;
-}
-
-@media (max-width: 600px) {
-  .ik-emote-add {
-    flex-direction: column;
-  }
-  .ik-emote-add__file {
-    width: 100%;
-    height: 80px;
-  }
-  .ik-emote-add__row {
-    flex-direction: column;
-  }
+  .ik-forum-tag-add { flex-direction: column; }
+  .ik-forum-tag-row { flex-wrap: wrap; gap: 8px; }
+  .ik-forum-tag-row__actions { width: 100%; justify-content: flex-end; }
+  .ik-emote-upload { flex-direction: column; }
+  .ik-emote-upload__drop { width: 100%; height: 80px; }
+  .ik-emote-upload__row { flex-direction: column; }
+  .ik-emote-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+  .ik-forum-announce__foot { flex-direction: column; align-items: flex-start; }
 }
