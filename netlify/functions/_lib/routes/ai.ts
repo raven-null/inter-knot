@@ -190,10 +190,9 @@ export async function aiSession(req: Request): Promise<Response> {
   return json({ data: toSummary(conv, aiRole), isNew: conv.messages.length === 0 });
 }
 
-/** GET /api/dm/conversations —— 当前用户的会话列表（仅 AI 会话） */
-export async function conversations(req: Request): Promise<Response> {
-  const viewer = await requireAuth(req);
-  const prefix = `${AI_PREFIX}${viewer.userId}/`;
+/** 列出当前用户的全部 AI 会话摘要（供 dm.ts 合并进总列表） */
+export async function listAiConversations(viewerId: string): Promise<Doc[]> {
+  const prefix = `${AI_PREFIX}${viewerId}/`;
   const keys = await listKeys(prefix);
   const summaries: Doc[] = [];
   for (const key of keys) {
@@ -202,6 +201,24 @@ export async function conversations(req: Request): Promise<Response> {
     const aiRole = aiRoleByUid(Number(conv.aiUid));
     if (aiRole) summaries.push(toSummary(conv, aiRole));
   }
+  return summaries;
+}
+
+/** 按会话 documentId 返回 AI 摘要（供消息接口兜底，未命中返回 null） */
+export async function aiSummaryByDocumentId(
+  viewerId: string,
+  documentId: string,
+): Promise<Doc | null> {
+  const conv = await findConversation(viewerId, documentId);
+  if (!conv) return null;
+  const aiRole = aiRoleByUid(Number(conv.aiUid));
+  return aiRole ? toSummary(conv, aiRole) : null;
+}
+
+/** GET /api/dm/conversations —— 当前用户的 AI 会话列表（dm.ts 会合并 direct/group） */
+export async function conversations(req: Request): Promise<Response> {
+  const viewer = await requireAuth(req);
+  const summaries = await listAiConversations(viewer.userId);
   summaries.sort((a, b) =>
     String(b.lastMessageAt || "").localeCompare(String(a.lastMessageAt || "")),
   );

@@ -13,8 +13,10 @@ import {
   TrashIcon,
   MagnifyingGlassIcon,
   XMarkIcon,
+  PlusIcon,
 } from "@heroicons/vue/24/outline";
 import type { AiRoleCard, DmConversationSummary, DmMessage } from "~/types/entities";
+import { useMessage } from "zenless-ui";
 import { resolveErrorMessage } from "~/utils/api-error";
 import { stripMentionsToPlain } from "~/utils/mention";
 import { stripEmotesToPlain } from "~/utils/emote";
@@ -34,6 +36,8 @@ const auth = useAuthStore();
 const postModal = usePostModal();
 const loginDialog = useLoginDialog();
 const confirmDialog = useConfirmDialog();
+const message = useMessage();
+const api = useApi();
 const { settings: siteSettings } = useSiteSettings();
 const showAi = computed(() => siteSettings.value.showAi === true);
 const { characters: aiCharacters, loading: aiCharactersLoading, error: aiCharactersError, refresh: refreshAiCharacters } = useAiCharacters();
@@ -74,6 +78,8 @@ const {
   startStream,
   stopStream,
   createAiSession,
+  createGroupChat,
+  addGroupMembers,
   deleteConversation,
   isStreamingMessage,
   stopAiStream,
@@ -184,7 +190,7 @@ const contactsListLoading = computed(
 const conversations = computed<DmConversationSummary[]>(() => {
   if (activeTab.value !== "contacts" || contactsListLoading.value) return [];
   return allConversations.value
-    .filter((c) => !isOfficialAiPeer(c))
+    .filter((c) => !isOfficialAiPeer(c) && c.kind !== "group")
     .sort((a, b) => {
       const ap = a.self?.pinned ? 1 : 0;
       const bp = b.self?.pinned ? 1 : 0;
@@ -272,6 +278,112 @@ const aiCharacterRows = computed(() =>
     return { card, unread };
   }),
 );
+
+// ── 群聊 ─────────────────────────────────────────────
+const groupConversations = computed(() =>
+  allConversations.value
+    .filter((c) => c.kind === "group")
+    .sort((a, b) => {
+      const at = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const bt = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return bt - at;
+    }),
+);
+
+const groupModalOpen = ref(false);
+const groupModalMode = ref<"create" | "invite">("create");
+const newGroupName = ref("");
+const groupMemberIds = ref<number[]>([]);
+const groupSaving = ref(false);
+const groupSearchQuery = ref("");
+const groupSearchResults = ref<any[]>([]);
+const groupSearchLoading = ref(false);
+
+/** 建群/拉人弹窗的候选人：当前会话成员（invite 模式）或已选 id 排除（create） */
+const groupSearchOpen = () => {
+  groupSearchQuery.value = "";
+  groupSearchResults.value = [];
+};
+
+const doGroupSearch = async () => {
+  const q = groupSearchQuery.value.trim();
+  if (!q) {
+    groupSearchResults.value = [];
+    return;
+  }
+  groupSearchLoading.value = true;
+  try {
+    const results = await api.searchAuthors(q);
+    groupSearchResults.value = (results || []).filter(
+      (u: any) => !groupMemberIds.value.includes(Number(u.documentId)) && u.documentId !== auth.user?.authorId,
+    );
+  } catch {
+    groupSearchResults.value = [];
+  } finally {
+    groupSearchLoading.value = false;
+  }
+};
+
+const openCreateGroup = () => {
+  groupModalMode.value = "create";
+  newGroupName.value = "";
+  groupMemberIds.value = [];
+  groupSearchResults.value = [];
+  groupSearchQuery.value = "";
+  groupModalOpen.value = true;
+};
+
+const openInviteMembers = (conv: DmConversationSummary) => {
+  groupModalMode.value = "invite";
+  activeInviteConvId.value = conv.documentId;
+  groupMemberIds.value = [];
+  groupSearchResults.value = [];
+  groupSearchQuery.value = "";
+  groupModalOpen.value = true;
+};
+
+const activeInviteConvId = ref<string | null>(null);
+
+const toggleGroupMember = (documentId: any) => {
+  const uid = Number(documentId);
+  if (groupMemberIds.value.includes(uid)) {
+    groupMemberIds.value = groupMemberIds.value.filter((x) => x !== uid);
+  } else {
+    groupMemberIds.value = [...groupMemberIds.value, uid];
+  }
+};
+
+const submitGroup = async () => {
+  if (groupSaving.value) return;
+  groupSaving.value = true;
+  try {
+    if (groupModalMode.value === "create") {
+      if (!newGroupName.value.trim()) {
+        message.warning("请填写群名称");
+        return;
+      }
+      const summary = await createGroupChat({
+        title: newGroupName.value.trim(),
+        memberIds: groupMemberIds.value,
+      });
+      groupModalOpen.value = false;
+      activeTab.value = "groups";
+      activeConversationId.value = summary.documentId;
+      updateUrl("groups", summary.documentId);
+      message.success("群聊创建成功");
+    } else {
+      const cid = activeInviteConvId.value;
+      if (!cid) return;
+      await addGroupMembers(cid, groupMemberIds.value);
+      groupModalOpen.value = false;
+      message.success("已邀请成员");
+    }
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "操作失败"));
+  } finally {
+    groupSaving.value = false;
+  }
+};
 
 const cardAvatarUrl = (card: AiRoleCard): string | null => {
   const raw = card.avatar || card.boundUser?.avatar;
@@ -1548,14 +1660,66 @@ const handleMobileBack = () => {
                     </div>
                   </div>
 
-                  <!-- 群聊（占位） -->
+                  <!-- 群聊 -->
                   <div
                     v-else
                     class="ik-knock__list"
                     role="listbox"
                   >
-                    <div class="ik-knock__list-empty">
-                      <span>暂未开放</span>
+                    <button
+                      v-for="item in groupConversations"
+                      :key="item.documentId"
+                      type="button"
+                      role="option"
+                      class="ik-knock__list-item"
+                      :class="{
+                        'is-active': activeConversationId === item.documentId,
+                        'has-unread': item.unreadCount > 0,
+                      }"
+                      :aria-selected="activeConversationId === item.documentId"
+                      @click="handleConversationClick(item.documentId)"
+                    >
+                      <span class="ik-knock__avatar" aria-hidden="true">
+                        <img
+                          v-if="item.avatar"
+                          :src="item.avatar"
+                          :alt="item.title || '群聊'"
+                          class="ik-knock__avatar-img"
+                          draggable="false"
+                        />
+                        <span v-else class="ik-knock__avatar-img ik-knock__avatar-group">
+                          <UserGroupIcon class="ik-knock__avatar-group-icon" aria-hidden="true" />
+                        </span>
+                      </span>
+                      <span class="ik-knock__item-text">
+                        <span class="ik-knock__item-title">{{ item.title || "未命名群聊" }}</span>
+                        <span class="ik-knock__item-subtitle">
+                          {{ item.memberCount }} 人 · {{ conversationPreview(item) || "暂无消息" }}
+                        </span>
+                      </span>
+                      <span
+                        v-if="item.unreadCount > 0"
+                        class="ik-knock__item-badge"
+                        aria-label="未读"
+                      >
+                        {{ item.unreadCount > 99 ? "99+" : item.unreadCount }}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="ik-knock__group-create"
+                      @click="openCreateGroup"
+                    >
+                      <PlusIcon class="ik-knock__group-create-icon" aria-hidden="true" />
+                      <span>创建群聊</span>
+                    </button>
+
+                    <div
+                      v-if="!groupConversations.length"
+                      class="ik-knock__list-empty"
+                    >
+                      <span>还没有群聊，点击上方「创建群聊」拉上朋友一起聊</span>
                     </div>
                   </div>
 
@@ -1624,6 +1788,17 @@ const handleMobileBack = () => {
                       @click="deleteAiSession(activeConversationId)"
                     >
                       <TrashIcon class="ik-knock__session-action-icon" aria-hidden="true" />
+                    </button>
+                    <!-- 群聊：邀请成员 -->
+                    <button
+                      v-if="activeConversation?.kind === 'group' && activeConversationId"
+                      type="button"
+                      class="ik-knock__session-action"
+                      aria-label="邀请成员"
+                      title="邀请成员"
+                      @click="openInviteMembers(activeConversation)"
+                    >
+                      <UserGroupIcon class="ik-knock__session-action-icon" aria-hidden="true" />
                     </button>
                   </header>
                   <!-- Phase 4 会话内搜索条：命中计数 + 上下跳转 -->
@@ -1745,6 +1920,85 @@ const handleMobileBack = () => {
                 </section>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- 建群 / 邀请成员弹窗 -->
+  <Teleport to="body">
+    <Transition name="ik-overlay">
+      <div
+        v-if="groupModalOpen"
+        class="ik-knock__group-mask"
+        @mousedown.self="groupModalOpen = false"
+      >
+        <div class="ik-knock__group-dialog">
+          <div class="ik-knock__group-head">
+            <span class="ik-knock__group-title">
+              {{ groupModalMode === "create" ? "创建群聊" : "邀请成员" }}
+            </span>
+            <button
+              type="button"
+              class="ik-knock__group-close"
+              aria-label="关闭"
+              @click="groupModalOpen = false"
+            >
+              <XMarkIcon class="ik-knock__group-close-icon" aria-hidden="true" />
+            </button>
+          </div>
+          <div class="ik-knock__group-body">
+            <label v-if="groupModalMode === 'create'" class="ik-knock__group-field">
+              <span class="ik-knock__group-field-label">群名称</span>
+              <input
+                v-model="newGroupName"
+                class="ik-knock__group-input"
+                placeholder="给群取个名字"
+                maxlength="60"
+                @keyup.enter="submitGroup"
+              />
+            </label>
+            <div class="ik-knock__group-search">
+              <MagnifyingGlassIcon class="ik-knock__group-search-icon" aria-hidden="true" />
+              <input
+                v-model="groupSearchQuery"
+                class="ik-knock__group-input"
+                placeholder="搜索用户拉进群（输入名称/@）"
+                @input="doGroupSearch"
+              />
+            </div>
+            <div v-if="groupSearchResults.length" class="ik-knock__group-results">
+              <button
+                v-for="u in groupSearchResults"
+                :key="u.documentId"
+                type="button"
+                class="ik-knock__group-result"
+                :class="{ 'is-selected': groupMemberIds.includes(Number(u.documentId)) }"
+                @click="toggleGroupMember(u.documentId)"
+              >
+                <img :src="u.avatar" alt="" class="ik-knock__group-result-avatar" />
+                <span class="ik-knock__group-result-name">{{ u.name }}</span>
+                <span class="ik-knock__group-result-check" aria-hidden="true">
+                  <template v-if="groupMemberIds.includes(Number(u.documentId))">✓</template>
+                </span>
+              </button>
+            </div>
+            <div v-else-if="groupSearchLoading" class="ik-knock__group-hint">搜索中…</div>
+            <div v-else class="ik-knock__group-hint">
+              {{ groupModalMode === "create" ? "搜索用户加入群聊" : "搜索用户加入群聊" }}
+            </div>
+          </div>
+          <div class="ik-knock__group-foot">
+            <span class="ik-knock__group-count">已选 {{ groupMemberIds.length }} 人</span>
+            <z-button
+              type="button"
+              class="ik-knock__group-submit"
+              :loading="groupSaving"
+              @click="submitGroup"
+            >
+              {{ groupModalMode === "create" ? "创建群聊" : "邀请" }}
+            </z-button>
           </div>
         </div>
       </div>
@@ -2174,6 +2428,248 @@ const handleMobileBack = () => {
   padding: 24px 0;
   color: rgba(255, 255, 255, 0.4);
   font-size: 13px;
+}
+
+/* ── 群聊 ─────────────────────────────────────────── */
+.ik-knock__avatar-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2a3a6a 0%, #1a2a4a 100%);
+}
+
+.ik-knock__avatar-group-icon {
+  width: 18px;
+  height: 18px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.ik-knock__group-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  margin-top: 4px;
+  border: 1px dashed rgba(191, 255, 9, 0.35);
+  border-radius: 10px;
+  background: rgba(191, 255, 9, 0.06);
+  color: #BFFF09;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.ik-knock__group-create:hover {
+  background: rgba(191, 255, 9, 0.12);
+}
+
+.ik-knock__group-create-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* 建群 / 邀请成员弹窗 */
+.ik-knock__group-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.ik-knock__group-dialog {
+  width: 380px;
+  max-width: 92%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px 0 16px 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.ik-knock__group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ik-knock__group-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.ik-knock__group-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.ik-knock__group-close-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.ik-knock__group-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 14px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ik-knock__group-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ik-knock__group-field-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.ik-knock__group-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ik-knock__group-search-icon {
+  position: absolute;
+  left: 10px;
+  width: 15px;
+  height: 15px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.ik-knock__group-input {
+  width: 100%;
+  padding: 9px 12px 9px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.ik-knock__group-field .ik-knock__group-input {
+  padding-left: 12px;
+}
+
+.ik-knock__group-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.ik-knock__group-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.ik-knock__group-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ik-knock__group-result:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ik-knock__group-result.is-selected {
+  background: rgba(191, 255, 9, 0.1);
+  border-color: rgba(191, 255, 9, 0.35);
+}
+
+.ik-knock__group-result-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.ik-knock__group-result-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ik-knock__group-result-check {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #000;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ik-knock__group-result.is-selected .ik-knock__group-result-check {
+  background: #BFFF09;
+}
+
+.ik-knock__group-hint {
+  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ik-knock__group-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ik-knock__group-count {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ik-knock__group-submit {
+  min-width: 88px;
 }
 
 .ik-knock__item-text {

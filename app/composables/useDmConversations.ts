@@ -97,6 +97,10 @@ interface UseDmConversations {
     targetUserId: number,
     title?: string,
   ) => Promise<DmConversationSummary>;
+  /** 创建群聊 */
+  createGroupChat: (input: { title?: string; memberIds?: number[] }) => Promise<DmConversationSummary>;
+  /** 群聊邀请成员 */
+  addGroupMembers: (conversationId: string, memberIds: number[]) => Promise<{ memberCount: number }>;
   /** 删除/离开当前会话 */
   deleteConversation: (id: string) => Promise<void>;
 
@@ -343,6 +347,36 @@ export function useDmConversations(): UseDmConversations {
 
   interface AiSessionResponse {
     data: DmConversationSummary;
+  }
+
+  /** 创建群聊（body: { title, memberIds }） */
+  async function createGroupChat(input: {
+    title?: string;
+    memberIds?: number[];
+  }): Promise<DmConversationSummary> {
+    const resp = await $api<AiSessionResponse>("/api/dm/conversations/group", {
+      method: "POST",
+      body: { title: input.title, memberIds: input.memberIds },
+    });
+    if (!resp?.data?.documentId) {
+      throw new Error("invalid group response");
+    }
+    upsertConversation(resp.data);
+    return resp.data;
+  }
+
+  /** 群聊邀请成员 */
+  async function addGroupMembers(
+    conversationId: string,
+    memberIds: number[],
+  ): Promise<{ memberCount: number }> {
+    const resp = await $api<{ success: boolean; memberCount?: number }>(
+      `/api/dm/conversations/${encodeURIComponent(conversationId)}/members`,
+      { method: "POST", body: { memberIds } },
+    );
+    // 成员数可能变化，刷新列表拿最新
+    void refresh({ silent: true });
+    return { memberCount: Number(resp?.memberCount || 0) };
   }
 
   async function createAiSession(
@@ -1101,6 +1135,8 @@ export function useDmConversations(): UseDmConversations {
     refresh,
     openDirectConversation,
     createAiSession,
+    createGroupChat,
+    addGroupMembers,
     deleteConversation,
     messageStateOf: (id: string) =>
       messagesById.value[id] ?? emptyMessageState(),

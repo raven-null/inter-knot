@@ -22,6 +22,7 @@ import * as emoteRoutes from "./_lib/routes/emotes";
 import * as githubRoutes from "./_lib/routes/github";
 import * as mihoyoRoutes from "./_lib/routes/mihoyo";
 import * as aiRoutes from "./_lib/routes/ai";
+import * as dmRoutes from "./_lib/routes/dm";
 import * as stubRoutes from "./_lib/routes/stubs";
 
 export default async function handler(req: Request): Promise<Response> {
@@ -269,14 +270,30 @@ async function dispatch(req: Request): Promise<Response> {
       return error(404, "接口不存在");
     }
     case "dm": {
-      if (sub === "conversations" && s.length === 3 && isGet(req)) return aiRoutes.conversations(req);
-      if (sub === "conversations" && sub2 === "direct" && isPost(req)) return stubRoutes.dmDirect();
+      // 会话列表：direct + group + AI 合并
+      if (sub === "conversations" && s.length === 3 && isGet(req)) return dmRoutes.conversations(req);
+      if (sub === "conversations" && sub2 === "direct" && isPost(req)) return dmRoutes.direct(req);
       if (sub === "conversations" && sub2 === "ai-session" && isPost(req)) return aiRoutes.aiSession(req);
-      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isGet(req)) return aiRoutes.messages(req);
-      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isPost(req)) return aiRoutes.sendMessage(req);
-      if (sub === "conversations" && s.length === 5 && s[4] === "read" && isPatch(req)) return aiRoutes.readConversation(req);
-      if (sub === "conversations" && s.length === 5 && s[4] === "leave" && isPost(req)) return aiRoutes.leaveConversation(req);
-      if (sub === "read-all" && isPost(req)) return aiRoutes.readAll();
+      if (sub === "conversations" && sub2 === "group" && isPost(req)) return dmRoutes.createGroup(req);
+      if (sub === "conversations" && s.length === 5 && s[4] === "members" && isPost(req)) return dmRoutes.addGroupMembers(req);
+      // 会话级子路径：AI（ai- 前缀）与真实 DM 分开处理
+      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isGet(req)) {
+        return String(s[3]).startsWith("ai-") ? aiRoutes.messages(req) : dmRoutes.messages(req);
+      }
+      if (sub === "conversations" && s.length === 5 && s[4] === "messages" && isPost(req)) {
+        return String(s[3]).startsWith("ai-") ? aiRoutes.sendMessage(req) : dmRoutes.sendMessage(req);
+      }
+      if (sub === "conversations" && s.length === 5 && s[4] === "read" && isPatch(req)) {
+        return String(s[3]).startsWith("ai-") ? aiRoutes.readConversation(req) : dmRoutes.readConversation(req);
+      }
+      if (sub === "conversations" && s.length === 5 && s[4] === "leave" && isPost(req)) {
+        return String(s[3]).startsWith("ai-") ? aiRoutes.leaveConversation(req) : dmRoutes.leaveConversation(req);
+      }
+      if (sub === "conversations" && s.length === 5 && s[4] === "reset-context" && isPost(req)) return dmRoutes.resetContext();
+      if (sub === "conversations" && s.length === 4 && isPatch(req)) return dmRoutes.updateConversation(req);
+      if (sub === "messages" && s.length === 4 && isPatch(req)) return dmRoutes.editMessage(req);
+      if (sub === "messages" && s.length === 4 && isDelete(req)) return dmRoutes.withdrawMessage(req);
+      if (sub === "read-all" && isPost(req)) return dmRoutes.readAll(req);
       if (sub === "ai" && sub2 === "regenerate" && isPost(req)) return aiRoutes.regenerate(req);
       if (sub === "ai" && sub2 === "stop" && isPost(req)) return aiRoutes.stop();
       if (sub === "socket" && sub2 === "ticket" && isPost(req)) return json({ data: { ticket: "", ttlSec: 0 } });
