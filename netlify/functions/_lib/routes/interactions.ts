@@ -159,6 +159,61 @@ export async function checkFollows(req: Request): Promise<Response> {
   return ok(result);
 }
 
+/** GET /api/follows/:userId/:type — type = "following" | "followers" */
+export async function listFollows(req: Request): Promise<Response> {
+  const segments = req.url.split("?")[0]!.split("/").filter(Boolean);
+  const userId = segments[1] || "";
+  const type = segments[2] || "following";
+  if (!userId) return badRequest("缺少 userId");
+
+  if (type === "following") {
+    // 关注：follows/<userId>/<targetId>.json → target 用户信息
+    const keys = await listKeys(`follows/${userId}/`);
+    const users: Doc[] = [];
+    for (const key of keys) {
+      const targetId = key.split("/")[2]?.replace(/\.json$/, "");
+      if (!targetId) continue;
+      const u = await getUser(targetId);
+      if (u) users.push(u);
+    }
+    users.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    return json({
+      data: users.map((u) => ({
+        documentId: String(u.document_id),
+        uid: Number(u.uid || 0),
+        name: String(u.name || u.username || ""),
+        username: String(u.username || ""),
+        avatar: String(u.avatar_url || DEFAULT_AVATAR),
+      })),
+    });
+  }
+
+  // 粉丝：扫描所有 follows/<followerId>/<userId>.json 找到关注该用户的人
+  const allFollowKeys = await listKeys("follows/");
+  const followerIds: string[] = [];
+  for (const key of allFollowKeys) {
+    const parts = key.split("/");
+    if (parts.length === 3 && parts[2] === `${userId}.json`) {
+      followerIds.push(parts[1]);
+    }
+  }
+  const users: Doc[] = [];
+  for (const fid of followerIds) {
+    const u = await getUser(fid);
+    if (u) users.push(u);
+  }
+  users.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+  return json({
+    data: users.map((u) => ({
+      documentId: String(u.document_id),
+      uid: Number(u.uid || 0),
+      name: String(u.name || u.username || ""),
+      username: String(u.username || ""),
+      avatar: String(u.avatar_url || DEFAULT_AVATAR),
+    })),
+  });
+}
+
 // ── 拉黑 ───────────────────────────────────────────────
 export async function toggleUserBlock(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);

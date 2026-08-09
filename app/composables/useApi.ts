@@ -1083,6 +1083,18 @@ export function useApi() {
     };
   };
 
+  const getFollowing = async (userId: string): Promise<Author[]> => {
+    const response = await $api(`/api/follows/${userId}/following`);
+    const data = (response || {}) as { data?: unknown[] };
+    return (data.data || []).map((u: any) => toAuthor(u, apiBaseUrl)).filter(Boolean) as Author[];
+  };
+
+  const getFollowers = async (userId: string): Promise<Author[]> => {
+    const response = await $api(`/api/follows/${userId}/followers`);
+    const data = (response || {}) as { data?: unknown[] };
+    return (data.data || []).map((u: any) => toAuthor(u, apiBaseUrl)).filter(Boolean) as Author[];
+  };
+
   const batchCheckFollows = async (
     authorDocumentIds: string[],
   ): Promise<Record<string, boolean>> => {
@@ -2077,6 +2089,8 @@ export function useApi() {
     batchCheckReports,
     toggleFollow,
     batchCheckFollows,
+    getFollowing,
+    getFollowers,
     toggleUserBlock,
     batchCheckUserBlocks,
     getMyBlockedList,

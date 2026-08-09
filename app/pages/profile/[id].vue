@@ -43,17 +43,19 @@ const profileId = computed(() => String(route.params.id || ""));
 
 const PROFILE_ARTICLES_MAX = 6;
 
-/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读 */
-const profileTab = ref<"works" | "favorites" | "history">("works");
+/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读 / 关注 / 粉丝 */
+const profileTab = ref<"works" | "favorites" | "history" | "following" | "followers">("works");
 
 const profileTabs = computed(() => {
-  const tabs: Array<{ key: "works" | "favorites" | "history"; label: string }> = [
+  const tabs: Array<{ key: "works" | "favorites" | "history" | "following" | "followers"; label: string }> = [
     { key: "works", label: "发布作品" },
   ];
   if (profile.value?.isSelf) {
     tabs.push({ key: "favorites", label: "收藏夹" });
     tabs.push({ key: "history", label: "历史阅读" });
   }
+  tabs.push({ key: "following", label: "关注" });
+  tabs.push({ key: "followers", label: "粉丝" });
   return tabs;
 });
 
@@ -109,6 +111,36 @@ const loadProfileHistory = async () => {
     message.error(resolveErrorMessage(err, "获取阅读历史失败"));
   } finally {
     historyLoading.value = false;
+  }
+};
+
+const followingUsers = ref<any[]>([]);
+const followingLoading = ref(false);
+
+const loadFollowing = async () => {
+  if (followingLoading.value || followingUsers.value.length > 0) return;
+  followingLoading.value = true;
+  try {
+    followingUsers.value = await api.getFollowing(profileId.value);
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "获取关注列表失败"));
+  } finally {
+    followingLoading.value = false;
+  }
+};
+
+const followerUsers = ref<any[]>([]);
+const followerLoading = ref(false);
+
+const loadFollowers = async () => {
+  if (followerLoading.value || followerUsers.value.length > 0) return;
+  followerLoading.value = true;
+  try {
+    followerUsers.value = await api.getFollowers(profileId.value);
+  } catch (err) {
+    message.error(resolveErrorMessage(err, "获取粉丝列表失败"));
+  } finally {
+    followerLoading.value = false;
   }
 };
 
@@ -374,7 +406,12 @@ onMounted(async () => {
     void loadProfileFavorites();
     void loadProfileHistory();
   }
-  startProfileRefresh();
+});
+
+// 切换 Tab 时按需加载关注/粉丝列表
+watch(profileTab, (tab) => {
+  if (tab === "following") void loadFollowing();
+  else if (tab === "followers") void loadFollowers();
 });
 
 // 统计信息（浏览/评论/点赞/关注/粉丝）定期刷新：避免长时间停留时数据陈旧。
@@ -709,6 +746,76 @@ onBeforeUnmount(() => {
             {{ historyLoading ? "加载中..." : "加载更多" }}
           </button>
         </div>
+      </section>
+
+      <!-- ── 关注 ────────────────────────── -->
+      <section v-else-if="profileTab === 'following'" class="ik-profile-section">
+        <template v-if="followingLoading && !followingUsers.length">
+          <div v-for="n in 4" :key="n" class="ik-follow-skel">
+            <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+              <div class="ik-skel" style="width:120px;height:14px;border-radius:3px"></div>
+              <div class="ik-skel" style="width:60px;height:12px;border-radius:3px"></div>
+            </div>
+          </div>
+        </template>
+        <div v-else-if="!followingUsers.length" class="ik-article-grid__empty">
+          暂无关注
+        </div>
+        <template v-else>
+          <div
+            v-for="user in followingUsers"
+            :key="user.documentId"
+            class="ik-follow-item"
+            @click="navigateTo(`/profile/${user.documentId}`)"
+          >
+            <img
+              :src="user.avatar || '/images/default-avatar.webp'"
+              :alt="user.name || ''"
+              class="ik-follow-item__avatar"
+              @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+            />
+            <div class="ik-follow-item__info">
+              <span class="ik-follow-item__name">{{ user.name || user.username || '匿名用户' }}</span>
+              <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
+            </div>
+          </div>
+        </template>
+      </section>
+
+      <!-- ── 粉丝 ────────────────────────── -->
+      <section v-else-if="profileTab === 'followers'" class="ik-profile-section">
+        <template v-if="followerLoading && !followerUsers.length">
+          <div v-for="n in 4" :key="n" class="ik-follow-skel">
+            <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1">
+              <div class="ik-skel" style="width:120px;height:14px;border-radius:3px"></div>
+              <div class="ik-skel" style="width:60px;height:12px;border-radius:3px"></div>
+            </div>
+          </div>
+        </template>
+        <div v-else-if="!followerUsers.length" class="ik-article-grid__empty">
+          暂无粉丝
+        </div>
+        <template v-else>
+          <div
+            v-for="user in followerUsers"
+            :key="user.documentId"
+            class="ik-follow-item"
+            @click="navigateTo(`/profile/${user.documentId}`)"
+          >
+            <img
+              :src="user.avatar || '/images/default-avatar.webp'"
+              :alt="user.name || ''"
+              class="ik-follow-item__avatar"
+              @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+            />
+            <div class="ik-follow-item__info">
+              <span class="ik-follow-item__name">{{ user.name || user.username || '匿名用户' }}</span>
+              <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
+            </div>
+          </div>
+        </template>
       </section>
 
       </div><!-- /.ik-aframe__content -->
@@ -1143,6 +1250,58 @@ onBeforeUnmount(() => {
 }
 .ik-load-more:hover { background: #1a1a1a; }
 .ik-load-more:disabled { opacity: 0.5; cursor: default; }
+
+/* ── 关注/粉丝列表项 ── */
+.ik-follow-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 160ms ease;
+}
+.ik-follow-item:last-child { border-bottom: none; }
+.ik-follow-item:hover { background: rgba(255, 255, 255, 0.04); }
+
+.ik-follow-item__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.ik-follow-item__info {
+  min-width: 0;
+  flex: 1;
+}
+
+.ik-follow-item__name {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ik-follow-item__username {
+  display: block;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ik-follow-skel {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+}
 
 @keyframes ik-spin {
   from { transform: rotate(0deg); }

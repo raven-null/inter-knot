@@ -147,6 +147,7 @@ async function dispatch(req: Request): Promise<Response> {
     case "follows": {
       if (sub === "toggle" && isPost(req)) return interactionRoutes.toggleFollow(req);
       if (sub === "check" && isGet(req)) return interactionRoutes.checkFollows(req);
+      if (s.length >= 2 && isGet(req)) return interactionRoutes.listFollows(req);
       return error(404, "接口不存在");
     }
     case "user-blocks": {
