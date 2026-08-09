@@ -1384,7 +1384,7 @@ onBeforeUnmount(() => {
                         v-html="bodyHtml"
                       ></div>
                       <p v-else-if="!post.externalVideos?.length" class="ik-dialog__content" style="color: #808080">
-                        啥都木有¯\(°_o)/¯
+                        这里空空如也～
                       </p>
                       <div v-if="hasCovers && post.externalVideos?.length" class="ik-dialog__videos">
                         <BilibiliPlayer
@@ -1411,7 +1411,7 @@ onBeforeUnmount(() => {
                           </div>
                         </div>
                       </div>
-                      <div v-else-if="showCommentsEmpty" class="ik-empty" style="padding: 40px 0">啥都木有¯\(°_o)/¯</div>
+                      <div v-else-if="showCommentsEmpty" class="ik-empty" style="padding: 40px 0">这里空空如也～</div>
                       <template v-if="commentsVisible">
                         <CommentItem
                           v-for="(comment, idx) in comments"

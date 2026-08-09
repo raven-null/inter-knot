@@ -1040,7 +1040,7 @@ onBeforeUnmount(() => {
           <div ref="loadMoreSentinelRef" class="ik-load-more-sentinel">
             <div v-if="loadingMore || !hasNextPage" class="ik-scroll-footer">
               <img v-if="loadingMore" class="ik-scroll-gif" src="/images/Bangboo.gif" alt="加载中" />
-              <span v-else class="ik-meta">已经到底啦 [ O_X ] /</span>
+              <span v-else class="ik-meta">已经到底啦～</span>
             </div>
           </div>
         </div>
