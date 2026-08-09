@@ -196,7 +196,6 @@ watch(
                   :style="{ width: `${userLevelView.progressPercent}%` }"
                 ></span>
               </span>
-              <span class="ik-header-user__level-num">Lv.{{ userLevelView.level }}</span>
             </span>
           </span>
         </button>
@@ -209,9 +208,7 @@ watch(
           aria-label="等级详情"
           @click="navigateTo('/level')"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
+          Lv.{{ userLevelView.level }}
         </button>
 
         <!-- 移动端登录后显示头像（替代 logo） -->
@@ -1059,35 +1056,31 @@ watch(
   transition: width 0.3s ease;
 }
 
-.ik-header-user__level-num {
-  font-size: 11px;
-  font-weight: 800;
-  font-style: italic;
-  color: #BFFF09;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-/* 桌面端等级入口小按钮 */
+/* 桌面端等级入口：Lv 徽章（点击进等级页） */
 .ik-header-level-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
+  min-width: 44px;
+  height: 24px;
+  padding: 0 8px;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.6);
+  background: linear-gradient(135deg, #4661fd 0%, #10bff0 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  font-style: italic;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   cursor: pointer;
   flex-shrink: 0;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .ik-header-level-link:hover {
-  background: rgba(191, 255, 9, 0.15);
-  color: #BFFF09;
+  filter: brightness(1.15);
+  transform: translateY(-1px);
 }
 
 /* 移动端登录后头像（替代 logo） */
