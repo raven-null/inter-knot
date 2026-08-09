@@ -177,10 +177,12 @@ const coverPayload = computed(() => {
   return imgs.map((i) => i.id);
 });
 
-const MAX_EXTERNAL_VIDEOS = 1;
+const MAX_EXTERNAL_VIDEOS = 9;
 const BVID_RE = /^BV[0-9A-Za-z]{10}$/;
 const AVID_RE = /^(?:av)?(\d+)$/i;
-const BILIBILI_URL_RE = /(?:bilibili\.com\/video\/(BV[0-9A-Za-z]{10})|bilibili\.com\/video\/(?:av)?(\d+))/i;
+// 支持 bilibili.com/video/BV..、bilibili.com/video/av123、b23.tv/xxx（短链）、
+// 以及 m.bilibili.com / www.bilibili.com 等带任意前后缀的链接。
+const BILIBILI_URL_RE = /(?:bilibili\.com\/(?:video\/|s\/video\/)?(BV[0-9A-Za-z]{10})|bilibili\.com\/video\/(?:av)?(\d+)|b23\.tv\/[0-9A-Za-z]+)/i;
 
 function buildBilibiliEmbedUrl(
   bvid: string | null | undefined,
@@ -201,13 +203,28 @@ function buildBilibiliEmbedUrl(
   return `https://player.bilibili.com/player.html?${params.toString()}`;
 }
 
-function parseBilibiliVideo(input: string): ExternalVideo | null {
-  const raw = input.trim();
+async function parseBilibiliVideo(input: string): Promise<ExternalVideo | null> {
+  let raw = input.trim();
   if (!raw) return null;
 
   let bvid: string | undefined;
   let aid: number | undefined;
   let p: number | undefined;
+
+  // b23.tv 短链：跟随重定向拿到真实链接后再解析 BV
+  if (/^https?:\/\/b23\.tv\//i.test(raw) || /^b23\.tv\//i.test(raw)) {
+    try {
+      const full = raw.startsWith("http") ? raw : `https://${raw}`;
+      const res = await fetch(full, {
+        method: "HEAD",
+        redirect: "follow",
+        credentials: "omit",
+      });
+      raw = res.url || raw;
+    } catch {
+      /* 短链解析失败则按原始输入继续 */
+    }
+  }
 
   const urlMatch = raw.match(BILIBILI_URL_RE);
   if (urlMatch) {
@@ -247,7 +264,7 @@ function parseBilibiliVideo(input: string): ExternalVideo | null {
 }
 
 async function onVideoDialogConfirm(raw: string) {
-  const video = parseBilibiliVideo(raw);
+  const video = await parseBilibiliVideo(raw);
   if (!video) {
     message.error("无法识别该 B 站视频链接，请检查 BV 号或链接格式");
     return;
@@ -257,21 +274,24 @@ async function onVideoDialogConfirm(raw: string) {
     return;
   }
 
-  const info = await api.getBilibiliInfo(video.bvid || undefined, video.aid || undefined);
-  if (!info?.pic) {
-    message.error("无法获取该 B 站视频信息，请检查 BV 号或链接是否有效");
-    return;
+  // 尝试拉取视频信息（标题/封面/cid）；失败时仍允许以 bvid 播放
+  let info: import("~/types/entities").BilibiliVideoInfo | null = null;
+  try {
+    info = await api.getBilibiliInfo(video.bvid || undefined, video.aid || undefined);
+  } catch {
+    info = null;
   }
+  if (info?.pic) {
+    video.coverUrl = info.pic;
+  }
+  if (info?.title) video.title = info.title;
+  if (typeof info?.duration === 'number') video.duration = info.duration;
 
   const targetP = video.p && video.p > 0 ? video.p : 1;
-  const pageInfo = info.pages?.find((page) => page.page === targetP);
-  const cid = pageInfo?.cid ?? info.cid;
-
+  const pageInfo = info?.pages?.find((page) => page.page === targetP);
+  const cid = pageInfo?.cid ?? info?.cid;
   video.cid = typeof cid === 'number' ? cid : null;
   video.embedUrl = buildBilibiliEmbedUrl(video.bvid, video.aid, video.cid, video.p);
-  video.coverUrl = info.pic;
-  if (info.title) video.title = info.title;
-  if (typeof info.duration === 'number') video.duration = info.duration;
 
   externalVideos.value.push(video);
   isVideoDialogVisible.value = false;

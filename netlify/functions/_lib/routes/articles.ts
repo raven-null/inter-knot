@@ -471,8 +471,57 @@ export async function triple(req: Request): Promise<Response> {
   });
 }
 
-export async function bilibiliInfo(): Promise<Response> {
-  return ok(null);
+export async function bilibiliInfo(req: Request): Promise<Response> {
+  const qp = queryParams(req);
+  const bvid = qp.get("bvid") || "";
+  const aid = qp.get("aid") || "";
+
+  if (!bvid && !aid) return ok(null);
+
+  // 通过 B 站公开接口按 bvid / aid 查询视频信息（标题、封面、分 P、cid 等）。
+  // 仅使用公开 view API，无需登录；失败时返回 null，前端回退为仅 bvid 播放。
+  try {
+    const params = new URLSearchParams();
+    if (bvid) params.set("bvid", bvid);
+    if (aid) params.set("aid", aid);
+    const res = await fetch(`https://api.bilibili.com/x/web-interface/view?${params.toString()}`, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        Referer: "https://www.bilibili.com/",
+      },
+    });
+    if (!res.ok) return ok(null);
+    const body = (await res.json()) as { code?: number; data?: Record<string, unknown> };
+    if (body.code !== 0 || !body.data) return ok(null);
+    const d = body.data;
+    const pages = Array.isArray(d.pages)
+      ? (d.pages as Array<Record<string, unknown>>).map((p) => ({
+          cid: Number(p.cid || 0),
+          page: Number(p.page || 1),
+          part: typeof p.part === "string" ? p.part : undefined,
+          duration: typeof p.duration === "number" ? p.duration : undefined,
+        }))
+      : undefined;
+    return ok({
+      bvid: typeof d.bvid === "string" ? d.bvid : undefined,
+      aid: typeof d.aid === "number" ? d.aid : undefined,
+      title: typeof d.title === "string" ? d.title : undefined,
+      pic: typeof d.pic === "string" ? d.pic : undefined,
+      duration: typeof d.duration === "number" ? d.duration : undefined,
+      cid: typeof d.cid === "number" ? d.cid : undefined,
+      videos: typeof d.videos === "number" ? d.videos : undefined,
+      pages,
+      owner:
+        d.owner && typeof d.owner === "object"
+          ? {
+              name: (d.owner as Record<string, unknown>).name as string | undefined,
+              mid: (d.owner as Record<string, unknown>).mid as number | undefined,
+            }
+          : undefined,
+    });
+  } catch {
+    return ok(null);
+  }
 }
 
 export async function markReadBatch(req: Request): Promise<Response> {

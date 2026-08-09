@@ -92,7 +92,7 @@ async function dispatch(req: Request): Promise<Response> {
       if (sub === "search" && isGet(req)) return articleRoutes.list(req);
       if (sub === "suggest" && isGet(req)) return articleRoutes.suggest(req);
       if (sub === "triple" && isPost(req)) return articleRoutes.triple(req);
-      if (sub === "bilibili-info" && isGet(req)) return articleRoutes.bilibiliInfo();
+      if (sub === "bilibili-info" && isGet(req)) return articleRoutes.bilibiliInfo(req);
       if (sub === "deleted-since" && isGet(req)) return articleRoutes.deletedSince(req);
       if (sub === "my" && sub2 === "drafts" && isGet(req)) return articleRoutes.myDrafts(req);
       if (sub === "my" && sub2 === "detail" && isGet(req)) return articleRoutes.myDraftDetail(req);
