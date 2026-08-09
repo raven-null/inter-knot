@@ -96,8 +96,16 @@ export async function presencePing(req: Request): Promise<Response> {
 
   const sessions = [...sessionMap.values()];
 
+  // 在线用户按账号去重：同一账号多设备/多标签页只计 1 人（匿名会话不进入列表）。
+  const seenUsers = new Set<string>();
   const onlineUsers = sessions
-    .filter((s) => !!s.username)
+    .filter((s) => {
+      if (!s.username) return false;
+      const key = String(s.userId || s.username);
+      if (seenUsers.has(key)) return false;
+      seenUsers.add(key);
+      return true;
+    })
     .map((s) => ({
       username: String(s.username),
       name: String(s.name || s.username),
@@ -110,10 +118,17 @@ export async function presencePing(req: Request): Promise<Response> {
     }))
     .sort((a, b) => b.durationSeconds - a.durationSeconds);
 
+  // 在线人数与列表口径一致：只统计登录用户（匿名访客不计入显示人数）。
+  const online = onlineUsers.length;
+  const avatars = sessions
+    .filter((s) => !!s.avatar)
+    .map((s) => String(s.avatar || DEFAULT_AVATAR))
+    .slice(0, 5);
+
   return json({
     data: {
-      online: sessions.length,
-      avatars: sessions.map((s) => String(s.avatar || DEFAULT_AVATAR)).slice(0, 5),
+      online,
+      avatars,
       users: onlineUsers,
     },
   });
