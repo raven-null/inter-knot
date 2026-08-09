@@ -8,8 +8,13 @@ export const DEFAULT_AVATAR = "/images/default-avatar.webp";
 export type Doc = Record<string, unknown>;
 
 /**
- * 把帖子/评论文档里的 author_level / author_exp 用用户文档的**实时**等级覆盖，
- * 保证任何页面显示的作者等级与用户当前等级一致（后台改级 / 经验累计后旧帖子也随之更新）。
+ * 把帖子/评论文档里的作者展示信息用用户文档的**实时**数据覆盖：
+ * - `author_level` / `author_exp`：保证任何页面显示的作者等级与用户当前等级一致
+ *   （后台改级 / 经验累计后旧帖子也随之更新）。
+ * - `author_name` / `author_username` / `author_avatar_url`：用户改名 / 换头像后，
+ *   推荐页等旧帖卡片的作者昵称 / 头像也随之更新，无需重写整条 feed。
+ *
+ * 匿名帖子（is_anonymous）保持原样，避免泄露真实身份。
  */
 export async function hydrateAuthorLevels(docs: Doc[]): Promise<Doc[]> {
   const ids = [...new Set(docs.map((d) => String(d.author_document_id || "")).filter(Boolean))];
@@ -19,8 +24,15 @@ export async function hydrateAuthorLevels(docs: Doc[]): Promise<Doc[]> {
   const map = new Map(users);
   return docs.map((d) => {
     const u = map.get(String(d.author_document_id || ""));
-    if (!u) return d;
-    return { ...d, author_level: u.level ?? 1, author_exp: u.exp ?? 0 };
+    if (!u || d.is_anonymous === true) return d;
+    return {
+      ...d,
+      author_level: u.level ?? 1,
+      author_exp: u.exp ?? 0,
+      author_name: u.name ? String(u.name) : u.username ? String(u.username) : d.author_name,
+      author_username: u.username ? String(u.username) : d.author_username,
+      author_avatar_url: u.avatar_url ? String(u.avatar_url) : d.author_avatar_url,
+    };
   });
 }
 

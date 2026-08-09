@@ -1748,6 +1748,7 @@ export function useApi() {
     });
     invalidate(["me", "business-cards"]);
     invalidate(["profile"]);
+    invalidate(["articles"]);
   };
 
   const uploadCustomCard = async (
@@ -1764,6 +1765,7 @@ export function useApi() {
     const card = toBusinessCard(data, apiBaseUrl);
     invalidate(["me", "business-cards"]);
     invalidate(["profile"]);
+    invalidate(["articles"]);
     return card as BusinessCard;
   };
 
@@ -1799,6 +1801,7 @@ export function useApi() {
     invalidate(qk.me.avatars);
     invalidate(qk.me.self);
     invalidate(["profile"]);
+    invalidate(["articles"]);
   };
 
   const uploadCustomAvatar = async (
@@ -1816,6 +1819,7 @@ export function useApi() {
     invalidate(qk.me.avatars);
     invalidate(qk.me.self);
     invalidate(["profile"]);
+    invalidate(["articles"]);
     return { url: normalizeMediaUrl(avatar?.url, apiBaseUrl) };
   };
 
@@ -1828,6 +1832,7 @@ export function useApi() {
     invalidate(qk.me.self);
     invalidate(qk.me.profile);
     invalidate(["profile"]);
+    invalidate(["articles"]);
     return { name: String(data.name || name) };
   };
 
@@ -1840,6 +1845,7 @@ export function useApi() {
     invalidate(qk.me.self);
     invalidate(qk.me.profile);
     invalidate(["profile"]);
+    invalidate(["articles"]);
     return { bio: String(data.bio ?? bio) };
   };
 
