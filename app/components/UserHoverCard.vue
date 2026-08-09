@@ -2,6 +2,8 @@
 import type { Profile } from "~/types/entities";
 import type { ComponentPublicInstance } from "vue";
 import { useHoverCapable } from "~/composables/useHoverCapable";
+import { useMessage } from "zenless-ui";
+import { resolveErrorMessage } from "~/utils/api-error";
 
 const { settings: siteSettings } = useSiteSettings();
 const showLevel = computed(() => siteSettings.value.showLevel === true);
@@ -16,6 +18,9 @@ const props = withDefaults(defineProps<{
 const hoverCapable = useHoverCapable();
 // hover 用不到时（移动端/窄视口）不实例化 api，避免为每个评论/回复创建一次 cachedRead 闭包。
 const api = hoverCapable.value ? useApi() : null;
+const auth = hoverCapable.value ? useAuthStore() : null;
+const loginDialog = hoverCapable.value ? useLoginDialog() : null;
+const message = hoverCapable.value ? useMessage() : null;
 
 const triggerRef = ref<HTMLElement | ComponentPublicInstance | null>(null);
 const cardRef = ref<HTMLElement | null>(null);
@@ -54,6 +59,42 @@ const fetchProfile = async (id: string) => {
     fetchError.value = true;
   } finally {
     loading.value = false;
+  }
+};
+
+/** 是否可关注：非自己、未隐藏、未拉黑。 */
+const canFollow = computed<boolean>(() => {
+  const p = profile.value;
+  if (!p) return false;
+  if (p.isSelf) return false;
+  if (p.profileHidden) return false;
+  if (p.isBlockedByMe) return false;
+  if (p.isAiAgent) return false;
+  return true;
+});
+
+const followLoading = ref(false);
+
+const toggleFollow = async () => {
+  const p = profile.value;
+  if (!api || !p?.documentId || !canFollow.value || followLoading.value) return;
+  if (!auth?.isLogin) {
+    loginDialog?.open();
+    return;
+  }
+  followLoading.value = true;
+  try {
+    const result = await api.toggleFollow(p.documentId);
+    profile.value = {
+      ...p,
+      isFollowing: result.following,
+      followersCount: result.followersCount,
+    };
+    message?.success(result.following ? "已关注" : "已取消关注");
+  } catch (err) {
+    message?.error(resolveErrorMessage(err, "操作失败"));
+  } finally {
+    followLoading.value = false;
   }
 };
 
@@ -233,28 +274,38 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <!-- Avatar (overlapping banner) -->
+          <!-- Avatar + Name row (overlapping banner) -->
           <div class="ik-hovercard__avatar-row">
-            <div class="ik-hovercard__avatar-wrap" @click="goProfile">
-              <img
-                :src="profile.avatar || '/images/default-avatar.webp'"
-                alt=""
-                class="ik-hovercard__avatar"
-                @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
-              />
-              <span v-if="showLevel && profile.level" class="ik-hovercard__level">
-                {{ profile.level }}
-              </span>
+            <div class="ik-hovercard__user">
+              <div class="ik-hovercard__avatar-wrap" @click="goProfile">
+                <img
+                  :src="profile.avatar || '/images/default-avatar.webp'"
+                  alt=""
+                  class="ik-hovercard__avatar"
+                  @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+                />
+                <span v-if="showLevel && profile.level" class="ik-hovercard__level">
+                  {{ profile.level }}
+                </span>
+              </div>
+              <div class="ik-hovercard__info">
+                <div class="ik-hovercard__name-row" @click="goProfile">
+                  <span class="ik-hovercard__name">{{ profile.name || profile.login || "匿名用户" }}</span>
+                </div>
+                <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
+                <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
+              </div>
             </div>
-          </div>
-
-          <!-- Info -->
-          <div class="ik-hovercard__body">
-            <div class="ik-hovercard__name-row" @click="goProfile">
-              <span class="ik-hovercard__name">{{ profile.name || profile.login || "匿名用户" }}</span>
-            </div>
-            <p v-if="profile.bio" class="ik-hovercard__bio">{{ profile.bio }}</p>
-            <p v-else class="ik-hovercard__bio ik-hovercard__bio--empty">这个人很神秘，什么都没有留下。</p>
+            <button
+              v-if="canFollow"
+              type="button"
+              class="ik-hovercard__follow"
+              :class="{ 'is-following': profile.isFollowing }"
+              :disabled="followLoading"
+              @click.stop="toggleFollow"
+            >
+              {{ followLoading ? '…' : profile.isFollowing ? '已关注' : '关注' }}
+            </button>
           </div>
 
           <div v-if="profile.stats" class="ik-hovercard__stats">
@@ -360,12 +411,24 @@ onBeforeUnmount(() => {
   padding: 0 16px;
   margin-top: -26px;
   z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.ik-hovercard__user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .ik-hovercard__avatar-wrap {
   position: relative;
   display: inline-block;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .ik-hovercard__avatar {
@@ -396,9 +459,9 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-/* ── Body (name + bio) ────────────────────────── */
-.ik-hovercard__body {
-  padding: 8px 16px 4px;
+.ik-hovercard__info {
+  min-width: 0;
+  flex: 1;
 }
 
 .ik-hovercard__name-row {
@@ -432,8 +495,42 @@ onBeforeUnmount(() => {
 }
 
 .ik-hovercard__bio--empty {
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.ik-hovercard__follow {
+  flex-shrink: 0;
+  margin-top: 8px;
+  padding: 5px 14px;
+  border: 1px solid var(--ik-primary, #bfff09);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ik-primary, #bfff09);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.ik-hovercard__follow:hover {
+  background: rgba(191, 255, 9, 0.12);
+}
+
+.ik-hovercard__follow.is-following {
+  border-color: #555;
+  color: #bbb;
+}
+
+.ik-hovercard__follow.is-following:hover {
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.1);
+}
+
+.ik-hovercard__follow:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 /* ── Loading skeleton ─────────────────────────── */
