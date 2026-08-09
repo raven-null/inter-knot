@@ -1256,11 +1256,16 @@ const sending = ref(false);
 const sendError = ref<string | null>(null);
 /** DmComposer 实例（Phase 4 拆分）：自动增高/字数提示/Enter 发送已内聚到子组件 */
 const composerRef = ref<InstanceType<typeof DmComposer> | null>(null);
-const composerTextarea = computed((): HTMLTextAreaElement | null => {
-  const comp = composerRef.value as any;
-  if (!comp) return null;
-  // DOM 查询最可靠：DmComposer 根元素内只有一个 textarea
-  return comp.$el?.querySelector?.("textarea") ?? null;
+const composerTextarea = ref<HTMLTextAreaElement | null>(null);
+// DmComposer 挂载后通过 $el 查询 textarea，同步到 plain ref
+watch(composerRef, (comp) => {
+  if (comp) {
+    nextTick(() => {
+      composerTextarea.value = (comp as any).$el?.querySelector?.("textarea") ?? null;
+    });
+  } else {
+    composerTextarea.value = null;
+  }
 });
 
 // ── @ 提及 ───────────────────────────────────────
