@@ -46,6 +46,8 @@ export async function security(req: Request): Promise<Response> {
     provider: u.email ? "local" : "mihoyo",
     hasBoundEmail: Boolean(u.email),
     hasPassword: Boolean(u.password_hash),
+    // 米游社扫码登录生成的密钥，供账号页展示/复制
+    secretKey: u.secret_key ? String(u.secret_key) : null,
   });
 }
 

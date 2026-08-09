@@ -40,6 +40,7 @@ function inferSecurityFromUser(email?: string | null): AccountSecurity {
     provider: isPlaceholder ? "mihoyo" : "local",
     hasBoundEmail: !!safeEmail && !isPlaceholder,
     hasPassword: !!safeEmail && !isPlaceholder,
+    secretKey: null,
   };
 }
 

@@ -5,8 +5,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   EnvelopeIcon,
+  KeyIcon,
   LinkIcon,
-  LockClosedIcon,
   NoSymbolIcon,
   UserIcon,
 } from "@heroicons/vue/24/outline";
@@ -34,7 +34,6 @@ const {
   ensureBlocked,
   loadBlocked,
   setSecurity,
-  setPasswordDone,
   setMihoyoBinding,
   unbindMihoyo: unbindMihoyoAction,
   unblockUser: unblockUserAction,
@@ -48,7 +47,7 @@ if (import.meta.client && !auth.isLogin) {
 
 // ── 页面视图 ─────────────────────────────────
 type AccountMenuKey = "account" | "mihoyo" | "blacklist";
-type AccountSubView = "" | "email" | "password";
+type AccountSubView = "" | "email";
 const activeMenuKey = ref<AccountMenuKey>("account");
 const activeSubView = ref<AccountSubView>("");
 const panelTransitionName = ref("ik-ac-fade");
@@ -158,11 +157,6 @@ const bindEmailInput = ref("");
 const bindCodeInput = ref("");
 const bindEmailLoading = ref(false);
 
-const setPasswordCodeInput = ref("");
-const setPasswordInput = ref("");
-const setPasswordConfirmInput = ref("");
-const setPasswordLoading = ref(false);
-
 const codeCooldown = ref(0);
 let codeCooldownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -202,12 +196,28 @@ const openEmail = () => {
   bindCodeInput.value = "";
 };
 
-const openPassword = () => {
-  panelTransitionName.value = "ik-ac-slide-right";
-  activeSubView.value = "password";
-  setPasswordCodeInput.value = "";
-  setPasswordInput.value = "";
-  setPasswordConfirmInput.value = "";
+// ── 登录密钥展示 ─────────────────────────────
+const secretKeyRevealed = ref(false);
+const secretKeyCopied = ref(false);
+
+const toggleSecretKey = () => {
+  if (!security.value?.secretKey) return;
+  secretKeyRevealed.value = !secretKeyRevealed.value;
+};
+
+const copySecretKey = async () => {
+  const key = security.value?.secretKey;
+  if (!key) return;
+  try {
+    await navigator.clipboard.writeText(key);
+    secretKeyCopied.value = true;
+    message.success("密钥已复制到剪贴板");
+    setTimeout(() => {
+      secretKeyCopied.value = false;
+    }, 2000);
+  } catch {
+    message.error("复制失败，请手动复制");
+  }
 };
 
 const goBack = () => {
@@ -217,9 +227,6 @@ const goBack = () => {
   activeSubView.value = "";
   bindEmailInput.value = "";
   bindCodeInput.value = "";
-  setPasswordCodeInput.value = "";
-  setPasswordInput.value = "";
-  setPasswordConfirmInput.value = "";
 };
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -247,12 +254,6 @@ const clearBindEmailForm = () => {
   bindCodeInput.value = "";
 };
 
-const clearSetPasswordForm = () => {
-  setPasswordCodeInput.value = "";
-  setPasswordInput.value = "";
-  setPasswordConfirmInput.value = "";
-};
-
 const confirmBindEmail = async () => {
   const email = bindEmailInput.value.trim();
   const code = bindCodeInput.value.trim();
@@ -272,14 +273,6 @@ const confirmBindEmail = async () => {
   } finally {
     bindEmailLoading.value = false;
   }
-};
-
-const sendSetPasswordCode = async () => {
-  message.warning("密码设置功能已移除，请使用米游社扫码登录");
-};
-
-const confirmSetPassword = async () => {
-  message.warning("密码设置功能已移除，请使用米游社扫码登录");
 };
 
 // ── 黑名单管理 ─────────────────────────────
@@ -359,16 +352,23 @@ useHead({ title: "账号中心" });
                   <ChevronRightIcon aria-hidden="true" />
                 </span>
               </button>
-              <button class="ik-ac-row" @click="openPassword">
+              <button
+                class="ik-ac-row ik-ac-row--key"
+                @click="toggleSecretKey"
+                :disabled="!security?.secretKey"
+              >
                 <span class="ik-ac-row__label">
-                  <LockClosedIcon class="ik-ac-row__icon" aria-hidden="true" />
-                  密码
+                  <KeyIcon class="ik-ac-row__icon" aria-hidden="true" />
+                  登录密钥
                 </span>
                 <span
                   class="ik-ac-row__value"
-                  :class="{ 'is-empty': !security?.hasPassword && !securityLoading }"
+                  :class="{ 'is-empty': !security?.secretKey && !securityLoading }"
                 >
-                  {{ securityLoading ? '加载中' : security?.hasPassword ? '已设置' : '未设置' }}
+                  {{ securityLoading ? '加载中' : security?.secretKey ? (secretKeyRevealed ? security.secretKey : '•••• •••• •••• ••••') : '未生成' }}
+                </span>
+                <span v-if="security?.secretKey" class="ik-ac-row__keycopy" @click.stop="copySecretKey">
+                  {{ secretKeyCopied ? '已复制' : '复制' }}
                 </span>
                 <span class="ik-ac-row__chevron" aria-hidden="true">
                   <ChevronRightIcon aria-hidden="true" />
@@ -438,16 +438,23 @@ useHead({ title: "账号中心" });
                   </span>
                 </button>
 
-                <button class="ik-ac-row" @click="openPassword">
+<button
+                  class="ik-ac-row ik-ac-row--key"
+                  @click="toggleSecretKey"
+                  :disabled="!security?.secretKey"
+                >
                   <span class="ik-ac-row__label">
-                    <LockClosedIcon class="ik-ac-row__icon" aria-hidden="true" />
-                    密码
+                    <KeyIcon class="ik-ac-row__icon" aria-hidden="true" />
+                    登录密钥
                   </span>
                   <span
                     class="ik-ac-row__value"
-                    :class="{ 'is-empty': !security?.hasPassword && !securityLoading }"
+                    :class="{ 'is-empty': !security?.secretKey && !securityLoading }"
                   >
-                    {{ securityLoading ? '加载中' : security?.hasPassword ? '已设置' : '未设置' }}
+                    {{ securityLoading ? '加载中' : security?.secretKey ? (secretKeyRevealed ? security.secretKey : '•••• •••• •••• ••••') : '未生成' }}
+                  </span>
+                  <span v-if="security?.secretKey" class="ik-ac-row__keycopy" @click.stop="copySecretKey">
+                    {{ secretKeyCopied ? '已复制' : '复制' }}
                   </span>
                   <span class="ik-ac-row__chevron" aria-hidden="true">
                     <ChevronRightIcon aria-hidden="true" />
@@ -504,76 +511,6 @@ useHead({ title: "账号中心" });
                       :icon="{ success: '#00cc0d' }"
                       :disabled="bindEmailLoading || !bindEmailInput.trim() || !bindCodeInput.trim()"
                       @click="confirmBindEmail"
-                    >
-                      确认
-                    </z-button>
-                  </div>
-                </template>
-              </div>
-            </template>
-
-            <template v-else-if="activeSubView === 'password'">
-              <header class="ik-ac-detail-header ik-ac-detail-header--stacked">
-                <button class="ik-ac-back" aria-label="返回" @click="goBack">
-                  <ChevronLeftIcon aria-hidden="true" />
-                </button>
-                <h2 class="ik-ac-detail-title">密码</h2>
-                <div class="ik-ac-detail-spacer" />
-              </header>
-
-              <div class="ik-ac-detail-body ik-ac-detail-body--pushed">
-                <template v-if="securityLoading">
-                  <p class="ik-ac-loading">加载中…</p>
-                </template>
-                <template v-else-if="!security?.hasBoundEmail">
-                  <p class="ik-ac-empty">请先绑定邮箱后再设置密码。</p>
-                  <z-button class="ik-ac-return-btn" @click="goBack">返回</z-button>
-                </template>
-                <template v-else>
-                  <p class="ik-ac-security-send-hint">
-                    验证码将发送至 {{ security.email }}
-                  </p>
-                  <z-form class="ik-ac-form" label-position="top">
-                    <z-form-item label="新密码">
-                      <z-input
-                        v-model="setPasswordInput"
-                        type="password"
-                        placeholder="新密码（至少 6 位）"
-                      />
-                    </z-form-item>
-                    <z-form-item label="确认密码">
-                      <z-input
-                        v-model="setPasswordConfirmInput"
-                        type="password"
-                        placeholder="确认新密码"
-                      />
-                    </z-form-item>
-                    <z-form-item label="验证码">
-                      <z-input v-model="setPasswordCodeInput" placeholder="请输入验证码">
-                        <template #append>
-                          <z-button
-                            class="ik-ac-code-btn"
-                            :disabled="codeCooldown > 0 || setPasswordLoading"
-                            @click="sendSetPasswordCode"
-                          >
-                            {{ setPasswordLoading ? '发送中' : codeCooldown > 0 ? `${codeCooldown}s` : '发送' }}
-                          </z-button>
-                        </template>
-                      </z-input>
-                    </z-form-item>
-                  </z-form>
-                  <div class="ik-ac-form-actions">
-                    <z-button
-                      :icon="{ error: '#ff4444' }"
-                      :disabled="setPasswordLoading"
-                      @click="clearSetPasswordForm"
-                    >
-                      清除
-                    </z-button>
-                    <z-button
-                      :icon="{ success: '#00cc0d' }"
-                      :disabled="setPasswordLoading || !setPasswordCodeInput.trim() || !setPasswordInput || !setPasswordConfirmInput"
-                      @click="confirmSetPassword"
                     >
                       确认
                     </z-button>
@@ -935,6 +872,29 @@ useHead({ title: "账号中心" });
   display: block;
   width: 16px;
   height: 16px;
+}
+
+.ik-ac-row--key:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.ik-ac-row__keycopy {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1c1c1c;
+  color: #cfcfcf;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.ik-ac-row__keycopy:hover {
+  background: #2a2a2a;
+  color: #fff;
 }
 
 /* ── Detail view ── */

@@ -21,6 +21,8 @@ export interface AccountSecurity {
   provider: "mihoyo" | "local";
   hasBoundEmail: boolean;
   hasPassword: boolean;
+  /** 米游社扫码登录生成的登录密钥（仅当前账号可见）。 */
+  secretKey?: string | null;
 }
 
 /** 平台 AI 角色卡（GET /api/agent/characters） */

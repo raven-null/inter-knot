@@ -1887,6 +1887,7 @@ export function useApi() {
       provider: data.provider === "local" ? "local" : "mihoyo",
       hasBoundEmail: data.hasBoundEmail === true,
       hasPassword: data.hasPassword === true,
+      secretKey: data.secretKey ? String(data.secretKey) : null,
     };
   };
 
