@@ -222,6 +222,7 @@ watch(mediaItems, () => {
 .ik-media-carousel {
   position: relative;
   width: 100%;
+  max-height: 60vh;
   border-radius: 12px;
   border: 4px solid #313132;
   overflow: hidden;
