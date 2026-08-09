@@ -43,8 +43,8 @@ const profileId = computed(() => String(route.params.id || ""));
 
 const PROFILE_ARTICLES_MAX = 6;
 
-/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读（关注/粉丝通过统计区域触发） */
-const profileTab = ref<"works" | "favorites" | "history" | "following" | "followers">("works");
+/** 个人主页内容区 Tab：发布作品 / 收藏夹 / 历史阅读 */
+const profileTab = ref<"works" | "favorites" | "history">("works");
 
 const profileTabs = computed(() => {
   const tabs: Array<{ key: "works" | "favorites" | "history"; label: string }> = [
@@ -116,8 +116,9 @@ const followingUsers = ref<any[]>([]);
 const followingLoading = ref(false);
 
 const loadFollowing = async () => {
-  if (followingLoading.value || followingUsers.value.length > 0) return;
+  if (followingLoading.value) return;
   followingLoading.value = true;
+  followingUsers.value = [];
   try {
     followingUsers.value = await api.getFollowing(profileId.value);
   } catch (err) {
@@ -131,8 +132,9 @@ const followerUsers = ref<any[]>([]);
 const followerLoading = ref(false);
 
 const loadFollowers = async () => {
-  if (followerLoading.value || followerUsers.value.length > 0) return;
+  if (followerLoading.value) return;
   followerLoading.value = true;
+  followerUsers.value = [];
   try {
     followerUsers.value = await api.getFollowers(profileId.value);
   } catch (err) {
@@ -141,6 +143,30 @@ const loadFollowers = async () => {
     followerLoading.value = false;
   }
 };
+
+// 关注/粉丝弹窗状态
+const followModalType = ref<"following" | "followers" | null>(null);
+
+const showFollowing = () => {
+  followModalType.value = "following";
+  void loadFollowing();
+};
+const showFollowers = () => {
+  followModalType.value = "followers";
+  void loadFollowers();
+};
+const closeFollowModal = () => {
+  followModalType.value = null;
+};
+const followModalTitle = computed(() =>
+  followModalType.value === "following" ? "关注" : "粉丝",
+);
+const followModalUsers = computed(() =>
+  followModalType.value === "following" ? followingUsers.value : followerUsers.value,
+);
+const followModalLoading = computed(() =>
+  followModalType.value === "following" ? followingLoading.value : followerLoading.value,
+);
 
 const formatNumber = (n: number) => {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
@@ -405,16 +431,6 @@ onMounted(async () => {
     void loadProfileHistory();
   }
 });
-
-// 点击统计区域的「关注」/「粉丝」触发：加载列表并切换到对应视图
-const showFollowing = () => {
-  profileTab.value = "following";
-  void loadFollowing();
-};
-const showFollowers = () => {
-  profileTab.value = "followers";
-  void loadFollowers();
-};
 
 // 统计信息（浏览/评论/点赞/关注/粉丝）定期刷新：避免长时间停留时数据陈旧。
 const PROFILE_REFRESH_MS = 15_000;
@@ -750,84 +766,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- ── 关注 ────────────────────────── -->
-      <section v-else-if="profileTab === 'following'" class="ik-profile-section">
-        <div class="ik-profile-section__header">
-          <button class="ik-profile-back" @click="profileTab = 'works'">← 返回</button>
-          <span class="ik-profile-section__title">关注</span>
-        </div>
-        <template v-if="followingLoading && !followingUsers.length">
-          <div v-for="n in 4" :key="n" class="ik-follow-skel">
-            <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-              <div class="ik-skel" style="width:120px;height:14px;border-radius:3px"></div>
-              <div class="ik-skel" style="width:60px;height:12px;border-radius:3px"></div>
-            </div>
-          </div>
-        </template>
-        <div v-else-if="!followingUsers.length" class="ik-article-grid__empty">
-          暂无关注
-        </div>
-        <template v-else>
-          <div
-            v-for="user in followingUsers"
-            :key="user.documentId"
-            class="ik-follow-item"
-            @click="navigateTo(`/profile/${user.documentId}`)"
-          >
-            <img
-              :src="user.avatar || '/images/default-avatar.webp'"
-              :alt="user.name || ''"
-              class="ik-follow-item__avatar"
-              @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
-            />
-            <div class="ik-follow-item__info">
-              <span class="ik-follow-item__name">{{ user.name || user.username || '匿名用户' }}</span>
-              <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
-            </div>
-          </div>
-        </template>
-      </section>
-
-      <!-- ── 粉丝 ────────────────────────── -->
-      <section v-else-if="profileTab === 'followers'" class="ik-profile-section">
-        <div class="ik-profile-section__header">
-          <button class="ik-profile-back" @click="profileTab = 'works'">← 返回</button>
-          <span class="ik-profile-section__title">粉丝</span>
-        </div>
-        <template v-if="followerLoading && !followerUsers.length">
-          <div v-for="n in 4" :key="n" class="ik-follow-skel">
-            <div class="ik-skel" style="width:40px;height:40px;border-radius:999px;flex-shrink:0"></div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1">
-              <div class="ik-skel" style="width:120px;height:14px;border-radius:3px"></div>
-              <div class="ik-skel" style="width:60px;height:12px;border-radius:3px"></div>
-            </div>
-          </div>
-        </template>
-        <div v-else-if="!followerUsers.length" class="ik-article-grid__empty">
-          暂无粉丝
-        </div>
-        <template v-else>
-          <div
-            v-for="user in followerUsers"
-            :key="user.documentId"
-            class="ik-follow-item"
-            @click="navigateTo(`/profile/${user.documentId}`)"
-          >
-            <img
-              :src="user.avatar || '/images/default-avatar.webp'"
-              :alt="user.name || ''"
-              class="ik-follow-item__avatar"
-              @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
-            />
-            <div class="ik-follow-item__info">
-              <span class="ik-follow-item__name">{{ user.name || user.username || '匿名用户' }}</span>
-              <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
-            </div>
-          </div>
-        </template>
-      </section>
-
       </div><!-- /.ik-aframe__content -->
       </div><!-- /.ik-aframe -->
 
@@ -881,6 +819,56 @@ onBeforeUnmount(() => {
               @close="closeModal"
               @equipped="onCardEquipped"
             />
+          </Transition>
+        </Teleport>
+      </ClientOnly>
+
+      <!-- 关注 / 粉丝列表弹窗 -->
+      <ClientOnly>
+        <Teleport to="body">
+          <Transition name="ik-overlay" appear>
+            <div v-if="followModalType" class="ik-overlay" @mousedown.self="closeFollowModal">
+              <div class="ik-overlay__stripe" aria-hidden="true"></div>
+              <div class="ik-follow-modal" @click.stop>
+                <div class="ik-follow-modal__outer">
+                  <div class="ik-follow-modal__inner">
+                    <div class="ik-follow-modal__header">
+                      <span class="ik-follow-modal__title">{{ followModalTitle }}</span>
+                      <button class="ik-dialog__close" aria-label="关闭" @click="closeFollowModal">
+                        <img src="/images/close-btn.webp" alt="关闭" class="ik-dialog__close-img" draggable="false" />
+                      </button>
+                    </div>
+                    <div class="ik-follow-modal__body">
+                      <div v-if="followModalLoading && !followModalUsers.length" class="ik-follow-modal__empty">
+                        加载中…
+                      </div>
+                      <div v-else-if="!followModalUsers.length" class="ik-follow-modal__empty">
+                        {{ followModalType === 'following' ? '暂无关注' : '暂无粉丝' }}
+                      </div>
+                      <template v-else>
+                        <div
+                          v-for="user in followModalUsers"
+                          :key="user.documentId"
+                          class="ik-follow-item"
+                          @click="navigateTo(`/profile/${user.documentId}`); closeFollowModal()"
+                        >
+                          <img
+                            :src="user.avatar || '/images/default-avatar.webp'"
+                            :alt="user.name || ''"
+                            class="ik-follow-item__avatar"
+                            @error="($event.target as HTMLImageElement).src = '/images/default-avatar.webp'"
+                          />
+                          <div class="ik-follow-item__info">
+                            <span class="ik-follow-item__name">{{ user.name || user.username || '匿名用户' }}</span>
+                            <span v-if="user.username" class="ik-follow-item__username">@{{ user.username }}</span>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </Transition>
         </Teleport>
       </ClientOnly>
@@ -1319,6 +1307,61 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 14px;
   padding: 12px 16px;
+}
+
+/* ── 关注/粉丝列表弹窗 ── */
+.ik-follow-modal {
+  position: relative;
+  z-index: 1;
+  width: 400px;
+  max-width: 92%;
+  height: 60vh;
+  max-height: 80vh;
+}
+.ik-follow-modal__outer {
+  width: 100%;
+  height: 100%;
+  padding: 3px;
+  background: #2D2C2D;
+  border-radius: 18px 0 18px 18px;
+  overflow: hidden;
+}
+.ik-follow-modal__inner {
+  width: 100%;
+  height: 100%;
+  background: #141414;
+  border: 3px solid #000;
+  border-radius: 16px 0 16px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ik-follow-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 12px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: url("/images/tab-bg-point.webp") repeat, linear-gradient(180deg, #161616 0%, #080808 100%);
+  flex-shrink: 0;
+}
+.ik-follow-modal__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.ik-follow-modal__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.ik-follow-modal__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255,255,255,0.4);
+  font-size: 14px;
 }
 
 @keyframes ik-spin {
