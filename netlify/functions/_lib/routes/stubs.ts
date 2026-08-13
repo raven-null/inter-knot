@@ -3,25 +3,7 @@
 
 import { ok, json, readJson } from "../http";
 
-// ── 私信 / 敲敲（桩） ───────────────────────────────
-export function dmConversations(): Response {
-  return ok([]);
-}
-export function dmDirect(): Response {
-  return json({ data: null, isNew: false });
-}
-export function dmAiSession(): Response {
-  return json({ data: null, isNew: false });
-}
-export function dmReadAll(): Response {
-  return json({ success: true });
-}
-export function dmAiAction(): Response {
-  return json({ success: true });
-}
-export function dmSocketTicket(): Response {
-  return json({ ticket: "" });
-}
+// ── 敲敲（桩） ───────────────────────────────
 export function knockConversations(): Response {
   return ok([]);
 }
@@ -134,7 +116,4 @@ export async function presencePing(req: Request): Promise<Response> {
       users: onlineUsers,
     },
   });
-}
-export function agentCharacters(): Response {
-  return ok([]);
 }

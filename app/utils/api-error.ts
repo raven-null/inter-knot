@@ -8,7 +8,7 @@ const NETWORK_ERROR_PATTERNS = [
   "Load failed",
 ];
 
-export function normalizeApiError(error: unknown): ApiClientError {
+function normalizeApiError(error: unknown): ApiClientError {
   if (error instanceof Error) {
     return error as ApiClientError;
   }

@@ -23,8 +23,6 @@ export function isPublicEndpoint(path: string, method: string): boolean {
   );
 }
 
-export const isPublicGetEndpoint = isPublicEndpoint;
-
 export function shouldAttachToken(path: string, method: string, token: string): boolean {
   if (!token) return false;
   const upperMethod = method.toUpperCase();
