@@ -5,9 +5,17 @@
  * 1. 环境变量 GLM_API_KEY（Netlify 后台 Site settings → Environment variables，
  *    scope 需含 Functions）
  * 2. 内置 fallback key（保证开箱即用；生产环境建议更换为自己账号的 key）
+ *
+ * 注意：若 Netlify 后台配置了**过期/错误**的 GLM_API_KEY，它会覆盖内置有效
+ * 密钥导致 401「身份验证失败」。排查时先确认后台环境变量值。
  */
 const FALLBACK_GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
 export const getGlmApiKey = (): string => process.env.GLM_API_KEY || FALLBACK_GLM_API_KEY;
+
+/** 当前使用的密钥来源（诊断用）："env" | "builtin" */
+export function getGlmApiKeySource(): "env" | "builtin" {
+  return process.env.GLM_API_KEY ? "env" : "builtin";
+}
 
 export const GLM_MODEL = process.env.GLM_MODEL || "glm-4-flash";
 export const GLM_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
@@ -92,7 +100,19 @@ export async function generateGlmRaw(
     });
     if (!res.ok) {
       const text = (await res.text()).slice(0, 200);
-      throw new Error(`GLM HTTP ${res.status}: ${text}`);
+      // 401 身份验证失败：明确提示密钥来源，方便排查 Netlify 后台环境变量覆盖问题
+      if (res.status === 401) {
+        const src = getGlmApiKeySource();
+        console.error(
+          `[glm] 401 身份验证失败（密钥来源: ${src}）。` +
+            (src === "env"
+              ? "当前使用的是 Netlify 后台配置的 GLM_API_KEY 环境变量，请检查其是否过期/错误；删除后可回退到内置密钥。"
+              : "当前使用的是内置密钥，可能已失效，请在 Netlify 后台配置新的 GLM_API_KEY。"),
+        );
+      }
+      throw new Error(
+        `GLM HTTP ${res.status}: ${text}${res.status === 401 ? "（密钥来源: " + getGlmApiKeySource() + "）" : ""}`,
+      );
     }
     const data = (await res.json()) as {
       choices?: Array<{
