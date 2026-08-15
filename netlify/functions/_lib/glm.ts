@@ -10,11 +10,37 @@
  * 密钥导致 401「身份验证失败」。排查时先确认后台环境变量值。
  */
 const FALLBACK_GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
-export const getGlmApiKey = (): string => process.env.GLM_API_KEY || FALLBACK_GLM_API_KEY;
+
+/**
+ * 读取密钥并清洗：
+ * - 环境变量值常因粘贴带入首尾空格 / 引号 / 换行，导致 Authorization 头
+ *   变成 `Bearer "xxx"` 或 `Bearer xxx ` → 智谱返回 401。
+ * - 这里统一 trim + 剥掉首尾成对引号，避免这类低级 401。
+ */
+function cleanApiKey(raw: string | undefined): string {
+  if (!raw) return "";
+  let key = raw.trim();
+  if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {
+    key = key.slice(1, -1).trim();
+  }
+  return key;
+}
+
+export const getGlmApiKey = (): string => {
+  const fromEnv = cleanApiKey(process.env.GLM_API_KEY);
+  return fromEnv || FALLBACK_GLM_API_KEY;
+};
 
 /** 当前使用的密钥来源（诊断用）："env" | "builtin" */
 export function getGlmApiKeySource(): "env" | "builtin" {
-  return process.env.GLM_API_KEY ? "env" : "builtin";
+  return cleanApiKey(process.env.GLM_API_KEY) ? "env" : "builtin";
+}
+
+/** 密钥脱敏摘要（诊断用）：形如 `97f8…Buxtff (len=44)`，不泄露完整密钥 */
+export function getGlmApiKeyFingerprint(): string {
+  const key = getGlmApiKey();
+  if (!key) return "(empty)";
+  return `${key.slice(0, 4)}…${key.slice(-6)} (len=${key.length})`;
 }
 
 export const GLM_MODEL = process.env.GLM_MODEL || "glm-4-flash";
@@ -100,18 +126,18 @@ export async function generateGlmRaw(
     });
     if (!res.ok) {
       const text = (await res.text()).slice(0, 200);
-      // 401 身份验证失败：明确提示密钥来源，方便排查 Netlify 后台环境变量覆盖问题
+      // 401 身份验证失败：明确提示密钥来源与指纹（脱敏），方便排查环境变量覆盖/隐藏字符问题
       if (res.status === 401) {
         const src = getGlmApiKeySource();
         console.error(
-          `[glm] 401 身份验证失败（密钥来源: ${src}）。` +
+          `[glm] 401 身份验证失败（密钥来源: ${src}，指纹: ${getGlmApiKeyFingerprint()}）。` +
             (src === "env"
-              ? "当前使用的是 Netlify 后台配置的 GLM_API_KEY 环境变量，请检查其是否过期/错误；删除后可回退到内置密钥。"
-              : "当前使用的是内置密钥，可能已失效，请在 Netlify 后台配置新的 GLM_API_KEY。"),
+              ? "当前使用 Netlify 后台 GLM_API_KEY 环境变量。请检查：①值是否过期/错误；②粘贴时是否带入引号/空格/换行（代码已自动清洗但请确认）；③删除该变量可回退内置密钥。"
+              : "当前使用内置密钥，可能已失效；请在 Netlify 后台配置新的 GLM_API_KEY。"),
         );
       }
       throw new Error(
-        `GLM HTTP ${res.status}: ${text}${res.status === 401 ? "（密钥来源: " + getGlmApiKeySource() + "）" : ""}`,
+        `GLM HTTP ${res.status}: ${text}${res.status === 401 ? `（密钥来源: ${getGlmApiKeySource()}，指纹: ${getGlmApiKeyFingerprint()}）` : ""}`,
       );
     }
     const data = (await res.json()) as {
