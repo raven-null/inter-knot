@@ -20,10 +20,13 @@
 [functions.scheduled]
   schedule = "0 * * * *"
 
-# 智谱 GLM（Fairy AI 对话）密钥已内置在后端代码（netlify/functions/_lib/routes/ai.ts），
-# 默认即可用；如需更换可在 Netlify 后台配 GLM_API_KEY 环境变量覆盖（scope 需含 Functions）。
+# 智谱 GLM（Fairy AI 对话）密钥：生产环境必须在 Netlify 后台配置
+# Site settings → Environment variables → 新建 GLM_API_KEY（scope 含 Functions）。
+# ⚠️ 仓库内置的旧 key 已公开在 GitHub 历史中，被智谱风控（数据中心 IP 返回 401）；
+#    请到 https://open.bigmodel.cn 重新生成新 key 后配置，配置前可先本地验证：
+#    `node scripts/verify-glm-key.mjs "<新key>"`
 # 推荐生产环境配置：
-#   GLM_API_KEY —— 智谱 API 密钥（覆盖内置值）
+#   GLM_API_KEY —— 智谱 API 密钥（必配，覆盖内置值）
 #   JWT_SECRET —— 生产必配，缺失时使用开发密钥并告警
 
 # API 路由由函数源码内的 config.path（/api/*）声明，无需在此配置。

@@ -81,6 +81,7 @@ npx serve .output/public
    - `JWT_SECRET`：JWT 签名密钥
    - `ADMIN_INITIAL_EMAIL`：管理员邮箱
    - `ADMIN_INITIAL_PASSWORD`：管理员密码
+   - `GLM_API_KEY`：**Fairy AI 对话密钥（必配）**——到 https://open.bigmodel.cn 重新生成新 key（仓库内置旧 key 已公开于 GitHub 历史、被智谱风控，数据中心 IP 会返回 401）；配置前可本地验证：`node scripts/verify-glm-key.mjs "<新key>"`
 5. 首次部署会自动创建管理员账号。
 
 ## 默认管理员
