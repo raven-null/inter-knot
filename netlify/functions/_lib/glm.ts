@@ -1,15 +1,22 @@
 /** 智谱 GLM 公共调用（Fairy AI 对话 / 评论区 @fairy 回复共用） */
 
 /**
- * API Key 读取优先级：
- * 1. 环境变量 GLM_API_KEY（Netlify 后台 Site settings → Environment variables，
- *    scope 需含 Functions）
- * 2. 内置 fallback key（保证开箱即用；生产环境建议更换为自己账号的 key）
+ * API Key 读取：**只从环境变量 `GLM_API_KEY` 读取**（Netlify 后台
+ * Site settings → Environment variables，scope 需含 Functions）。
  *
- * 注意：若 Netlify 后台配置了**过期/错误**的 GLM_API_KEY，它会覆盖内置有效
- * 密钥导致 401「身份验证失败」。排查时先确认后台环境变量值。
+ * ⚠️ 历史原因：仓库早期曾内置一个 fallback key（`97f8…Buxtff`），该 key
+ * 已公开在 GitHub 历史中并被智谱风控——从数据中心/海外 IP 调用返回 401，
+ * 即使本机测试 200 也**不能用于线上**。继续内置它只会让「后台未配置」时
+ * 静默回退到被风控的 key，产生迷惑性的 401。因此已移除内置 key：
+ * 未配置时调用方会得到明确错误「未配置 GLM_API_KEY」。
+ *
+ * 配置方法：
+ *   1. https://open.bigmodel.cn → API Keys 生成新 key
+ *   2. 本地验证：`node scripts/verify-glm-key.mjs "<key>"`
+ *   3. Netlify 后台 → Environment variables → GLM_API_KEY（scope 含 Functions）
+ *   4. 重新部署
  */
-const FALLBACK_GLM_API_KEY = "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
+const FALLBACK_GLM_API_KEY = "";
 
 /**
  * 读取密钥并清洗：
@@ -31,7 +38,7 @@ export const getGlmApiKey = (): string => {
   return fromEnv || FALLBACK_GLM_API_KEY;
 };
 
-/** 当前使用的密钥来源（诊断用）："env" | "builtin" */
+/** 当前使用的密钥来源（诊断用）："env" | "builtin"（builtin 为空表示未配置） */
 export function getGlmApiKeySource(): "env" | "builtin" {
   return cleanApiKey(process.env.GLM_API_KEY) ? "env" : "builtin";
 }
@@ -107,6 +114,12 @@ export async function generateGlmRaw(
   messages: Array<{ role: string; content: string | null }>,
   options?: { tools?: GlmToolSchema[] },
 ): Promise<GlmRawResult> {
+  // 未配置密钥：直接给出明确错误，避免发空 token 请求拿到无意义的 401
+  const apiKey = getGlmApiKey();
+  if (!apiKey) {
+    console.error("[glm] 未配置 GLM_API_KEY 环境变量。请在 Netlify 后台配置（scope 含 Functions）后重新部署。");
+    throw new Error("未配置 GLM_API_KEY（请在 Netlify 后台 Environment variables 中配置后重新部署）");
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GLM_TIMEOUT_MS);
   try {
@@ -114,7 +127,7 @@ export async function generateGlmRaw(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${getGlmApiKey()}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: GLM_MODEL,
@@ -126,14 +139,11 @@ export async function generateGlmRaw(
     });
     if (!res.ok) {
       const text = (await res.text()).slice(0, 200);
-      // 401 身份验证失败：明确提示密钥来源与指纹（脱敏），方便排查环境变量覆盖/隐藏字符问题
+      // 401 身份验证失败：明确提示密钥来源与指纹（脱敏），方便排查环境变量值
       if (res.status === 401) {
-        const src = getGlmApiKeySource();
         console.error(
-          `[glm] 401 身份验证失败（密钥来源: ${src}，指纹: ${getGlmApiKeyFingerprint()}）。` +
-            (src === "env"
-              ? "当前使用 Netlify 后台 GLM_API_KEY 环境变量。请检查：①值是否过期/错误；②粘贴时是否带入引号/空格/换行（代码已自动清洗但请确认）；③删除该变量可回退内置密钥。"
-              : "当前使用内置密钥，可能已失效；请在 Netlify 后台配置新的 GLM_API_KEY。"),
+          `[glm] 401 身份验证失败（密钥来源: ${getGlmApiKeySource()}，指纹: ${getGlmApiKeyFingerprint()}）。` +
+            "请在 Netlify 后台确认 GLM_API_KEY 的值是智谱平台当前有效的密钥（可在本地用 scripts/verify-glm-key.mjs 验证后重新部署）。",
         );
       }
       throw new Error(

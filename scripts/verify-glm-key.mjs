@@ -2,16 +2,20 @@
  * GLM 密钥本地验证工具
  *
  * 用法：
- *   node scripts/verify-glm-key.mjs                 # 用内置密钥测试
- *   node scripts/verify-glm-key.mjs "你的key"       # 测试指定密钥
- *   GLM_API_KEY="你的key" node scripts/verify-glm-key.mjs   # 测试环境变量值
+ *   node scripts/verify-glm-key.mjs "你的key"                # 测试指定密钥
+ *   GLM_API_KEY="你的key" node scripts/verify-glm-key.mjs    # 测试环境变量值
  *
  * 输出：
  *   - 密钥指纹（前4+后6位 + 长度），用于和线上报错文案比对
  *   - 实际请求智谱 API，报告 200 或 401 等状态
  *   - 若值为引号/空格包裹，会自动清洗并提示
  */
-const testKey = process.argv[2] || process.env.GLM_API_KEY || "97f8f3b47dc240b8af2a8148636d5cd4.bhYoj1KUxcBuxtff";
+const testKey = process.argv[2] || process.env.GLM_API_KEY;
+if (!testKey) {
+  console.log("用法: node scripts/verify-glm-key.mjs \"<你的GLM_API_KEY>\"");
+  console.log("  或: GLM_API_KEY=\"<key>\" node scripts/verify-glm-key.mjs");
+  process.exit(1);
+}
 
 function clean(key) {
   if (!key) return "";
