@@ -12,7 +12,8 @@ import { requireAuth } from "../auth";
 import { json, ok, badRequest, notFound, readJson } from "../http";
 import type { Doc } from "../serialize";
 import { DEFAULT_AVATAR } from "../serialize";
-import { generateGlm, FAIRY_SYSTEM_PROMPT } from "../glm";
+import { FAIRY_SYSTEM_PROMPT, FAIRY_AGENT_PROMPT } from "../glm";
+import { runAgent } from "../agent/executor";
 
 const AI_PREFIX = "dm/ai/";
 
@@ -54,12 +55,23 @@ interface AiConversation {
   messages: Array<{
     documentId: string;
     kind: string;
-    content: string;
+    content: string | null;
     createdAt: string;
     editedAt: string | null;
     deletedAt: string | null;
     sender: { userId: number; authorDocumentId: string | null; name: string; avatar: string; isAiAgent: boolean };
     replyTo: null;
+    /** 客户端幂等标记（流式断线重发时避免重复执行工具） */
+    clientRequestId?: string;
+    /** Agent 工具调用事件序列（tool.start/finish 等），供前端回放时间线 */
+    workflow?: Array<{
+      type: string;
+      stepId: string;
+      seq: number;
+      at: string;
+      data?: Record<string, unknown>;
+      usage?: { promptTokens?: number; completionTokens?: number };
+    }> | null;
   }>;
 }
 
@@ -117,16 +129,33 @@ async function ensureConversation(viewerId: string, aiUid: number): Promise<AiCo
   return conv;
 }
 
-/** 调用智谱 GLM 生成回复（同步，非流式） */
-async function generateReply(aiRole: AiRoleDoc, history: AiConversation["messages"]): Promise<string> {
+/**
+ * 生成 Fairy 回复（Agent 模式）：带工具调用，可执行博客操作。
+ * 返回正文与 workflow 事件序列（tool.start/finish 等，落库供前端时间线回放）。
+ */
+async function generateReply(
+  aiRole: AiRoleDoc,
+  history: AiConversation["messages"],
+  viewer: { userId: string; isAdmin: boolean },
+  authHeader: string | null,
+): Promise<{ content: string; workflow: AiConversation["messages"][number]["workflow"] }> {
   const messages: Array<{ role: string; content: string }> = [
-    { role: "system", content: FAIRY_SYSTEM_PROMPT },
+    { role: "system", content: `${FAIRY_SYSTEM_PROMPT}\n\n${FAIRY_AGENT_PROMPT}` },
     ...history.slice(-16).map((m) => ({
       role: m.sender.isAiAgent ? "assistant" : "user",
       content: m.content ?? "",
     })),
   ];
-  return generateGlm(messages);
+  try {
+    const output = await runAgent(messages, viewer, authHeader);
+    return { content: output.content, workflow: output.workflow };
+  } catch (err) {
+    // Agent 整体失败（如 GLM 超时）：回退为普通聊天
+    return {
+      content: `（Fairy 沟通失败：${err instanceof Error ? err.message : "未知错误"}）`,
+      workflow: [],
+    };
+  }
 }
 
 function pushMessage(
@@ -245,7 +274,12 @@ export async function messages(req: Request): Promise<Response> {
 export async function sendMessage(req: Request): Promise<Response> {
   const viewer = await requireAuth(req);
   const id = urlSegment(req, 2);
-  const { content } = await readJson<{ content?: string; kind?: string }>(req);
+  const { content, stream, clientRequestId } = await readJson<{
+    content?: string;
+    kind?: string;
+    stream?: boolean;
+    clientRequestId?: string;
+  }>(req);
   const text = String(content || "").trim();
   if (!text) return badRequest("消息不能为空");
 
@@ -253,6 +287,26 @@ export async function sendMessage(req: Request): Promise<Response> {
   if (!conv) return notFound("会话不存在");
   const aiRole = aiRoleByUid(Number(conv.aiUid));
   if (!aiRole) return notFound("AI 角色不存在");
+
+  // ── 幂等：同一 clientRequestId 已处理过（流式中途断线后前端回退同步重发）──
+  // 命中则直接返回既有消息 + 其后的 AI 回复，不重复执行工具。
+  if (clientRequestId) {
+    const existingIdx = conv.messages.findIndex((m) => m.clientRequestId === clientRequestId);
+    if (existingIdx >= 0) {
+      const existingUserMsg = conv.messages[existingIdx]!;
+      // 找其后最近一条 AI 回复（若有）
+      let existingAiMsg: AiConversation["messages"][number] | null = null;
+      for (let i = existingIdx + 1; i < conv.messages.length; i += 1) {
+        if (conv.messages[i]?.sender.isAiAgent && !conv.messages[i]?.deletedAt) {
+          existingAiMsg = conv.messages[i]!;
+          break;
+        }
+      }
+      const base: Record<string, unknown> = { data: toMessage(existingUserMsg) };
+      if (existingAiMsg) base.aiReply = toMessage(existingAiMsg);
+      return json(base);
+    }
+  }
 
   const viewerUser = await getJson<Doc>(`users/${viewer.userId}.json`);
   const viewerUid = Number((viewerUser as { uid?: unknown })?.uid || 0);
@@ -267,9 +321,21 @@ export async function sendMessage(req: Request): Promise<Response> {
     },
     content: text,
   });
+  // 幂等标记随用户消息落库（流式断线重发时命中上面的检查）
+  if (clientRequestId) {
+    const idx = conv.messages.findIndex((m) => m.documentId === userMsg.documentId);
+    if (idx >= 0) conv.messages[idx]!.clientRequestId = clientRequestId;
+  }
+  await saveConversation(conv);
 
-  // 同步生成 AI 回复
-  const replyText = await generateReply(aiRole, conv.messages);
+  // ── SSE 流式：实时推送 workflow 事件，最后推送最终回复 ──
+  if (stream === true) {
+    return streamAiReply(req, viewer, aiRole, conv, userMsg, authHeaderOf(req));
+  }
+
+  // 同步生成 AI 回复（Agent 模式：可调用工具执行博客操作）
+  const authHeader = req.headers.get("authorization");
+  const reply = await generateReply(aiRole, conv.messages, viewer, authHeader);
   const aiMsg = pushMessage(conv, {
     sender: {
       userId: aiRole.uid,
@@ -278,11 +344,140 @@ export async function sendMessage(req: Request): Promise<Response> {
       avatar: aiRole.avatar,
       isAiAgent: true,
     },
-    content: replyText,
+    content: reply.content,
   });
+  // workflow 事件随消息落库：前端 AiReasoningBlock 据此回放工具调用时间线
+  if (reply.workflow?.length) {
+    const idx = conv.messages.findIndex((m) => m.documentId === aiMsg.documentId);
+    if (idx >= 0) conv.messages[idx]!.workflow = reply.workflow;
+  }
 
   await saveConversation(conv);
   return json({ data: toMessage(userMsg), aiReply: toMessage(aiMsg) });
+}
+
+function authHeaderOf(req: Request): string | null {
+  return req.headers.get("authorization");
+}
+
+/**
+ * SSE 流式生成 AI 回复：
+ * - 事件 `userMessage`：{ message } —— 已落库的用户消息（前端立即本地显示）
+ * - 事件 `workflow`：{ messageId, event } —— 工具执行过程实时推送（messageId = AI 消息占位 id）
+ * - 事件 `complete`：{ messageId, message } —— 最终 AI 消息（含落库 workflow）
+ * - 事件 `error`：{ message } —— 失败（此时未产生 AI 消息）
+ * 前端用 utils/sse.ts 的 fetchSSE 消费；断线时靠 clientRequestId 幂等恢复。
+ */
+async function streamAiReply(
+  req: Request,
+  viewer: { userId: string; isAdmin: boolean },
+  aiRole: AiRoleDoc,
+  conv: AiConversation,
+  userMsg: AiConversation["messages"][number],
+  authHeader: string | null,
+): Promise<Response> {
+  const encoder = new TextEncoder();
+  // 先分配 AI 消息 id，workflow 事件用它作为 messageId（前端按 id 聚合时间线）
+  const aiMsgId = genId();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (type: string, data: unknown) => {
+        try {
+          controller.enqueue(
+            encoder.encode(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`),
+          );
+        } catch {
+          // 客户端断开：忽略（消息已落库，刷新可见）
+        }
+      };
+      try {
+        // 1) 推送已落库的用户消息
+        send("userMessage", { message: toMessage(userMsg) });
+        // 2) 生成 AI 回复（workflow 事件实时推送）
+        const reply = await generateReplyStreaming(
+          aiRole,
+          conv.messages,
+          viewer,
+          authHeader,
+          (event) => send("workflow", { messageId: aiMsgId, event }),
+        );
+        // 3) 用占位 id 落库 AI 消息（含 workflow 序列）
+        const aiMsg: AiConversation["messages"][number] = {
+          documentId: aiMsgId,
+          kind: "text",
+          content: reply.content,
+          createdAt: new Date().toISOString(),
+          editedAt: null,
+          deletedAt: null,
+          sender: {
+            userId: aiRole.uid,
+            authorDocumentId: null,
+            name: aiRole.displayName,
+            avatar: aiRole.avatar,
+            isAiAgent: true,
+          },
+          replyTo: null,
+        };
+        if (reply.workflow?.length) aiMsg.workflow = reply.workflow;
+        conv.messages.push(aiMsg);
+        conv.updatedAt = aiMsg.createdAt;
+        await saveConversation(conv);
+        send("complete", { messageId: aiMsgId, message: toMessage(aiMsg) });
+      } catch (err) {
+        send("error", {
+          message: err instanceof Error ? err.message : "生成回复失败",
+        });
+      } finally {
+        try {
+          controller.close();
+        } catch {
+          /* noop */
+        }
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    },
+  });
+}
+
+/** 流式版 generateReply：事件经 onEvent 实时回调（SSE 推送） */
+async function generateReplyStreaming(
+  aiRole: AiRoleDoc,
+  history: AiConversation["messages"],
+  viewer: { userId: string; isAdmin: boolean },
+  authHeader: string | null,
+  onEvent: (event: { seq: number; at: string; type: string; stepId: string; data?: Record<string, unknown> }) => void,
+): Promise<{ content: string; workflow: AiConversation["messages"][number]["workflow"] }> {
+  const messages: Array<{ role: string; content: string }> = [
+    { role: "system", content: `${FAIRY_SYSTEM_PROMPT}\n\n${FAIRY_AGENT_PROMPT}` },
+    ...history.slice(-16).map((m) => ({
+      role: m.sender.isAiAgent ? "assistant" : "user",
+      content: m.content ?? "",
+    })),
+  ];
+  try {
+    const output = await runAgent(messages, viewer, authHeader, {
+      onEvent: (ev) =>
+        onEvent({
+          seq: ev.seq,
+          at: ev.at,
+          type: ev.type,
+          stepId: ev.stepId,
+          data: ev.data,
+        }),
+    });
+    return { content: output.content, workflow: output.workflow };
+  } catch (err) {
+    return {
+      content: `（Fairy 沟通失败：${err instanceof Error ? err.message : "未知错误"}）`,
+      workflow: [],
+    };
+  }
 }
 
 /** PATCH /api/dm/conversations/:id/read —— 标记已读（同步本地状态即可） */
@@ -346,19 +541,25 @@ export async function regenerate(req: Request): Promise<Response> {
 
   // 基于触发消息重新生成
   const historyBefore = conv.messages.slice(0, idx);
-  const replyText = await generateReply(aiRole, [
-    ...historyBefore,
-    {
-      documentId: genId(),
-      kind: "text",
-      content: triggerContent,
-      createdAt: new Date().toISOString(),
-      editedAt: null,
-      deletedAt: null,
-      sender: { userId: 0, authorDocumentId: null, name: "", avatar: "", isAiAgent: false },
-      replyTo: null,
-    },
-  ]);
+  const authHeader = req.headers.get("authorization");
+  const reply = await generateReply(
+    aiRole,
+    [
+      ...historyBefore,
+      {
+        documentId: genId(),
+        kind: "text",
+        content: triggerContent,
+        createdAt: new Date().toISOString(),
+        editedAt: null,
+        deletedAt: null,
+        sender: { userId: 0, authorDocumentId: null, name: "", avatar: "", isAiAgent: false },
+        replyTo: null,
+      },
+    ],
+    viewer,
+    authHeader,
+  );
   const aiMsg = pushMessage(conv, {
     sender: {
       userId: aiRole.uid,
@@ -367,8 +568,12 @@ export async function regenerate(req: Request): Promise<Response> {
       avatar: aiRole.avatar,
       isAiAgent: true,
     },
-    content: replyText,
+    content: reply.content,
   });
+  if (reply.workflow?.length) {
+    const newIdx = conv.messages.findIndex((m) => m.documentId === aiMsg.documentId);
+    if (newIdx >= 0) conv.messages[newIdx]!.workflow = reply.workflow;
+  }
   await saveConversation(conv);
   return json({ data: toMessage(aiMsg), removedId: mid });
 }

@@ -59,6 +59,22 @@
   border-collapse: collapse;
   font-size: var(--ik-text-sm);
   text-align: left;
+  /* 表格最小宽度：窄屏下由外层滚动容器横向滚动，而不是挤压换行 */
+  min-width: 680px;
+}
+
+/* 表格横向滚动容器：平板/移动端列多时不挤压、不撑破页面 */
+.ik-admin-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+@media (max-width: 768px) {
+  .ik-admin-table-scroll {
+    margin: 0 calc(-1 * var(--ik-space-lg));
+    padding: 0 var(--ik-space-lg);
+  }
 }
 
 .ik-admin-table th {

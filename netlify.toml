@@ -16,8 +16,15 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+# 定时任务：每小时清理过期 Fairy 待确认操作与超期审计日志
+[functions.scheduled]
+  schedule = "0 * * * *"
+
 # 智谱 GLM（Fairy AI 对话）密钥已内置在后端代码（netlify/functions/_lib/routes/ai.ts），
 # 默认即可用；如需更换可在 Netlify 后台配 GLM_API_KEY 环境变量覆盖（scope 需含 Functions）。
+# 推荐生产环境配置：
+#   GLM_API_KEY —— 智谱 API 密钥（覆盖内置值）
+#   JWT_SECRET —— 生产必配，缺失时使用开发密钥并告警
 
 # API 路由由函数源码内的 config.path（/api/*）声明，无需在此配置。
 

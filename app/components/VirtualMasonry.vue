@@ -70,6 +70,7 @@ const heightVersion = ref(0);
 
 let resizeObserver: ResizeObserver | null = null;
 let containerResizeObserver: ResizeObserver | null = null;
+let ancestorResizeObserver: ResizeObserver | null = null;
 let scrollRAF: number | null = null;
 let resizeRAF: number | null = null;
 let measureRAF: number | null = null;
@@ -381,6 +382,15 @@ function unobserveItem(el: Element) {
 }
 
 /* ── 容器宽度监听 ──────────────────────────────── */
+/** 祖先尺寸变化 → 容器相对文档顶部的偏移可能已变，rAF 合并重算 */
+function onAncestorResize() {
+  if (resizeRAF !== null) cancelAnimationFrame(resizeRAF);
+  resizeRAF = requestAnimationFrame(() => {
+    resizeRAF = null;
+    updateContainerOffset();
+  });
+}
+
 function setupContainerResize() {
   if (!containerRef.value) return;
   containerResizeObserver = new ResizeObserver(() => {
@@ -395,6 +405,21 @@ function setupContainerResize() {
   });
   containerResizeObserver.observe(containerRef.value);
   containerWidth.value = containerRef.value.clientWidth;
+
+  // containerOffsetY 陈旧修复：上方内容（公告条 / 头部元素）异步出现或消失时，
+  // 容器相对文档顶部的偏移会变化，但容器自身尺寸不变 → 上面的 ResizeObserver
+  // 不会触发，虚拟窗口按旧偏移裁剪，滚动时出现空白区或提前卸载。
+  // 观察容器父级链的尺寸变化即可覆盖：父级高度变化必然伴随容器 top 变化。
+  ancestorResizeObserver = new ResizeObserver(onAncestorResize);
+  const seen = new Set<HTMLElement>();
+  let cur: HTMLElement | null = containerRef.value.parentElement;
+  while (cur && cur !== document.documentElement && !seen.has(cur)) {
+    seen.add(cur);
+    ancestorResizeObserver.observe(cur);
+    cur = cur.parentElement;
+  }
+  // 布局稳定后（图片等异步内容加载完）再校准一次偏移，消除残余误差
+  window.addEventListener("load", onAncestorResize, { once: true, passive: true });
 }
 
 /* ── item-ref 回调 (供模板使用) ─────────────────── */
@@ -476,11 +501,13 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener("scroll", onScroll);
   window.removeEventListener("resize", onScroll);
+  window.removeEventListener("load", onAncestorResize);
   if (scrollRAF !== null) cancelAnimationFrame(scrollRAF);
   if (resizeRAF !== null) cancelAnimationFrame(resizeRAF);
   if (measureRAF !== null) cancelAnimationFrame(measureRAF);
   resizeObserver?.disconnect();
   containerResizeObserver?.disconnect();
+  ancestorResizeObserver?.disconnect();
   observedElements.clear();
   itemRefMap.clear();
   mappedHeightCache.clear();

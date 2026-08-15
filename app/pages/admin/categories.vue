@@ -85,7 +85,8 @@ onMounted(load);
 
     <div class="ik-admin-card">
       <div v-if="loading" class="ik-admin-loading">加载中…</div>
-      <table v-else class="ik-admin-table">
+      <div v-else class="ik-admin-table-scroll">
+        <table class="ik-admin-table">
         <thead>
           <tr>
             <th>排序</th>
@@ -116,7 +117,8 @@ onMounted(load);
             </td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   </div>
 </template>

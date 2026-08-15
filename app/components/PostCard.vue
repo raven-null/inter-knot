@@ -402,11 +402,15 @@ const handleOpen = (e: MouseEvent) => {
   transition:
     transform 1.2s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 400ms ease;
-  will-change: transform;
+  /* will-change 仅 hover 时启用（见下方），避免虚拟列表中每张卡片的封面
+     都常驻一个合成层——可见卡片 20~40 张时会导致 GPU 层数堆积 */
 }
 
-.ik-card:hover :deep(.ik-card__cover) {
-  --ik-cover-scale: 1.06;
+@media (hover: hover) {
+  .ik-card:hover :deep(.ik-card__cover) {
+    --ik-cover-scale: 1.06;
+    will-change: transform;
+  }
 }
 
 :deep(.ik-card__cover--loading) {

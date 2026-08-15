@@ -571,9 +571,24 @@ export function useDmConversations(): UseDmConversations {
       throw new Error("此会话不可发送消息");
     }
 
+    // AI 会话优先走 SSE 流式：工具执行过程实时可见（时间线实时推进）。
+    // 流式失败（网络/不支持）回退同步路径，clientRequestId 保证幂等不重复执行。
+    const conv = conversations.value.find((c) => c.documentId === actualId);
+    if (conv?.peer?.isAiAgent === true && payload.kind !== "image") {
+      try {
+        return await sendAiMessageStreaming(actualId, payload);
+      } catch (err) {
+        // 流式不可用 → 走同步（后端已落库用户消息时会幂等命中，直接返回既有结果）
+        const streamingErr = err as Error | undefined;
+        if (import.meta.client && !(streamingErr?.message || "").includes("SSE")) {
+          // 非 SSE 协议错误（如 404 旧部署）也继续走同步兜底
+        }
+      }
+    }
+
     const resp = await $api<SendMessageResponse>(
       `/api/dm/conversations/${encodeURIComponent(actualId)}/messages`,
-      { method: "POST", body: payload },
+      { method: "POST", body: { ...payload, clientRequestId: newClientRequestId() } },
     );
     const created = resp?.data;
     if (!created?.documentId) throw new Error("send returned no message");
@@ -605,6 +620,102 @@ export function useDmConversations(): UseDmConversations {
     }, true);
 
     return created;
+  }
+
+  /** 生成客户端幂等标记（同一次发送内唯一） */
+  function newClientRequestId(): string {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  /**
+   * AI 会话 SSE 流式发送：
+   * - 服务端先推 userMessage（已落库），本地立即显示；
+   * - 中间推 workflow 事件（messageId = AI 回复占位 id），实时聚合时间线；
+   * - complete 推最终 AI 消息（含落库 workflow），本地合并。
+   * 任何异常向上抛出（调用方回退同步路径）。
+   */
+  async function sendAiMessageStreaming(
+    actualId: string,
+    payload: { content: string; kind?: DmMessageKind; replyTo?: string },
+  ): Promise<DmMessage> {
+    const { fetchSSE } = await import("~/utils/sse");
+    const config = useRuntimeConfig();
+    const apiBaseUrl = String((config.public as { apiBaseUrl?: string })?.apiBaseUrl || "");
+    const token = localStorage.getItem("access_token") || "";
+    const clientRequestId = newClientRequestId();
+    const url = `${apiBaseUrl}/api/dm/conversations/${encodeURIComponent(actualId)}/messages`;
+
+    let userMessage: DmMessage | null = null;
+    let aiMessage: DmMessage | null = null;
+    // 流式期间 workflow 事件先按 AI 占位 id 聚合，complete 后消息自带落库版本
+    const pendingWorkflow: AiWorkflowEvent[] = [];
+
+    for await (const evt of fetchSSE<unknown>(url, {
+      method: "POST",
+      body: { ...payload, stream: true, clientRequestId },
+      token: token || undefined,
+    })) {
+      if (evt.type === "userMessage") {
+        const data = evt.data as { message?: DmMessage };
+        if (data?.message?.documentId) userMessage = data.message;
+      } else if (evt.type === "workflow") {
+        const data = evt.data as { messageId?: string; event?: AiWorkflowEvent };
+        if (data?.event && typeof data.event.seq === "number") {
+          const list = workflowByMessageId.value[data.messageId ?? ""] ?? [];
+          if (!list.some((it) => it.seq === data.event!.seq)) {
+            workflowByMessageId.value = {
+              ...workflowByMessageId.value,
+              [data.messageId!]: [...list, data.event!].sort((a, b) => a.seq - b.seq),
+            };
+          }
+          pendingWorkflow.push(data.event);
+        }
+      } else if (evt.type === "complete") {
+        const data = evt.data as { messageId?: string; message?: DmMessage };
+        if (data?.message?.documentId) aiMessage = data.message;
+      } else if (evt.type === "error") {
+        const data = evt.data as { message?: string };
+        throw new Error(data?.message || "SSE stream error");
+      }
+    }
+
+    if (!userMessage?.documentId) {
+      throw new Error("SSE: user message not received");
+    }
+
+    // 合并本地消息（user + ai；ai 若未收到（断流），下次 ensureMessages 拉取补齐）
+    const bucket = messagesById.value[actualId] ?? emptyMessageState();
+    const incoming: DmMessage[] = [userMessage];
+    if (aiMessage?.documentId) {
+      // complete 的 message 已含落库 workflow（权威版本），不再依赖实时聚合
+      if (!aiMessage.workflow && pendingWorkflow.length) {
+        aiMessage = { ...aiMessage, workflow: pendingWorkflow };
+      }
+      incoming.push(aiMessage);
+      // 清除实时聚合缓存（消息自带落库版本）
+      if (workflowByMessageId.value[aiMessage.documentId]) {
+        const next = { ...workflowByMessageId.value };
+        delete next[aiMessage.documentId];
+        workflowByMessageId.value = next;
+      }
+    }
+    patchMessageState(actualId, {
+      items: mergeMessages(bucket.items, incoming),
+    });
+
+    const latest = incoming[incoming.length - 1]!;
+    patchConversation(actualId, {
+      lastMessage: {
+        documentId: latest.documentId,
+        content: latest.content ?? "",
+        createdAt: latest.createdAt,
+        kind: latest.kind,
+        senderUserId: latest.sender?.userId ?? null,
+      },
+      lastMessageAt: latest.createdAt,
+    }, true);
+
+    return userMessage;
   }
 
   async function editMessage(
@@ -1064,6 +1175,14 @@ export function useDmConversations(): UseDmConversations {
   const startPolling = () => {
     if (pollTimer) return;
     pollTimer = setInterval(() => {
+      // 可见性门控：切到后台 Tab / 窗口失焦时暂停轮询，回前台立即补一次。
+      // 否则后台 Tab 每 5s 重拉会话列表 + 强制重拉当前会话消息，白耗带宽与主线程。
+      if (
+        typeof document === "undefined" ||
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
       void refresh({ silent: true });
       const activeId = activeConversationId.value;
       if (activeId) {

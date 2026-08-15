@@ -397,7 +397,16 @@ export async function deleteComment(req: Request): Promise<Response> {
 
   await del(lookup.key);
   await del(KEYS.commentLookup(id));
-  await setJson(KEYS.userComments(String(doc.author_document_id || "")), []);
+  // 从用户评论索引中仅移除本条（此前整体覆盖为 [] 会丢失该用户全部历史评论索引，
+  // 导致个人主页「TA 的评论」从此为空）
+  const userKeys = (await getJson<string[]>(KEYS.userComments(String(doc.author_document_id || "")))) || [];
+  const keyPath = lookup.key;
+  if (userKeys.includes(keyPath)) {
+    await setJson(
+      KEYS.userComments(String(doc.author_document_id || "")),
+      userKeys.filter((k) => k !== keyPath),
+    );
+  }
 
   const post = await getJson<Doc>(`posts/${lookup.post_id}.json`);
   if (post) {
@@ -626,7 +635,14 @@ export async function processReport(req: Request): Promise<Response> {
         if (c) {
           await del(lookup.key);
           await del(KEYS.commentLookup(targetId));
-          await setJson(KEYS.userComments(String(c.author_document_id || "")), []);
+          // 仅移除本条用户评论索引（勿整体清空，否则该用户全部历史评论索引丢失）
+          const userKeys = (await getJson<string[]>(KEYS.userComments(String(c.author_document_id || "")))) || [];
+          if (userKeys.includes(lookup.key)) {
+            await setJson(
+              KEYS.userComments(String(c.author_document_id || "")),
+              userKeys.filter((k) => k !== lookup.key),
+            );
+          }
           const post = await getJson<Doc>(`posts/${lookup.post_id}.json`);
           if (post) {
             const updated = { ...post, comments_count: Math.max(0, Number(post.comments_count || 0) - 1) };

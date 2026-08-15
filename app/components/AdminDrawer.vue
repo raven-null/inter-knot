@@ -1,13 +1,24 @@
 <script setup lang="ts">
-defineProps<{ open: boolean; title?: string; width?: string }>();
+const props = defineProps<{ open: boolean; title?: string; width?: string }>();
 const emit = defineEmits<{ (e: "close"): void }>();
+
+/**
+ * 抽屉面板宽度：桌面用传入的固定宽度；窄屏（<640px）收为近全屏，
+ * 避免 440px 固定宽在手机上溢出/挤压。内联 style 只写桌面宽度，
+ * 移动端约束由 CSS media query 兜底。
+ */
+const panelStyle = (): Record<string, string> => {
+  const style: Record<string, string> = {};
+  if (props.width) style.width = props.width;
+  return style;
+};
 </script>
 
 <template>
   <Teleport to="body">
     <Transition name="ik-admin-drawer">
       <div v-if="open" class="ik-admin-drawer" @mousedown.self="emit('close')">
-        <div class="ik-admin-drawer__panel" :style="{ width: width || '440px' }">
+        <div class="ik-admin-drawer__panel" :style="panelStyle()">
           <header class="ik-admin-drawer__head">
             <h3 class="ik-admin-drawer__title">{{ title }}</h3>
             <button type="button" class="ik-admin-drawer__close" aria-label="关闭" @click="emit('close')">✕</button>
@@ -40,6 +51,13 @@ const emit = defineEmits<{ (e: "close"): void }>();
   background: #121212;
   border-left: 1px solid #2d2d2d;
   box-shadow: -12px 0 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 窄屏：抽屉占满可用宽度（保留 12px 边缘，便于点遮罩关闭） */
+@media (max-width: 640px) {
+  .ik-admin-drawer__panel {
+    width: calc(100vw - 12px) !important;
+  }
 }
 
 .ik-admin-drawer__head {

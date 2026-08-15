@@ -304,6 +304,8 @@ onUnmounted(() => {
   position: relative;
   width: 440px;
   max-width: 92%;
+  /* dvh 优先（移动端地址栏收起/弹出时高度跟随），100vh 兜底老浏览器 */
+  max-height: 85dvh;
   max-height: 85vh;
   overflow: hidden;
   will-change: transform;
@@ -311,6 +313,7 @@ onUnmounted(() => {
 
 .ik-dialog__outer {
   width: 100%;
+  max-height: 85dvh;
   max-height: 85vh;
   padding: 4px;
   background: #2d2c2d;
@@ -321,6 +324,7 @@ onUnmounted(() => {
 
 .ik-dialog__inner {
   width: 100%;
+  max-height: calc(85dvh - 8px);
   max-height: calc(85vh - 8px);
   padding: 4px;
   background: #000;

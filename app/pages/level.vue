@@ -144,6 +144,8 @@ const EXP_RULES = [
 <style scoped>
 /* ── 页面布局 ─────────────────────────────── */
 .ik-level-page {
+  /* dvh 优先：移动端地址栏收起/弹出时页面高度跟随视口 */
+  min-height: 100dvh;
   min-height: 100vh;
   display: flex;
   justify-content: center;

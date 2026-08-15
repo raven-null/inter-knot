@@ -44,7 +44,8 @@ onMounted(load);
 
     <AdminCard>
       <div v-if="loading" class="ik-admin-loading">加载中…</div>
-      <table v-else class="ik-admin-table">
+      <div v-else class="ik-admin-table-scroll">
+        <table class="ik-admin-table">
         <thead>
           <tr>
             <th>作者</th>
@@ -72,7 +73,8 @@ onMounted(load);
             </td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
       <div v-if="!loading && !list.length" class="ik-admin-empty">没有找到评论</div>
 
       <div class="ik-admin-pager">

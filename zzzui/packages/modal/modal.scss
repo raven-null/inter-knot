@@ -130,6 +130,9 @@
     top: 20%;
     transform: translateX(-50%);
     width: 450px;
+    /* 小屏兜底：450px 固定宽在窄视口下会溢出，改为视口约束（保留
+       组件透传的 width prop 优先级：行内 style 覆盖此声明） */
+    max-width: calc(100vw - 32px);
     max-height: 60%;
     border-radius: 20px 0 20px 20px;
     border: 3px solid $--color-black;

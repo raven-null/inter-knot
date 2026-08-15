@@ -324,6 +324,8 @@ const onEmojiMouseDown = (e: MouseEvent, emoji: string) => {
   position: fixed;
   z-index: 9999;
   width: 320px;
+  /* 窄屏兜底：320px 固定宽在 <350px 视口（如折叠屏/横屏小窗）会溢出 */
+  max-width: calc(100vw - 24px);
   padding: 3px;
   background: #2d2c2d;
   border-radius: 12px;

@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: dark;
 
   --ik-bg: #0a0a0a;
@@ -154,6 +154,14 @@ body,
   /* 隐藏滚动条 (IE, Edge, Firefox) */
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* 全局横向溢出兜底：任何组件意外超出视口时，优先内滚而不是撑破页面。
+   用 overflow-x: clip 而非 hidden：clip 不会把 overflow-y 重算为 auto，
+   因此不破坏 position: sticky / 弹窗滚动等依赖滚动容器的行为。 */
+html {
+  overflow-x: clip;
+  overflow-x: hidden; /* 旧浏览器回退（hidden 会把 overflow-y 算成 auto，代价可接受） */
 }
 
 /* 选中文本颜色 */
@@ -397,8 +405,15 @@ button:disabled,
     width: calc(100% - 20px);
   }
 
+  /* 底部留白须容纳 MobileBottomNav（58px 内容 + iOS 安全区）再额外留 12px，
+     否则页面最后一条内容会被底栏遮挡。 */
   .ik-page {
-    padding-bottom: 64px;
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 12px);
+  }
+
+  /* 无底栏页面（发帖 / 帖子详情等自带底部操作栏）不需要底栏留白 */
+  .ik-page--no-bottom-nav {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
 }
 
@@ -583,6 +598,8 @@ html.no-gpu .ik-global-marquee {
 /* 进一步关闭卡片 hover/入场动画，避免无 GPU 时移动鼠标或首屏加载触发持续重绘。 */
 html.no-gpu .ik-card__cover {
   transition: none !important;
+  /* will-change 在无 GPU 路径下只会制造多余的合成层开销，一并禁用 */
+  will-change: auto !important;
 }
 
 html.no-gpu .ik-card:hover .ik-card__cover {
@@ -691,6 +708,8 @@ html.no-gpu .ik-mobile-sheet-leave-active .ik-mobile-sheet__panel {
 
 /* ── 弹窗卡片自适应：不超出视口，内容超高时内部滚动 ── */
 .ik-overlay .ik-dialog__inner {
+  /* dvh 优先（移动端地址栏收起/弹出时高度跟随），100vh 兜底老浏览器 */
+  max-height: calc(100dvh - 48px);
   max-height: calc(100vh - 48px);
   overflow-y: auto;
   overflow-x: hidden;

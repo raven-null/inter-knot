@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 论坛后端 API 入口（Netlify Functions v2）
  *
  * - 单入口 catch-all 路由到 /api/*
@@ -25,9 +25,27 @@ import * as dmRoutes from "./_lib/routes/dm";
 import * as notificationRoutes from "./_lib/routes/notifications";
 import * as stubRoutes from "./_lib/routes/stubs";
 
+/**
+ * 播种守卫：Netlify Functions 每次冷启动只播种一次。
+ * - 模块级 Promise 缓存：同一实例内的后续请求直接跳过，避免每个请求都
+ *   读 settings.json + _meta.seed（每请求 2 次额外 blob GET）。
+ * - 失败时清空缓存，下次请求重试（播种是幂等的，重试安全）。
+ */
+let seedPromise: Promise<void> | null = null;
+
+function ensureSeeded(): Promise<void> {
+  if (!seedPromise) {
+    seedPromise = ensureSeed().catch((err) => {
+      seedPromise = null; // 失败后允许下次请求重试
+      throw err;
+    });
+  }
+  return seedPromise;
+}
+
 export default async function handler(req: Request): Promise<Response> {
   try {
-    await ensureSeed();
+    await ensureSeeded();
   } catch (err) {
     console.error("seed failed:", err);
   }

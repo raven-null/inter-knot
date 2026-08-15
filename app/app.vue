@@ -139,7 +139,11 @@ const overlayOpen = computed(
     </ClientOnly>
 
     <AppHeader />
-    <main id="main-content" class="ik-page">
+    <main
+      id="main-content"
+      class="ik-page"
+      :class="{ 'ik-page--no-bottom-nav': !showMobileBottomNav }"
+    >
       <NuxtPage />
     </main>
     <MobileBottomNav v-if="showMobileBottomNav" />

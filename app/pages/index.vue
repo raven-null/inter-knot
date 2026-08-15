@@ -469,7 +469,9 @@ const stopPolling = () => {
 };
 
 // ── 已删帖轮询：后台/作者删除帖子后，首页立刻移除，无需刷新 ──
-const DELETED_POLL_MS = 8000;
+// 15s 间隔：8s 对移动网络是持续带宽浪费，且删除同步本就有 30s 起点窗口覆盖；
+// 配合 onTabVisible 回前台立即补一次，感知延迟没有实际增加。
+const DELETED_POLL_MS = 15000;
 let lastDeletedSince = 0;
 let deletedPollTimer: ReturnType<typeof setInterval> | null = null;
 

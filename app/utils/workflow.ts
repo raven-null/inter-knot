@@ -47,11 +47,33 @@ const TOOL_TITLES: Record<string, string> = {
   recall_long_term_memory: "回忆过往记忆",
   memorize_long_term_memory: "记录重要信息",
   // 绳网论坛 MCP
-  search_posts: "检索绳网",
-  get_hot_posts: "查看绳网热门",
+  search_posts: "检索绳网帖子",
+  get_hot_posts: "查看绳网最新",
   get_user_info: "查询绳网用户",
   get_post_content: "读取绳网帖子",
   get_post_comments: "读取绳网评论",
+  get_categories: "查询绳网版块",
+  // 操作类（以当前用户身份）
+  publish_post: "发布帖子",
+  reply_comment: "发表评论",
+  like_post: "点赞帖子",
+  favorite_post: "收藏帖子",
+  follow_user: "关注用户",
+  // 管理类（管理员）
+  admin_get_stats: "查看站点统计",
+  admin_list_posts: "管理帖子列表",
+  admin_update_post: "更新帖子状态",
+  admin_delete_post: "删除帖子",
+  admin_list_reports: "查看举报列表",
+  admin_process_report: "处理举报",
+  admin_update_settings: "更新站点设置",
+  admin_list_users: "管理用户列表",
+  // 二次确认
+  fairy_confirm: "确认危险操作",
+  // 长期记忆
+  fairy_memorize: "记住用户信息",
+  fairy_forget: "删除记忆",
+  fairy_clear_memory: "清空记忆",
 };
 
 function toolTitle(tool: string): string {
@@ -212,6 +234,18 @@ export function buildWorkflowSteps(events: AiWorkflowEvent[]): WorkflowStepView[
         const text = typeof d.text === "string" ? d.text : "";
         if (text) s.text = (s.text ?? "") + text;
         if (typeof d.partIndex === "number") s.partIndex = d.partIndex;
+        if (ts != null) touchTimestamp(s, ts);
+        break;
+      }
+      case "tool.round": {
+        // 一轮内同时发起多个工具调用：作为轻量步骤展示
+        const s = upsert(ev.stepId, {
+          kind: "tool",
+          status: "done",
+          title: "执行工具",
+          subtitle: typeof d.count === "number" && d.count > 1 ? `一轮 ${d.count} 个操作` : undefined,
+        });
+        s.status = "done";
         if (ts != null) touchTimestamp(s, ts);
         break;
       }

@@ -226,52 +226,59 @@ export async function create(req: Request): Promise<Response> {
   const node = toComment(doc, new Set());
   node!.replies = [];
 
-  // ── 评论区 @fairy：生成 Fairy 楼中楼回复 ──────────────
+  // ── 评论区 @fairy：生成 Fairy 楼中楼回复（受 Agent 全局配额限制，防刷 GLM） ──
   let fairyReply: Doc | null = null;
   if (mentionedDocIds(content).includes(FAIRY_DOC_ID)) {
-    const title = String(post.title || "无标题");
-    const text = String(post.text || post.body || "").slice(0, 800);
-    const replyText = await generateGlm([
-      { role: "system", content: FAIRY_COMMENT_PROMPT },
-      {
-        role: "user",
-        content: [
-          `帖子标题：${title}`,
-          text ? `帖子内容：${text}` : "",
-          `评论者 ${author?.name || viewer.username || "用户"} 在评论区 @了你：`,
-          content,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      },
-    ]);
-    const fairyCommentId = genId();
-    const fNow = new Date().toISOString();
-    const fairyDoc: Doc = {
-      id: fairyCommentId,
-      document_id: fairyCommentId,
-      post_id: postId,
-      author_id: FAIRY_DOC_ID,
-      parent_id: commentId,
-      content: replyText,
-      images: [],
-      is_anonymous: false,
-      is_pinned: false,
-      likes_count: 0,
-      floor: keys.length + 2,
-      created_at: fNow,
-      author_document_id: FAIRY_DOC_ID,
-      author_username: "fairy",
-      author_name: FAIRY_NAME,
-      author_avatar_url: FAIRY_AVATAR,
-      author_level: 7,
-      author_exp: 0,
-    };
-    const fKey = commentKey(postId, fairyCommentId);
-    await setJson(fKey, fairyDoc);
-    await setJson(KEYS.commentLookup(fairyCommentId), { post_id: postId, key: fKey });
-    await feedUpdate(postId, { comments_count: Number(post.comments_count || 0) + 1 });
-    fairyReply = toComment(fairyDoc, new Set());
+    // 限流：@fairy 每次触发消耗一次用户工具配额（普通用户 30 次/小时），
+    // 并受全站 GLM 每日预算约束；任一超额则不生成 AI 回复（评论照常发布，不阻塞用户）
+    const { consumeToolQuota, consumeGlmBudget } = await import("../agent/ratelimit");
+    const quota = await consumeToolQuota(viewer.userId, viewer.isAdmin, false);
+    const glmBudgetOk = await consumeGlmBudget();
+    if (quota.allowed && glmBudgetOk) {
+      const title = String(post.title || "无标题");
+      const text = String(post.text || post.body || "").slice(0, 800);
+      const replyText = await generateGlm([
+        { role: "system", content: FAIRY_COMMENT_PROMPT },
+        {
+          role: "user",
+          content: [
+            `帖子标题：${title}`,
+            text ? `帖子内容：${text}` : "",
+            `评论者 ${author?.name || viewer.username || "用户"} 在评论区 @了你：`,
+            content,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        },
+      ]);
+      const fairyCommentId = genId();
+      const fNow = new Date().toISOString();
+      const fairyDoc: Doc = {
+        id: fairyCommentId,
+        document_id: fairyCommentId,
+        post_id: postId,
+        author_id: FAIRY_DOC_ID,
+        parent_id: commentId,
+        content: replyText,
+        images: [],
+        is_anonymous: false,
+        is_pinned: false,
+        likes_count: 0,
+        floor: keys.length + 2,
+        created_at: fNow,
+        author_document_id: FAIRY_DOC_ID,
+        author_username: "fairy",
+        author_name: FAIRY_NAME,
+        author_avatar_url: FAIRY_AVATAR,
+        author_level: 7,
+        author_exp: 0,
+      };
+      const fKey = commentKey(postId, fairyCommentId);
+      await setJson(fKey, fairyDoc);
+      await setJson(KEYS.commentLookup(fairyCommentId), { post_id: postId, key: fKey });
+      await feedUpdate(postId, { comments_count: Number(post.comments_count || 0) + 1 });
+      fairyReply = toComment(fairyDoc, new Set());
+    }
   }
 
   return json({

@@ -1920,8 +1920,9 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Account for fixed MobileBottomNav (58px) — shown on screens ≤1100px */
-@media (max-width: 1100px) {
+/* Account for fixed MobileBottomNav (58px) — shown on screens ≤1024px
+   （与 MobileBottomNav.vue 的显示断点保持一致，避免 1025~1100px 区间多余留白） */
+@media (max-width: 1024px) {
   .ik-profile {
     padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px) + 16px);
   }
